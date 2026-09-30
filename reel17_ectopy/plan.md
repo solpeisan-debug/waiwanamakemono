@@ -269,12 +269,14 @@ PVCの拍は脈として触れないことがある → モニターの心拍数
 PVCが2つ続けば報告。形が何種類もある（多源性）ときも報告
 
 ⑤ 報告
-3つ以上続けば心室頻拍。意識・脈・血圧を確認し、K・Mgの値もあわせて報告
+3つ以上続けば心室頻拍（30秒未満で自然に止まるものは「非持続性」）。
+意識・脈・血圧を確認し、K・Mgの値もあわせて報告
+QT延長のある人の二段脈は、トルサードの前ぶれになることがあります（前回のQT延長編）
 ━━━━━━━━━━
 
 【ここが落とし穴】
-1. QRSの広いPACは、PVCに見えます（変行伝導）。
- 　早い拍の直前のT波の形がほかとちがえば、そこにP'が隠れています。
+1. QRSの広いPACは、PVCに見えます（変行伝導。右脚ブロックの形が多い）。
+ 　早い拍の直前のT波の形がほかとちがえば（とがる・ふたこぶ）、そこにP'が隠れています。
 2. 伝わらなかったPACは、洞停止や房室ブロックに見えます。
  　休みの直前のT波を見てください。
 3. 休みの長さは典型の話です。
@@ -293,7 +295,7 @@ PVCが2つ続けば報告。形が何種類もある（多源性）ときも報�
 
 ※動画内の R-R 1000ms、連結期 600ms・550ms、モニター60／脈30 などの具体値は、この波形での一例です（映像内にも明記しています）。実際は患者ごとに幅があります
 ※動画は実際の3分の1の速さで流しています
-※参考：LITFL ECG Library（Premature Atrial Complex / Premature Ventricular Complex）
+※参考：LITFL ECG Library（Premature Atrial Complex／Premature Ventricular Complex／Ventricular Tachycardia – Monomorphic VT）、American Nurse（Premature ventricular complexes）
 
 （caption_template.txt の定型3行：シェア歓迎／転載・素材使用はDMで）
 
@@ -302,16 +304,41 @@ PVCが2つ続けば報告。形が何種類もある（多源性）ときも報�
 
 ---
 
-## 5. 作る前の残作業
+## 5. 医学の裏取り（2026-09-30）
+
+この環境から litfl.com への直接の接続はネットワーク設定で拒否されていたため、**Web検索で返ってくる LITFL ページの本文の抜粋**で照合した。ページ全体は読めていない。
+
+| 台本の記述 | 照合結果 | 出典 |
+|---|---|---|
+| PAC：形のちがうP波、QRSはふつう | ✅「abnormal P wave, usually followed by a normal QRS complex」 | LITFL PAC |
+| PAC：休みは2拍ぶんに届かない（洞結節がリセット） | ✅ SA結節がリセットされ、次の洞の拍までがふつうより長くなる。PVCと違い、休みは直前のR-Rの2倍にならない | LITFL PAC |
+| PAC：P'がT波に隠れる | ✅ 直前のT波に隠れて「とがる／ふたこぶ（camel hump）」に見える | LITFL PAC |
+| 広いPAC＝変行伝導 | ✅ 早いPACは変行伝導し、多くは右脚ブロックの形（右脚の不応期が長いため） | LITFL PAC |
+| 伝わらないPAC → 休みに見える | ✅ 異常なP波のあとにQRSがなく、洞結節のリセットで休みが続く（blocked PAC） | LITFL PAC |
+| PVC：QRSが広い・Tが逆向き | ✅ QRS 120ms以上・形が異常、ST・T波がQRSと逆向き | LITFL PVC |
+| PVC：休みはちょうど2拍ぶん | ✅ PVCをはさむ休みは直前のR-Rの2倍（full compensatory pause） | LITFL PVC |
+| 3つ以上続けば心室頻拍 | ✅ 3拍以上連続。30秒未満で自然に止まれば非持続性。100/分超（台本の3連は約143/分） | LITFL VT – Monomorphic |
+| 二段脈で脈が半分になりうる | ✅ PVCの拍は脈として触れず、触診では正常の拍だけを数えて徐脈と誤ることがある | American Nurse（LITFLの抜粋では未確認） |
+| （追加）QT延長のある人の二段脈はトルサードの前ぶれになりうる | ✅ QT延長編とのつながりとしてキャプションに追記 | LITFL（PVC関連の抜粋） |
+| 間入性PVC（休みがない） | ⚠️ LITFLの抜粋では確認できなかった。一般的な知識として正しいが、出典つきで書くならページ本文で確認が必要 | — |
+
+直した点：
+- キャプションの④⑤に「30秒未満で止まれば非持続性」と「QT延長のある人の二段脈」を追記
+- 落とし穴1に「右脚ブロックの形が多い」「とがる・ふたこぶ」を追記
+- 参考文献に LITFL VT と American Nurse を追加
+
+出典URL：
+- https://litfl.com/premature-atrial-complex-pac/
+- https://litfl.com/premature-ventricular-complex-pvc-ecg-library/
+- https://litfl.com/ventricular-tachycardia-monomorphic-ecg-library/
+- https://www.myamericannurse.com/premature-ventricular-complexes/
+
+---
+
+## 6. 作る前の残作業
 
 1. **QT回の生成スクリプトを土台にする**。問い・軸・カード・流れる波形・まとめカードの部品を流用し、段階の中身と波形の並びだけ差し替える
-2. **医学の裏取り**：LITFL（PAC / PVC）で次を確認する
-   - 代償性・非代償性の休止
-   - 変行伝導
-   - 伝わらないPAC
-   - 間入性PVC
-   - 二段脈での脈の欠損
-   - 心室頻拍の定義（3連以上）
+2. **LITFLのページ全体で最終確認**：ネットワーク設定で litfl.com を許可すれば、抜粋ではなくページ本文を読める。とくに間入性PVC
 3. **波形の部品**：拍ごとに形を変えられるようにする
    - PVC：P波なし・幅広QRS（120ms以上）・逆向きT
    - PAC：P'を小さく・形を変える
