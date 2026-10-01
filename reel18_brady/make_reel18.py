@@ -301,10 +301,13 @@ def t_of(tau_center):
     return t if t < T_STOP else t + FREEZE
 
 
+HANDOFF_EARLY = 0.35
 WINDOWS = []
 for _i in range(len(PATTERNS)):
     _a = T_TITLE if _i == 0 else WINDOWS[-1][1]
-    _b = t_of(SEGS[_i][1] - HALF)          # 区間の終わりが右端に来た瞬間
+    # 区間の終わりが右端の少し先（0.35秒）に来た瞬間。次のパターンの最初のP波・細動波が
+    # 右端に入る前に縮み始めるので、見えているのはパターン i だけになる
+    _b = t_of(SEGS[_i][1] - HALF - HANDOFF_EARLY)
     WINDOWS.append((_a, _b))
 T_END = WINDOWS[-1][1]
 FLY = 0.8                                  # 中部から枠へ縮んで移る時間
