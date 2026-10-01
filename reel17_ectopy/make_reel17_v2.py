@@ -277,7 +277,25 @@ for _i in range(len(PATTERNS)):
     WINDOWS.append((_a, _b))
 T_END = WINDOWS[-1][1]
 FLY = 0.8                                  # 中部から枠へ縮んで移る時間
-DUR = round(T_END + FLY + END_HOLD, 1)
+LOOP_FADE = 0.75                           # 最後に冒頭の画面へ戻す時間
+FPS_LOOP = 60
+
+
+def _loop_dur():
+    """14個そろったあと END_HOLD 秒ほど置き、最後のコマの次が t=0 のコマになる長さ。
+    最後に見えている洞調律と、冒頭の洞調律の位相（0.80秒周期）をそろえる。"""
+    base = T_END + FLY + END_HOLD
+    best = None
+    for n in range(int(base*FPS_LOOP), int((base + RR*SLOW + 0.5)*FPS_LOOP)):
+        d = n / FPS_LOOP
+        ph = ((tau_c(d) - STRIP_END) - tau_c(0.0)) % RR
+        err = min(ph, RR - ph)
+        if best is None or err < best[0] - 1e-9:
+            best = (err, d)
+    return best[1]
+
+
+DUR = _loop_dur()
 
 
 # --- ミニ波形の枠 -----------------------------------------------------------------
@@ -508,7 +526,7 @@ def cell_strip_origin(i):
     return x0 + 10, y0 + 30
 
 
-def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0):
+def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=None, a_norm=1.0):
     """パターン i をくり返した波形を、画面の x_lo〜x_hi に描いた RGBA（全画面サイズの一部）。
     中央 cx に来る時刻は tau_c(t)（中部の帯と同じ）。区間の始まりからの相対時刻で周期にする。"""
     pat = PATTERNS[i]
@@ -537,7 +555,8 @@ def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0):
         if not len(idx):
             continue
         runs = [list(zip(xs[r] - bx0, ys[r] - by0)) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)]
-        out.alpha_composite(glow_line(size, runs, col, lw, a, blur=blur))
+        out.alpha_composite(glow_line(size, runs, col, (lw_e or lw) if flag else lw,
+                                      a if flag else a*a_norm, blur=blur))
     return out, (bx0, by0)
 
 
@@ -558,9 +577,14 @@ def view_params(i, u):
     return cx, base_y, pxs, mv, cx - half, cx + half, lw, (b1, b2)
 
 
-def mini(base, i, t, u=1.0):
+MINI_LW_ECT = 3.8                  # ミニ波形で、期外収縮の拍の線の太さ（ふつうの拍は 2.2）
+MINI_A_NORM = 0.72                 # ミニ波形で、ふつうの拍の濃さ
+
+
+def mini(base, i, t, u=1.0, a=1.0):
     cx, by, pxs, mv, xl, xh, lw, bl = view_params(i, u)
-    im, pos = pattern_view(i, t, cx, by, pxs, mv, xl, xh, lw, bl)
+    im, pos = pattern_view(i, t, cx, by, pxs, mv, xl, xh, lw, bl, a=a,
+                           lw_e=lerp(4.5, MINI_LW_ECT, u), a_norm=lerp(1.0, MINI_A_NORM, u))
     base.alpha_composite(im, pos)
 
 
@@ -638,9 +662,11 @@ def frame(t):
         _GRID = grid()
     im = _GRID.copy()
 
-    draw_header(im, ramp(t, 2.5, 0.5))
+    a_loop = ramp(t, DUR - LOOP_FADE - 0.05, LOOP_FADE - 0.05)   # 1 で冒頭と同じ画面
+    keep = 1 - a_loop
+    draw_header(im, ramp(t, 2.5, 0.5)*keep)
 
-    a_cells = ramp(t, T_GO - 0.3, 0.6)
+    a_cells = ramp(t, T_GO - 0.3, 0.6)*keep
     cur = current(t)
     flying = None
     for i in range(N_PAT):
@@ -657,7 +683,7 @@ def frame(t):
             flying = i
         draw_cell(im, i, t, st, a_cells)
         if st == 'done':
-            mini(im, i, t, 1.0)
+            mini(im, i, t, 1.0, a=keep)
 
     # 中部：紹介中の名前とひとこと
     if cur is not None:
@@ -668,7 +694,7 @@ def frame(t):
         put(im, pat['one'], 32, 500, (226, 232, 231), cx=540, cy=Y_ONE, a=al, max_w=820)
 
     # 冒頭：タイトルと、変形中のパターン名
-    a_t = 1 - ramp(t, T_GO - 0.5, 0.5)
+    a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
     if a_t > 0:
         put(im, '心電図で気づく', 36, 500, PURPLE, cx=540, cy=560, a=a_t)
         put(im, '期外収縮', 150, 900, WHITE, cx=540, cy=690, a=a_t)
@@ -679,10 +705,11 @@ def frame(t):
                 put(im, f"{pat['no']} {pat['name']}", 44, 900, pat['col'], cx=540, cy=Y_ONE - 10,
                     a=a_t*ramp(u, 0.3, 0.4), max_w=820)
 
-    a_end = ramp(t, T_END + FLY, 0.6)
+    a_end = ramp(t, T_END + FLY, 0.6)*keep
     if a_end > 0:
         put(im, '1拍だけ早かったら、この14パターン', 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end, max_w=820)
-        put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=Y_ONE, a=ramp(t, T_END + FLY + 1.5, 0.6))
+        put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=Y_ONE,
+            a=ramp(t, T_END + FLY + 1.5, 0.6)*keep)
 
     # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
     # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
@@ -691,16 +718,36 @@ def frame(t):
         b_i = WINDOWS[i][1]
         if b_i <= t < b_i + FLY + 0.35:
             a_strip = min(a_strip, ramp(t, b_i + FLY - 0.1, 0.45))
-    base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8))
+    base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     if a_strip > 0.01:
         im.alpha_composite(featured(t, base_col, a_strip), (0, F_Y0))
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
 
-    put(im, NOTE1, 24, 400, GREY, x=135, cy=1567, a=0.85*ramp(t, T_GO, 0.5))
-    put(im, NOTE2, 24, 400, GREY, x=135, cy=1594, a=0.85*ramp(t, T_GO, 0.5))
+    put(im, NOTE1, 24, 400, GREY, x=135, cy=1567, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE2, 24, 400, GREY, x=135, cy=1594, a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
+    return im.convert('RGB')
+
+
+def thumbnail():
+    """サムネイル（透かしなし）。14個そろった一覧に、大きな「期外収縮」と⑥PVCの波形。
+    プロフィールのグリッド（中央 1080×1350、y 285〜1635）に要素が収まる。"""
+    global _GRID
+    if _GRID is None:
+        _GRID = grid()
+    t = T_END + FLY + 2.0
+    im = _GRID.copy()
+    draw_header(im, 1.0)
+    for i in range(N_PAT):
+        draw_cell(im, i, t, 'done', 1.0)
+        mini(im, i, t, 1.0)
+    put(im, '1拍だけ早い拍、見分けられる？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 28, max_w=820)
+    put(im, '期外収縮', 96, 900, WHITE, cx=540, cy=Y_ONE + 8)
+    v, cid = hook_arrays(5)
+    wl = draw_wave(v, cid, WAVE_GREEN, 1.0)
+    im.alpha_composite(wl, (0, F_Y0 + 50))
     return im.convert('RGB')
 
 
@@ -791,10 +838,15 @@ def main():
     ap.add_argument('--out', default=os.path.join(HERE, 'out', 'reel17_ectopy_v2.mp4'))
     ap.add_argument('--still', type=float, nargs='*')
     ap.add_argument('--check', action='store_true')
+    ap.add_argument('--thumb', action='store_true')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 2)
     o = ap.parse_args()
     if o.check:
         check(); return
+    if o.thumb:
+        os.makedirs(os.path.dirname(o.out), exist_ok=True)
+        p = os.path.join(os.path.dirname(o.out), 'thumb_reel17_v2.png')
+        thumbnail().save(p); print(p); return
     os.makedirs(os.path.dirname(o.out), exist_ok=True)
     if o.still:
         for s in o.still:
