@@ -285,6 +285,7 @@ CELL_W, CELL_H = 400, 92
 COL_X = (130, 550)
 TOP_Y = [396, 496, 596, 696]
 BOT_Y = [1248, 1348, 1448]
+CELL_FILL = 225                    # 枠の中の塗りの濃さ（0〜255）。方眼をうっすら残す
 M_PXS = 88.0                      # ミニ波形：実際の1秒 = 88px
 M_MV = 27.0
 
@@ -569,16 +570,17 @@ def draw_cell(base, i, t, state, a_all):
     pat = PATTERNS[i]
     lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay)
+    a_fill = a_all                          # 枠の中の塗り：方眼が透けすぎないよう、薄くする対象から外す
     if state in ('empty', 'now'):
-        a_all = a_all * 0.5                 # ミニ波形がないものは薄く
+        a_all = a_all * 0.5                 # ミニ波形がないものは、枠線と文字だけ薄く
     if state in ('now', 'landing'):
         pulse = 0.55 + 0.45*math.sin(t*5.0)**2
         if state == 'now':
             pulse = min(1.0, pulse*1.6)
-        d.rounded_rectangle((x0, y0, x1, y1), radius=14, fill=CARD_FILL + (int(150*a_all),),
+        d.rounded_rectangle((x0, y0, x1, y1), radius=14, fill=CARD_FILL + (int(CELL_FILL*a_fill),),
                             outline=pat['col'] + (int(255*pulse*a_all),), width=3)
     else:
-        d.rounded_rectangle((x0, y0, x1, y1), radius=14, fill=CARD_FILL + (int(170*a_all),),
+        d.rounded_rectangle((x0, y0, x1, y1), radius=14, fill=CARD_FILL + (int(CELL_FILL*a_fill),),
                             outline=CARD_EDGE + (int(255*a_all),), width=2)
     base.alpha_composite(lay)
     if state in ('done', 'landing'):
