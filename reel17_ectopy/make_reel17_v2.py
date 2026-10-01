@@ -140,7 +140,7 @@ PATTERNS = [
     dict(no='⑩', name='三段脈', col=C_PAT, rep=2, hint="2拍おき",
          one='2拍おきにPVC',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (1.6, 'N')], L=2.4),
-    dict(no='⑪', name='四段脈', col=C_PAT, rep=2, hint="3拍おき",
+    dict(no='⑪', name='四段脈', col=C_PAT, rep=1, hint="3拍おき",
          one='3拍おきにPVC',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (1.6, 'N'), (2.4, 'N')], L=3.2),
     dict(no='⑫', name='2連発', col=C_DNG, rep=2, hint="2つ続く",
@@ -199,8 +199,8 @@ def periodic_beats(pat, t0, t1):
 # 元の波形に戻ってから T_GO でまた流す。T_TITLE でパターン①が右端から入ってくる。
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
-T_TITLE = 3.2
-END_HOLD = 5.0                    # 14個そろってからの時間
+T_TITLE = 7.5                     # ナレーションの冒頭3文（約7.4秒）が入る長さ
+END_HOLD = 5.8                    # 14個そろってからの時間（最後の2文が入る長さ）
 HOOK = [0, 8, 7, 13, 12]          # ①PAC → ⑨二段脈 → ⑧多源性 → ⑭R on T → ⑬3連以上
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
