@@ -109,25 +109,25 @@ KINDS = {
 # 14パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ
 # どれも洞調律 0.80秒の上に置く。PVC・PJCは洞の時計を乱さない（休みは2拍ぶん）
 PATTERNS = [
-    dict(no='①', name='PAC', col=C_ATR, rep=1, hint="形のちがうP波",
+    dict(no='①', name='PAC', col=C_ATR, rep=2, hint="形のちがうP波",
          one="形のちがうP'が早く出る・QRSは細い",
          beats=[(0, 'N'), (.48, 'A'), (1.40, 'N'), (2.20, 'N')], L=3.0),
-    dict(no='②', name="P'が隠れるPAC", col=C_ATR, rep=1, hint="Tがとがる",
+    dict(no='②', name="P'が隠れるPAC", col=C_ATR, rep=2, hint="Tがとがる",
          one="P'がT波に重なって、Tがとがる",
          beats=[(0, 'N'), (.40, 'A'), (1.35, 'N'), (2.15, 'N')], L=2.95),
-    dict(no='③', name='伝わらないPAC', col=C_ATR, rep=1, hint="QRSが来ない",
+    dict(no='③', name='伝わらないPAC', col=C_ATR, rep=2, hint="QRSが来ない",
          one="P'のあとにQRSがない → 休みに見える",
          beats=[(0, 'N'), (.27+PR, 'B'), (1.40, 'N'), (2.20, 'N')], L=3.0),
-    dict(no='④', name='変行伝導のPAC', col=C_ATR, rep=1, hint="Pはあるのに広い",
+    dict(no='④', name='変行伝導のPAC', col=C_ATR, rep=2, hint="Pはあるのに広い",
          one="P'はあるのに、QRSが広い",
          beats=[(0, 'N'), (.45, 'Aa'), (1.40, 'N'), (2.20, 'N')], L=3.0),
-    dict(no='⑤', name='PJC', col=C_JUN, rep=1, hint="Pのない細いQRS",
+    dict(no='⑤', name='PJC', col=C_JUN, rep=2, hint="Pのない細いQRS",
          one='細いQRSが早く出る・P波がない',
          beats=[(0, 'N'), (.50, 'J'), (.8, 'p'), (1.6, 'N'), (2.4, 'N')], L=3.2),
-    dict(no='⑥', name='PVC', col=C_VEN, rep=1, hint="広いQRS",
+    dict(no='⑥', name='PVC', col=C_VEN, rep=2, hint="広いQRS",
          one='広いQRS・Tが逆向き・休みは2拍ぶん',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (1.6, 'N'), (2.4, 'N')], L=3.2),
-    dict(no='⑦', name='逆行性P波つきPVC', col=C_VEN, rep=1, hint="うしろに逆向きのP",
+    dict(no='⑦', name='逆行性P波つきPVC', col=C_VEN, rep=2, hint="うしろに逆向きのP",
          one='QRSのあとに、逆向きのP波',
          beats=[(0, 'N'), (.48, 'Vr'), (1.6, 'N'), (2.4, 'N')], L=3.2),
     dict(no='⑧', name='多源性PVC', col=C_VEN, rep=1, hint="形が2種類",
@@ -140,13 +140,13 @@ PATTERNS = [
     dict(no='⑩', name='三段脈', col=C_PAT, rep=2, hint="2拍おき",
          one='2拍おきにPVC',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (1.6, 'N')], L=2.4),
-    dict(no='⑪', name='四段脈', col=C_PAT, rep=1, hint="3拍おき",
+    dict(no='⑪', name='四段脈', col=C_PAT, rep=2, hint="3拍おき",
          one='3拍おきにPVC',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (1.6, 'N'), (2.4, 'N')], L=3.2),
     dict(no='⑫', name='2連発', col=C_DNG, rep=2, hint="2つ続く",
          one='PVCが2つ続く → 報告',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (.90, 'V'), (1.6, 'N')], L=2.4),
-    dict(no='⑬', name='3連以上', col=C_DNG, rep=1, hint="3つ以上続く",
+    dict(no='⑬', name='3連以上', col=C_DNG, rep=2, hint="3つ以上続く",
          one='3つ以上・100/分超 → 非持続性心室頻拍',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (.90, 'V'), (1.32, 'V'), (1.6, 'p'),
                 (1.74, 'V'), (2.4, 'N')], L=3.2),
@@ -195,8 +195,14 @@ def periodic_beats(pat, t0, t1):
 # パターン i は、実際の時刻 [SEGS[i][0], SEGS[i][1]) にそのパターンを rep 回くり返して置く。
 # 紹介の終わり＝区間の終わりが画面の右端に来たとき。このとき画面に見えているのは
 # パターン i だけなので、それをそのまま縮めて枠へ運ぶと、ミニ波形とつながる。
-T_TITLE = 2.5                     # タイトルのあいだ（洞調律だけ）
-END_HOLD = 6.0                    # 14個そろってからの時間
+# 冒頭のフック：流れている波形を T_STOP で止め、その場で5つのパターンに素早く変形し、
+# 元の波形に戻ってから T_GO でまた流す。T_TITLE でパターン①が右端から入ってくる。
+T_STOP, T_GO = 0.6, 2.9
+FREEZE = T_GO - T_STOP
+T_TITLE = 3.2
+END_HOLD = 5.0                    # 14個そろってからの時間
+HOOK = [0, 8, 7, 13, 12]          # ①PAC → ⑨二段脈 → ⑧多源性 → ⑭R on T → ⑬3連以上
+HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
 
 def _strip():
@@ -227,22 +233,41 @@ STRIP, SEGS, STRIP_END = _strip()
 F_PXMM = 14.0
 F_PXS = 25 * F_PXMM
 F_MV = 10 * F_PXMM
-F_BASE = 1090
-F_Y0, F_Y1 = 890, 1236
+# 中部のかたまり：名前（54px）→ ひとこと（32px）→ 波形（R頂点 1mV 〜 下 0.6mV）
+_TOP_END = 696 + 92                # ④⑧の下端
+_BOT_TOP = 1248                    # ⑨⑫の上端
+# 見た目の上端（名前の字の上）〜下端（PVCのS波の底、約0.4mV）で余白をそろえる
+_MID_H = 22 + 54 + 16 + 30 + 140 + 56
+_GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
+Y_NAME = _TOP_END + _GAP + 22
+Y_ONE = Y_NAME + 54
+F_BASE = Y_ONE + 16 + 30 + 140
+F_Y0, F_Y1 = int(F_BASE - 200), int(_BOT_TOP - 2)
 XC = W / 2
 HALF = XC / F_PXS                 # 画面の半分が実際の何秒か
 
-# t=T_TITLE で、パターン①の区間の始まりが画面の右端に来る
-OFFSET = -HALF - T_TITLE
+# t=T_TITLE で、パターン①の区間の始まりが画面の右端に来る（止まっていた時間を引く）
+OFFSET = -HALF - (T_TITLE - FREEZE) / SLOW
+
+
+def te(t):
+    """波形の時計：T_STOP〜T_GO は止まる。"""
+    if t < T_STOP:
+        return t
+    if t < T_GO:
+        return T_STOP
+    return t - FREEZE
 
 
 def tau_c(t):
     """画面の中央にある実際の時刻。"""
-    return t / SLOW + OFFSET
+    return te(t) / SLOW + OFFSET
 
 
 def t_of(tau_center):
-    return (tau_center - OFFSET) * SLOW
+    """その時刻が画面の中央に来る t（止まっているあいだは除く）。"""
+    t = (tau_center - OFFSET) * SLOW
+    return t if t < T_STOP else t + FREEZE
 
 
 WINDOWS = []
@@ -258,7 +283,7 @@ DUR = round(T_END + FLY + END_HOLD, 1)
 # --- ミニ波形の枠 -----------------------------------------------------------------
 CELL_W, CELL_H = 400, 92
 COL_X = (130, 550)
-TOP_Y = [380, 480, 580, 680]
+TOP_Y = [396, 496, 596, 696]
 BOT_Y = [1248, 1348, 1448]
 M_PXS = 88.0                      # ミニ波形：実際の1秒 = 88px
 M_MV = 27.0
@@ -398,22 +423,80 @@ def glow_line(size, runs, col, width, a, blur=(8, 20)):
     return out
 
 
-def featured(t, base_col, a):
+FX = np.arange(0, W + 1, 0.5)
+
+
+def strip_arrays(tau_center):
+    tau = tau_center + (FX - XC) / F_PXS
+    return wave_from(STRIP, tau), strip_colors(tau)
+
+
+def ectopic_mask(bl, rel):
+    ect = np.zeros(len(rel), dtype=bool)
+    for r, k in bl:
+        if k in ('N', 'p'):
+            continue
+        lo, hi = (r - PR - 0.06, r + 0.40) if k in ('A', 'Aa', 'B') else (r - 0.09, r + 0.40)
+        ect |= (rel >= lo) & (rel <= hi)
+    return ect
+
+
+def hook_arrays(i):
+    """フック用：パターン i の、期外収縮が中央の少し左に来る一場面。"""
+    pat = PATTERNS[i]
+    first = min(r for r, k in pat['beats'] if k not in ('N', 'p'))
+    rel = first + 0.35 + (FX - XC) / F_PXS + pat['L']
+    bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
+    v = wave_from(bl, rel)
+    cid = np.where(ectopic_mask(bl, rel), i, -1)
+    return v, cid
+
+
+_HOOK = {}
+
+
+def hook_targets():
+    if not _HOOK:
+        _HOOK['seq'] = [strip_arrays(tau_c(T_STOP))] + [hook_arrays(i) for i in HOOK] \
+            + [strip_arrays(tau_c(T_STOP))]
+    return _HOOK['seq']
+
+
+def hook_state(t):
+    """止まっているあいだの (変形の前, 後, 進み具合, 表示中のパターン)。"""
+    seq = hook_targets()
+    times = [HOOK_T0 + k*HOOK_STEP for k in range(len(HOOK))] + [HOOK_T0 + len(HOOK)*HOOK_STEP]
+    k = -1
+    for n, tk in enumerate(times):
+        if t >= tk:
+            k = n
+    if k < 0:
+        return seq[0], seq[0], 1.0, None
+    u = ease((t - times[k]) / HOOK_MORPH)
+    shown = HOOK[k] if k < len(HOOK) else None
+    return seq[k], seq[k + 1], u, shown
+
+
+def draw_wave(v, cid, base_col, a):
     h = F_Y1 - F_Y0
-    xs = np.arange(0, W + 1, 0.5)
-    tau = tau_c(t) + (xs - XC) / F_PXS
-    v = wave_from(STRIP, tau)
     ys = F_BASE - F_Y0 - v*F_MV
-    cid = strip_colors(tau)
     out = Image.new('RGBA', (W, h), (0, 0, 0, 0))
     for ci in np.unique(cid):
         sel = cid == ci
         sel = sel | np.roll(sel, 1) | np.roll(sel, -1)
         idx = np.where(sel)[0]
-        runs = [list(zip(xs[r], ys[r])) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)]
+        runs = [list(zip(FX[r], ys[r])) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)]
         col = base_col if ci < 0 else PATTERNS[ci]['col']
         out.alpha_composite(glow_line((W, h), runs, col, 4.5, a))
     return out
+
+
+def featured(t, base_col, a):
+    if T_STOP <= t < T_GO:
+        (v0, c0), (v1, c1), u, _ = hook_state(t)
+        return draw_wave(v0 + (v1 - v0)*u, c1 if u >= 0.5 else c0, base_col, a)
+    v, cid = strip_arrays(tau_c(t))
+    return draw_wave(v, cid, base_col, a)
 
 
 STRIP_W, STRIP_H, STRIP_BASE = CELL_W - 20, 62, 38     # ミニ波形の帯（枠の中）
@@ -486,8 +569,12 @@ def draw_cell(base, i, t, state, a_all):
     pat = PATTERNS[i]
     lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay)
+    if state in ('empty', 'now'):
+        a_all = a_all * 0.5                 # ミニ波形がないものは薄く
     if state in ('now', 'landing'):
         pulse = 0.55 + 0.45*math.sin(t*5.0)**2
+        if state == 'now':
+            pulse = min(1.0, pulse*1.6)
         d.rounded_rectangle((x0, y0, x1, y1), radius=14, fill=CARD_FILL + (int(150*a_all),),
                             outline=pat['col'] + (int(255*pulse*a_all),), width=3)
     else:
@@ -498,7 +585,7 @@ def draw_cell(base, i, t, state, a_all):
         put(base, f"{pat['no']} {pat['name']}", 22, 700, pat['col'], x=x0 + 14, cy=y0 + 17,
             a=a_all, max_w=CELL_W - 30)
     elif state == 'now':
-        put(base, f"{pat['no']} 紹介中", 22, 700, pat['col'], x=x0 + 14, cy=y0 + 17, a=a_all)
+        put(base, pat['no'], 30, 700, pat['col'], x=x0 + 16, cy=y0 + CELL_H/2, a=min(1.0, a_all*2))
     else:
         put(base, pat['no'], 30, 700, DIM, x=x0 + 16, cy=y0 + CELL_H/2, a=a_all)
         put(base, f"ヒント：{pat['hint']}", 24, 500, (120, 134, 132), x=x0 + 64, cy=y0 + CELL_H/2,
@@ -506,7 +593,8 @@ def draw_cell(base, i, t, state, a_all):
 
 
 # --- 画面 ---------------------------------------------------------------------------
-HEADER = '期外収縮、ぜんぶで14パターン'
+HEADER = [('期外収縮、まず覚えたい', 1.0, WHITE), ('14', 2.0, (255, 214, 64)), ('パターン', 1.0, WHITE)]
+HEADER_BASE = 372                   # 見出しのベースライン（y）
 NOTE1 = '実際の速さ（心拍数75/分）'
 NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
@@ -519,6 +607,26 @@ def current(t):
     return None
 
 
+def draw_header(base, a):
+    """「期外収縮、まず覚えたい」＋大きな黄色の「14」＋「パターン」。左右の余白（130px）に収める。"""
+    if a <= 0.004:
+        return
+    size = 46
+    while True:
+        parts = [text_img(sx, int(size*k), 800, col) for sx, k, col in HEADER]
+        widths = [im.size[0] - 8 for im, _ in parts]
+        total = sum(widths) + 6*(len(parts) - 1)
+        if total <= W - 2*130 - 10 or size <= 24:
+            break
+        size -= 1
+    x = (W - total) / 2
+    for (im, asc), w in zip(parts, widths):
+        if a < 0.999:
+            im = im.copy(); im.putalpha(im.getchannel('A').point(lambda q: int(q*a)))
+        base.alpha_composite(im, (int(x - 4), int(HEADER_BASE - 4 - asc)))
+        x += w + 6
+
+
 _GRID = None
 
 
@@ -528,9 +636,9 @@ def frame(t):
         _GRID = grid()
     im = _GRID.copy()
 
-    put(im, HEADER, 46, 800, WHITE, cx=540, cy=330, a=ramp(t, 2.0, 0.5))
+    draw_header(im, ramp(t, 2.5, 0.5))
 
-    a_cells = ramp(t, 1.6, 0.6)
+    a_cells = ramp(t, T_GO - 0.3, 0.6)
     cur = current(t)
     flying = None
     for i in range(N_PAT):
@@ -554,18 +662,25 @@ def frame(t):
         a_i, b_i = WINDOWS[cur]
         pat = PATTERNS[cur]
         al = ramp(t, a_i + 0.1, 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
-        put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=812, a=al, max_w=820)
-        put(im, pat['one'], 32, 500, (226, 232, 231), cx=540, cy=866, a=al, max_w=820)
+        put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=al, max_w=820)
+        put(im, pat['one'], 32, 500, (226, 232, 231), cx=540, cy=Y_ONE, a=al, max_w=820)
 
-    a_t = 1 - ramp(t, 1.8, 0.6)
+    # 冒頭：タイトルと、変形中のパターン名
+    a_t = 1 - ramp(t, T_GO - 0.5, 0.5)
     if a_t > 0:
-        put(im, '心電図で気づく', 34, 500, PURPLE, cx=540, cy=760, a=a_t)
-        put(im, '期外収縮', 130, 900, WHITE, cx=540, cy=860, a=a_t)
+        put(im, '心電図で気づく', 36, 500, PURPLE, cx=540, cy=560, a=a_t)
+        put(im, '期外収縮', 150, 900, WHITE, cx=540, cy=690, a=a_t)
+        if T_STOP <= t < T_GO:
+            _, _, u, shown = hook_state(t)
+            if shown is not None:
+                pat = PATTERNS[shown]
+                put(im, f"{pat['no']} {pat['name']}", 44, 900, pat['col'], cx=540, cy=Y_ONE - 10,
+                    a=a_t*ramp(u, 0.3, 0.4), max_w=820)
 
     a_end = ramp(t, T_END + FLY, 0.6)
     if a_end > 0:
-        put(im, '1拍だけ早い拍は、この14パターン', 40, 800, WHITE, cx=540, cy=812, a=a_end, max_w=820)
-        put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=866, a=ramp(t, T_END + FLY + 1.5, 0.6))
+        put(im, '1拍だけ早かったら、この14パターン', 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end, max_w=820)
+        put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=Y_ONE, a=ramp(t, T_END + FLY + 1.5, 0.6))
 
     # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
     # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
@@ -574,16 +689,15 @@ def frame(t):
         b_i = WINDOWS[i][1]
         if b_i <= t < b_i + FLY + 0.35:
             a_strip = min(a_strip, ramp(t, b_i + FLY - 0.1, 0.45))
-    u = ramp(t, 1.4, 1.0)
-    base_col = mix(PURPLE, WAVE_GREEN, u)
+    base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8))
     if a_strip > 0.01:
         im.alpha_composite(featured(t, base_col, a_strip), (0, F_Y0))
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
 
-    put(im, NOTE1, 24, 400, GREY, x=135, cy=1567, a=0.85*ramp(t, 2.0, 0.5))
-    put(im, NOTE2, 24, 400, GREY, x=135, cy=1594, a=0.85*ramp(t, 2.0, 0.5))
+    put(im, NOTE1, 24, 400, GREY, x=135, cy=1567, a=0.85*ramp(t, T_GO, 0.5))
+    put(im, NOTE2, 24, 400, GREY, x=135, cy=1594, a=0.85*ramp(t, T_GO, 0.5))
     put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
     return im.convert('RGB')
 
@@ -650,7 +764,7 @@ def beeps(path, sr=44100):
         if k in ('p', 'B'):
             continue
         ts = t_of(r)
-        if not (2.5 <= ts <= DUR - 0.3):
+        if not (0.0 <= ts <= DUR - 0.3) or (T_STOP <= ts < T_GO):
             continue
         f = 720.0 if k.startswith('V') else 960.0
         L = int(0.08*sr)
@@ -658,6 +772,11 @@ def beeps(path, sr=44100):
         s = 0.2*np.minimum(1, tt/0.004)*np.exp(-tt/0.045)*np.sin(2*np.pi*f*tt)
         j = int(ts*sr)
         a[j:j+L] += s[:max(0, min(L, n-j))]
+    for k in range(len(HOOK)):                # 冒頭の変形のたびに
+        ts = HOOK_T0 + k*HOOK_STEP
+        L = int(0.07*sr); tt = np.arange(L)/sr
+        s = 0.2*np.minimum(1, tt/0.004)*np.exp(-tt/0.04)*np.sin(2*np.pi*720.0*tt)
+        j = int(ts*sr); a[j:j+L] += s
     pcm = (np.clip(a, -1, 1)*32767).astype(np.int16)
     with wave.open(path, 'wb') as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
