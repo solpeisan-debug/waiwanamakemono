@@ -137,7 +137,7 @@ PATTERNS = [
     dict(no='⑨', name='二段脈', col=C_PAT, rep=3, hint="1拍おき",
          one='1拍おきにPVC。脈は半分のことも',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p')], L=1.6),
-    dict(no='⑩', name='三段脈', col=C_PAT, rep=2, hint="2拍おき",
+    dict(no='⑩', name='三段脈', col=C_PAT, rep=1, hint="2拍おき",
          one='2拍おきにPVC',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (1.6, 'N')], L=2.4),
     dict(no='⑪', name='四段脈', col=C_PAT, rep=1, hint="3拍おき",
@@ -200,7 +200,7 @@ def periodic_beats(pat, t0, t1):
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
 T_TITLE = 7.5                     # ナレーションの冒頭3文（約7.4秒）が入る長さ
-END_HOLD = 5.8                    # 14個そろってからの時間（最後の2文が入る長さ）
+DUR_TARGET = 90.0                 # 尺（ちょうど90秒）。14個そろってからの時間は、ここから逆算する
 HOOK = [0, 8, 7, 13, 12]          # ①PAC → ⑨二段脈 → ⑧多源性 → ⑭R on T → ⑬3連以上
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
@@ -220,9 +220,14 @@ def _strip():
     k = -1
     while k*RR > -12:                     # 前：洞調律
         beats.append((k*RR, 'N', None)); k -= 1
-    k = 0
-    while k*RR < 40:                      # うしろ：洞調律
-        beats.append((end + k*RR, 'N', None)); k += 1
+    # うしろ：洞調律。尺をちょうど DUR_TARGET にしてもループがつながるよう、
+    # 最初の6拍の間隔を少しだけ広げて位相をそろえる（0.80秒 → 最大 0.80+0.8/6 秒）
+    shift = (DUR_TARGET - FREEZE - end) % RR
+    tt = end
+    beats.append((tt, 'N', None))
+    for k in range(1, 60):
+        tt += RR + (shift/6 if k <= 6 else 0.0)
+        beats.append((tt, 'N', None))
     beats.sort(key=lambda b: b[0])
     return beats, segs, end
 
@@ -279,9 +284,10 @@ T_END = WINDOWS[-1][1]
 FLY = 0.8                                  # 中部から枠へ縮んで移る時間
 LOOP_FADE = 0.75                           # 最後に冒頭の画面へ戻す時間
 FPS_LOOP = 60
+END_HOLD = DUR_TARGET - T_END - FLY        # 14個そろってからの時間
 
 
-def _loop_dur():
+def _loop_dur_search():
     """14個そろったあと END_HOLD 秒ほど置き、最後のコマの次が t=0 のコマになる長さ。
     最後に見えている洞調律と、冒頭の洞調律の位相（0.80秒周期）をそろえる。"""
     base = T_END + FLY + END_HOLD
@@ -295,7 +301,7 @@ def _loop_dur():
     return best[1]
 
 
-DUR = _loop_dur()
+DUR = DUR_TARGET
 
 
 # --- ミニ波形の枠 -----------------------------------------------------------------
