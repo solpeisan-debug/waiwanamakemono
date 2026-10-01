@@ -13,7 +13,7 @@
 - テーマ：期外収縮（PAC／PVC）が、どこから危ないか
 - 段階の軸：**正常 → PAC → PVC → 二段脈 → 連発 → 報告**（6点。QT回の「正常 → QT延長 → 危険域 → R on T → トルサード → 停止」と同じ数）
 - つながり：
-  - 16弾（頻拍）：PSVT の多くは PAC 1拍から始まる。最後の段階で「3つ以上続けば心室頻拍」と16弾へつなげる
+  - 16弾（頻拍）：PAC 1拍が、PSVT（AVNRT・AVRT）などの頻拍のきっかけになることがある（LITFL）。最後の段階で「3つ以上続けば心室頻拍」と16弾へつなげる
   - QT回：R on T とトルサードはQT回で説明済みなので、この回では名前を出す程度にとどめる
 - 尺：**90.0秒**。1080×1920、**60fps**（QT回と同じ）
 
@@ -113,7 +113,7 @@
 | 23 | **PAC** ／ 心房期外収縮 |
 | 24 | 形のちがうP波（P'）が、早く出る |
 | 29 | QRSは細いまま |
-| 32 | 休みは2拍ぶんより短い |
+| 32 | 休みは、ちょうど2拍ぶんにはならない |
 
 - 波形：P'を水色、文字「P'」
 - 休み：予想の目盛りより前にずれる
@@ -166,7 +166,7 @@
 
 | 段階名（色） | 数値（同じ色・小） | 一言（白） |
 |---|---|---|
-| **PAC**（水色） | P'あり | QRSは細い・休みは短め |
+| **PAC**（水色） | P'あり | QRSは細い・休みは2拍ぶんにならない |
 | **PVC**（黄） | P'なし | QRSが広い・休みは2拍ぶん |
 | **二段脈**（オレンジ） | 1拍おき | 脈は指で数える |
 | **連発**（ピンク） | 2つ以上 | 報告 |
@@ -219,7 +219,7 @@
 | 23.4 | 心房から来る、PAC。 |
 | 24.4 | 形のちがうP波が、早く出ます。 |
 | 29.4 | QRSは、細いまま。 |
-| 32.2 | 休みは、2拍ぶんに 届きません。 |
+| 32.2 | 休みは、ちょうど2拍ぶんには なりません。 |
 | 35.4 | 心室から来る、PVC。 |
 | 36.4 | P波がなくて、QRSが広い。 |
 | 42.2 | 休みは、ちょうど2拍ぶん。 |
@@ -236,7 +236,7 @@
 
 ### 言い回しの注意
 - **「PVCは危ない」と言い切らない。** 単発で症状がなければ、経過観察になることが多い
-- **「休みの長さでPACとPVCが必ずわかる」と言わない。** 典型の話。例外はキャプションに書く：休みの長いPAC、休みのないPVC（間入性）、QRSの広いPAC（変行伝導）
+- **「休みの長さでPACとPVCが必ずわかる」と言わない。** LITFLも PVC の休みは「usually（たいてい）」2拍ぶん、としている。見分けの決め手は「早い拍の前にP'があるか」（LITFL：変行伝導のPACは、前にP波があることでPVCと見分ける）
 - **「3つ以上＝心室頻拍」** は定義として正しい。持続するかどうか（30秒）は、キャプションで補う
 - R on T は QT回で扱ったので、名前だけにする（キャプションの報告の目安に入れる）
 
@@ -251,27 +251,30 @@
 
 リズムは一定なのに、1拍だけ早い。これが期外収縮。
 どこまで様子を見ていいのか。見るべきは5段階です。
-前回の頻拍（PSVT）も、多くはこの「1拍」から始まります。
+前回の頻拍（PSVT）も、この「1拍」がきっかけで始まることがあります。
 
 ━━━━━━━━━━
 ① PAC（心房期外収縮）
-形のちがうP波（P'）が早く出る／QRSは細い／休みは2拍ぶんより短い
+形のちがうP波（P'）が早く出る／QRSは細い（120ms未満）
+休みは、直前のR-Rのちょうど2倍にはならない（P'が洞結節をリセットするため）
 
 ② PVC（心室期外収縮）
-P波がない／QRSが広い・Tが逆向き／休みはちょうど2拍ぶん（代償性休止）
+P波がない／QRSが広い（120ms以上）・ST-Tが逆向き
+休みは、たいてい直前のR-Rのちょうど2倍（代償性休止）
 単発で症状がなければ、経過観察になることが多い
 
 ③ 二段脈
-1拍おきにPVC（2拍おきなら三段脈）
+1拍おきにPVC（2拍おきなら三段脈）。PACでも同じ並び方が起きます
 PVCの拍は脈として触れないことがある → モニターの心拍数と脈拍が合わない
+脈を数えるときは、自分の指で。触れなかった拍は数えない
 
 ④ 連発
 PVCが2つ続けば報告。形が何種類もある（多源性）ときも報告
 
 ⑤ 報告
-3つ以上続けば心室頻拍（30秒未満で自然に止まるものは「非持続性」）。
+3つ以上続き、心拍数が100/分を超えれば心室頻拍。30秒未満で自然に止まるものは「非持続性心室頻拍（NSVT）」と呼びます（3連の呼び方は資料によって幅があります）。
 意識・脈・血圧を確認し、K・Mgの値もあわせて報告
-QT延長のある人の二段脈は、トルサードの前ぶれになることがあります（前回のQT延長編）
+PVCはふつうは良性ですが、QT延長がある人では、T波に乗って（R on T）トルサードのきっかけになることがあります（前回のQT延長編）
 ━━━━━━━━━━
 
 【ここが落とし穴】
@@ -279,16 +282,16 @@ QT延長のある人の二段脈は、トルサードの前ぶれになること
  　早い拍の直前のT波の形がほかとちがえば（とがる・ふたこぶ）、そこにP'が隠れています。
 2. 伝わらなかったPACは、洞停止や房室ブロックに見えます。
  　休みの直前のT波を見てください。
-3. 休みの長さは典型の話です。
- 　PACでも休みが長いこと、PVCで休みがない（間入性）こともあります。
+3. 休みの長さは「たいてい」の話です。
+ 　決め手は、早い拍の前にP'があるかどうか。
 
 【報告の目安】
 ・2つ以上続く　・形が何種類もある　・T波の上に乗る（R on T）
-・急に増えた　・動悸、めまい、胸痛などの症状がある
+・急に増えた（1分に5個を超えると「頻発」）　・動悸、めまい、胸痛などの症状がある
 
 【まとめ】
-・PAC：P'あり／QRSは細い／休みは短め
-・PVC：P'なし／QRSが広い／休みは2拍ぶん
+・PAC：P'あり／QRSは細い／休みは2拍ぶんにならない
+・PVC：P'なし／QRSが広い／休みはたいてい2拍ぶん
 ・二段脈は脈を指で数える。連発は報告
 
 保存して、見返してね。
@@ -304,28 +307,29 @@ QT延長のある人の二段脈は、トルサードの前ぶれになること
 
 ---
 
-## 5. 医学の裏取り（2026-09-30）
+## 5. 医学の裏取り（2026-10-01・LITFL本文で照合）
 
-この環境から litfl.com への直接の接続はネットワーク設定で拒否されていたため、**Web検索で返ってくる LITFL ページの本文の抜粋**で照合した。ページ全体は読めていない。
+LITFL の3ページを本文まで読んで照合した（いずれも Ed Burns, Robert Buttner, 2024-10-08 更新）。
+LITFL 以外は、脈の欠損だけ American Nurse の本文で確認した。
 
-| 台本の記述 | 照合結果 | 出典 |
+| 台本の記述 | 照合結果 | LITFL の原文（要旨） |
 |---|---|---|
-| PAC：形のちがうP波、QRSはふつう | ✅「abnormal P wave, usually followed by a normal QRS complex」 | LITFL PAC |
-| PAC：休みは2拍ぶんに届かない（洞結節がリセット） | ✅ SA結節がリセットされ、次の洞の拍までがふつうより長くなる。PVCと違い、休みは直前のR-Rの2倍にならない | LITFL PAC |
-| PAC：P'がT波に隠れる | ✅ 直前のT波に隠れて「とがる／ふたこぶ（camel hump）」に見える | LITFL PAC |
-| 広いPAC＝変行伝導 | ✅ 早いPACは変行伝導し、多くは右脚ブロックの形（右脚の不応期が長いため） | LITFL PAC |
-| 伝わらないPAC → 休みに見える | ✅ 異常なP波のあとにQRSがなく、洞結節のリセットで休みが続く（blocked PAC） | LITFL PAC |
-| PVC：QRSが広い・Tが逆向き | ✅ QRS 120ms以上・形が異常、ST・T波がQRSと逆向き | LITFL PVC |
-| PVC：休みはちょうど2拍ぶん | ✅ PVCをはさむ休みは直前のR-Rの2倍（full compensatory pause） | LITFL PVC |
-| 3つ以上続けば心室頻拍 | ✅ 3拍以上連続。30秒未満で自然に止まれば非持続性。100/分超（台本の3連は約143/分） | LITFL VT – Monomorphic |
-| 二段脈で脈が半分になりうる | ✅ PVCの拍は脈として触れず、触診では正常の拍だけを数えて徐脈と誤ることがある | American Nurse（LITFLの抜粋では未確認） |
-| （追加）QT延長のある人の二段脈はトルサードの前ぶれになりうる | ✅ QT延長編とのつながりとしてキャプションに追記 | LITFL（PVC関連の抜粋） |
-| 間入性PVC（休みがない） | ⚠️ LITFLの抜粋では確認できなかった。一般的な知識として正しいが、出典つきで書くならページ本文で確認が必要 | — |
-
-直した点：
-- キャプションの④⑤に「30秒未満で止まれば非持続性」と「QT延長のある人の二段脈」を追記
-- 落とし穴1に「右脚ブロックの形が多い」「とがる・ふたこぶ」を追記
-- 参考文献に LITFL VT と American Nurse を追加
+| PAC：形のちがうP波、QRSはふつう | ✅ | "Abnormal (non-sinus) P wave usually followed by a normal QRS complex (< 120 ms)" |
+| PAC：休み | ⚠️→直した | "the post-extrasystolic pause is not equal to double the preceding RR interval"。洞結節がリセットされ、次の洞の拍までがふつうより長くなる。**「2拍ぶんより短い」とは書かれていない** → 「ちょうど2拍ぶんにはならない」に変更 |
+| PAC：P'がT波に隠れる | ✅ | "may be hidden in the preceding T wave, producing a 'peaked' or 'camel hump' appearance" |
+| 広いPAC＝変行伝導 | ✅ | "usually with a RBBB morphology … differentiated from PVCs by the presence of a preceding P wave" |
+| 伝わらないPAC | ✅ | "abnormal P wave that is not followed by a QRS complex ('blocked PAC') … usually followed by a compensatory pause as the sinus node resets" |
+| PACでも二段脈・三段脈・連発がある | ✅（追加） | "Bigeminy — every other beat is a PAC / Trigeminy / Couplet / Triplet" |
+| PACが頻拍のきっかけ | ⚠️→直した | "a PAC may be the trigger for the onset of a re-entry tachyarrhythmia — e.g. AF, flutter, AVNRT, AVRT"。**「多くは」とは書かれていない** → 「きっかけになることがある」に変更 |
+| PVC：QRSが広い・ST-Tが逆向き | ✅ | "Broad QRS complex (≥ 120 ms) with abnormal morphology / Discordant ST segment and T wave changes" |
+| PVC：休みは2拍ぶん | ✅（「たいてい」を追加） | "Usually followed by a full compensatory pause … equal to double the preceding R-R interval" |
+| 二段脈・三段脈・連発の定義 | ✅ | "Bigeminy — every other beat is a PVC / Trigeminy — every third beat / Couplet — two consecutive PVCs" |
+| 3つ以上で心室頻拍 | ⚠️→直した | PVCページ："Definitions vary regarding 3 or more PVCs … consensus: 3–30 consecutive PVCs with a rate >100bpm described as non-sustained VT"。VTページ："Non-sustained = Three or more consecutive ventricular complexes, terminating spontaneously in < 30 seconds" → 「100/分を超えれば」「呼び方に幅がある」を追加。台本の3連は約143/分なので条件を満たす |
+| 頻発の目安 | ✅（追加） | "'frequent' if there are more than 5 PVCs per minute on the routine ECG" |
+| QT延長との関係 | ⚠️→直した | "Frequent PVCs are usually benign, except in the context of an prolonged QTc, when they may predispose to … Torsades de Pointes by causing 'R on T'"。**「二段脈がトルサードの前ぶれ」ではない** → PVCページの書き方に合わせた |
+| 原因（K・Mg） | ✅ | Causes に Hypokalaemia / Hypomagnesaemia / Digoxin toxicity / Myocardial ischaemia |
+| 二段脈で脈が合わない | ✅（LITFL以外） | LITFL本文にはなし（読者コメントのみ）。American Nurse "Premature ventricular complexes"：PVCは "nonperfusing heartbeat, which may be detected as a skipped wave when assessing a pulse"。台本は「触れないことがある」にとどめている |
+| 間入性PVC | ❌→削除 | LITFL の3ページにも American Nurse にも記載なし。出典を示せないのでキャプションから削除 |
 
 出典URL：
 - https://litfl.com/premature-atrial-complex-pac/
@@ -333,12 +337,14 @@ QT延長のある人の二段脈は、トルサードの前ぶれになること
 - https://litfl.com/ventricular-tachycardia-monomorphic-ecg-library/
 - https://www.myamericannurse.com/premature-ventricular-complexes/
 
+StatPearls（ncbi.nlm.nih.gov）は、ボット確認の画面が出て本文を読めなかった。
+
 ---
 
 ## 6. 作る前の残作業
 
 1. **QT回の生成スクリプトを土台にする**。問い・軸・カード・流れる波形・まとめカードの部品を流用し、段階の中身と波形の並びだけ差し替える
-2. **LITFLのページ全体で最終確認**：ネットワーク設定で litfl.com を許可すれば、抜粋ではなくページ本文を読める。とくに間入性PVC
+2. 医学の裏取りは済み（上の5.）。専門医レビューに出すときは、5.の表をそのまま添える
 3. **波形の部品**：拍ごとに形を変えられるようにする
    - PVC：P波なし・幅広QRS（120ms以上）・逆向きT
    - PAC：P'を小さく・形を変える
