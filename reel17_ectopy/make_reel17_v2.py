@@ -50,6 +50,7 @@ FONT = os.environ.get('REEL_FONT', os.path.join(HERE, 'fonts', 'NotoSansJP.ttf')
 # --- 波形の部品（実際の時間・秒、mV） ---------------------------------------
 RR = 0.80                        # 洞調律 75/分
 PR = 0.16                        # P頂点 → R頂点
+RETRO_P = 0.12                   # PVCのR頂点 → 逆行性P波（ST部分）
 
 
 def _g(t, c, s):
@@ -98,6 +99,7 @@ KINDS = {
     'N':  (qrs_normal, p_sinus, PR),
     'A':  (qrs_normal, p_ect, PR),          # PAC
     'Aa': (qrs_aberrant, p_ect, PR),        # 変行伝導のPAC
+    'Ah': (qrs_normal, p_ect, 0.18),        # T波の下り坂に出たPAC（不応期をぎりぎり抜けて伝わる。PRが少し延びる）
     'B':  (None, p_ect, PR),                # 伝わらないPAC（P'だけ。時刻はP'の位置+PR）
     'J':  (qrs_normal, None, 0),            # PJC（P波なし）
     'V':  (qrs_pvc, None, 0),
@@ -111,10 +113,10 @@ KINDS = {
 PATTERNS = [
     dict(no='①', name='PAC', col=C_ATR, rep=2, hint="形のちがうP波",
          one="形のちがうP'が早く出る・QRSは細い",
-         beats=[(0, 'N'), (.48, 'A'), (1.40, 'N'), (2.20, 'N')], L=3.0),
-    dict(no='②', name="P'が隠れるPAC", col=C_ATR, rep=2, hint="Tがとがる",
-         one="P'がT波に重なって、Tがとがる",
-         beats=[(0, 'N'), (.40, 'A'), (1.35, 'N'), (2.15, 'N')], L=2.95),
+         beats=[(0, 'N'), (.60, 'A'), (1.52, 'N'), (2.32, 'N')], L=3.12),       # P'は T波のあと（0.44秒）
+    dict(no='②', name="P'が隠れるPAC", col=C_ATR, rep=2, hint="Tの形が変わる",
+         one="P'がT波に重なり、Tの形が変わる",
+         beats=[(0, 'N'), (.50, 'Ah'), (1.45, 'N'), (2.25, 'N')], L=3.05),      # P'は T波の下り坂（0.32秒）
     dict(no='③', name='伝わらないPAC', col=C_ATR, rep=2, hint="QRSが来ない",
          one="P'のあとにQRSがない → 休みに見える",
          beats=[(0, 'N'), (.27+PR, 'B'), (1.40, 'N'), (2.20, 'N')], L=3.0),
@@ -123,13 +125,13 @@ PATTERNS = [
          beats=[(0, 'N'), (.45, 'Aa'), (1.40, 'N'), (2.20, 'N')], L=3.0),
     dict(no='⑤', name='PJC', col=C_JUN, rep=2, hint="Pのない細いQRS",
          one='細いQRSが早く出る・P波がない',
-         beats=[(0, 'N'), (.50, 'J'), (.8, 'p'), (1.6, 'N'), (2.4, 'N')], L=3.2),
+         beats=[(0, 'N'), (.50, 'J'), (1.46, 'N'), (2.26, 'N')], L=3.06),       # 逆行して洞結節をリセット → 休みは2拍ぶんより短い
     dict(no='⑥', name='PVC', col=C_VEN, rep=2, hint="広いQRS",
          one='広いQRS・Tが逆向き・休みは2拍ぶん',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (1.6, 'N'), (2.4, 'N')], L=3.2),
     dict(no='⑦', name='逆行性P波つきPVC', col=C_VEN, rep=2, hint="うしろに逆向きのP",
          one='QRSのあとに、逆向きのP波',
-         beats=[(0, 'N'), (.48, 'Vr'), (1.6, 'N'), (2.4, 'N')], L=3.2),
+         beats=[(0, 'N'), (.40, 'Vr'), (1.48, 'N'), (2.28, 'N')], L=3.08),      # 逆行性P（0.52秒）が洞結節をリセット → 休み 1.48秒
     dict(no='⑧', name='多源性PVC', col=C_VEN, rep=1, hint="形が2種類",
          one='PVCの形が、2種類以上',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (1.6, 'N'), (2.4, 'N'), (2.88, 'V2'),
@@ -144,10 +146,10 @@ PATTERNS = [
          one='3拍おきにPVC',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (1.6, 'N'), (2.4, 'N')], L=3.2),
     dict(no='⑫', name='2連発', col=C_DNG, rep=2, hint="2つ続く",
-         one='PVCが2つ続く → 報告',
+         one='PVCが2つ続く → 報告（基準は施設の指示で）',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (.90, 'V'), (1.6, 'N')], L=2.4),
     dict(no='⑬', name='3連以上', col=C_DNG, rep=2, hint="3つ以上続く",
-         one='3つ以上・100/分超 → 非持続性心室頻拍',
+         one='3つ以上・100/分超 → 非持続性心室頻拍（ショートラン）',
          beats=[(0, 'N'), (.48, 'V'), (.8, 'p'), (.90, 'V'), (1.32, 'V'), (1.6, 'p'),
                 (1.74, 'V'), (2.4, 'N')], L=3.2),
     dict(no='⑭', name='R on T', col=C_DNG, rep=2, hint="T波に乗る",
@@ -159,7 +161,7 @@ N_PAT = len(PATTERNS)
 # 区間の長さ（秒）。ナレーションの長さ＋0.2秒以上になる、いちばん短い「ふつうの拍の位置」で切る。
 # その位置には次のパターンの最初のふつうの拍が来るので、拍の間隔は変わらない。
 # 中部から縮むとき、見えている3.1秒がそのパターンだけになるよう、原則 3.2秒以上にする。
-SEG_D = {'①': 6.0, '②': 4.30, '③': 4.4, '④': 5.2, '⑤': 5.6, '⑥': 6.4, '⑦': 4.8,
+SEG_D = {'①': 6.24, '②': 4.50, '③': 4.4, '④': 5.2, '⑤': 5.32, '⑥': 6.4, '⑦': 4.56,
          '⑧': 4.0, '⑨': 4.8, '⑩': 4.0, '⑪': 3.2, '⑫': 2.4, '⑬': 5.6, '⑭': 4.8}
 for _p in PATTERNS:
     _p['D'] = SEG_D[_p['no']]
@@ -176,7 +178,7 @@ def beat_wave(tau, r, kind):
     if p is not None:
         v += p(tau + pr)
     if kind == 'Vr':
-        v += p_retro(tau - 0.20)
+        v += p_retro(tau - RETRO_P)
     return v
 
 
@@ -794,7 +796,9 @@ def check():
                 return nxt - prev
     print(f"PAC の休み {pause(PATTERNS[0], 'A'):.2f}s（2拍ぶん 1.60 と一致しない）")
     print(f"伝わらないPAC の休み {pause(PATTERNS[2], 'B'):.2f}s（洞の間隔 0.80 よりずっと長い）")
-    print(f"PJC の休み {pause(PATTERNS[4], 'J'):.2f}s（2拍ぶん）")
+    print(f"PJC の休み {pause(PATTERNS[4], 'J'):.2f}s（逆行して洞結節をリセット → 2拍ぶん 1.60 より短い）")
+    print(f"逆行性P波つきPVC の休み {pause(PATTERNS[6], 'Vr'):.2f}s（逆行性P {0.40+RETRO_P:.2f}s が洞のP 0.64s より先 → リセット）")
+    print(f"P'の位置（直前のRから）：③伝わらない {0.27:.2f}s ＜ ④変行伝導 {0.45-PR:.2f}s ＜ ②隠れる {0.50-0.18:.2f}s ＜ ①PAC {0.60-PR:.2f}s（早いほど伝わりにくい）")
     print(f"PVC の休み {pause(PATTERNS[5], 'V'):.2f}s（2拍ぶん）")
     print(f"3連以上：PVCの間隔 0.42s = {60/0.42:.0f}/分（100/分超）")
     tt = np.arange(-0.2, 0.2, 0.0005)
