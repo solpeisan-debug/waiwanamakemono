@@ -866,14 +866,15 @@ def thumbnail_list():
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
     # 下の枠
     by = Y0 + 7*RH + 24
-    d.rounded_rectangle([(230, by), (850, by + 80)], radius=18, fill=(16, 22, 21, 255),
+    d.rounded_rectangle([(230, by), (850, by + 96)], radius=18, fill=(16, 22, 21, 255),
                         outline=(70, 84, 80, 255), width=2)
-    parts = [('まず覚えたい', 40, RED), ('14', 54, YEL), ('パターン', 40, RED)]
+    parts = [('まず覚えたい', 40, WHITE), ('14', 72, YEL), ('パターン', 40, WHITE)]
     ims = [text_img(t, sz, 900, col) for t, sz, col in parts]
     tw = sum(a.size[0] - 8 for a, _ in ims) + 8
     x = 540 - tw/2
-    for (t, sz, col), (a, _) in zip(parts, ims):
-        put(im, t, sz, 900, col, x=x, cy=by + 44 + (sz - 40)*0.12)
+    base_line = by + 70                          # 文字の下端（ベースライン）をそろえる
+    for (t, sz, col), (a, asc) in zip(parts, ims):
+        put(im, t, sz, 900, col, x=x, cy=base_line - 0.38*asc)
         x += a.size[0] - 8
     return im.convert('RGB')
 
