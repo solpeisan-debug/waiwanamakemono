@@ -789,6 +789,115 @@ def thumbnail():
     return im.convert('RGB')
 
 
+# --- 一覧型のサムネイル（第17弾と同じ作り） ---------------------------------------
+# パターンごとに (見せ始めの時刻, 点線の丸で囲む範囲[周期の中の時刻])。丸のないものは全体が特徴
+THUMB_VIEW = {
+    0: (0.0, []),
+    1: (1.15, [(1.98, 4.68)]),                 # 洞停止：止まっているところ
+    2: (1.6, [(2.86, 3.34)]),                  # 洞房ブロック：P波ごと抜けたところ
+    3: (-1.0, [(-0.36, 0.0)]),                 # 1度：長いPR
+    4: (-0.5, [(2.30, 2.52)]),                 # ウェンケバッハ：伝わらなかったP
+    5: (-0.5, [(2.30, 2.52)]),                 # モビッツII型：伝わらなかったP
+    6: (-0.4, [(0.70, 0.92)]),                 # 2:1：伝わらなかったP
+    7: (-0.4, [(2/3 - 0.10, 4/3 + 0.10)]),     # 高度：伝わらなかったP（2つ）
+    8: (0.0, []),
+    9: (0.0, []),
+    10: (-0.5, []),
+    11: (0.0, []),
+}
+THUMB_MAX_MARKS = {3: 1}                       # 丸の数の上限（ふだんは2つまで。1度は1つ）
+THUMB_DESC = ['全部ゆっくり', '長く止まる', 'ぴったり2拍ぶん', 'PRが長い', '伸びて抜ける', '突然抜ける',
+              'P2つにQRS1つ', 'P3つにQRS1つ', 'PとQRSが別々', 'Pなし・細い', '広くて遅い', 'バラバラで遅い']
+
+
+def dashed_ellipse(d, box, col, dash=6, gap=5, width=2):
+    """点線の楕円。"""
+    x0, y0, x1, y1 = box
+    cx, cy, rx, ry = (x0 + x1)/2, (y0 + y1)/2, (x1 - x0)/2, (y1 - y0)/2
+    th = np.linspace(0, 2*np.pi, 721)
+    pts = np.stack([cx + rx*np.cos(th), cy + ry*np.sin(th)], 1)
+    seg = np.r_[0, np.cumsum(np.hypot(*np.diff(pts, axis=0).T))]
+    idx = np.where((seg % (dash + gap)) < dash)[0]
+    for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1):
+        if len(r) >= 2:
+            d.line([tuple(q) for q in pts[r]], fill=col + (255,), width=width)
+
+
+def thumb_row_wave(i, x0, x1, base_y, mv, span=4.0):
+    """パターン i を1本の色で描き、特徴のところを点線の丸で囲む（サムネイル用）。"""
+    pat = PATTERNS[i]
+    pxs = (x1 - x0) / span
+    t0, marks = THUMB_VIEW[i]
+    xs = np.arange(x0, x1 + 0.5, 0.5)
+    rel = t0 + (xs - x0) / pxs
+    bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
+    v = wave_from(bl, rel) + (fwave(rel, pat['L']) if pat.get('fib') else 0)
+    v = v * np.clip(np.minimum(xs - x0, x1 - xs) / 6.0, 0, 1)
+    ys = base_y - v*mv
+    pad = 40
+    size = (int(x1 - x0) + 2*pad, int(3.2*mv) + 2*pad)
+    ox, oy = int(x0) - pad, int(base_y - 1.7*mv) - pad
+    lay = glow_line(size, [list(zip(xs - ox, ys - oy))], pat['col'], 2.8, 1.0, blur=(4, 10))
+    d = ImageDraw.Draw(lay)
+    L = pat['L']
+    n_max, n = THUMB_MAX_MARKS.get(i, 2), 0
+    for k in range(-2, 6):
+        for a, b in marks:
+            lo, hi = a + k*L, b + k*L
+            if lo < rel[0] + 0.05 or hi > rel[-1] - 0.05 or n >= n_max:
+                continue
+            n += 1
+            sel = (rel >= lo) & (rel <= hi)
+            bx0, bx1 = x0 + (lo - t0)*pxs - 4, x0 + (hi - t0)*pxs + 4
+            by0 = min(ys[sel].min() - 9, base_y - 0.45*mv)
+            by1 = max(ys[sel].max() + 9, base_y + 0.35*mv)
+            dashed_ellipse(d, (bx0 - ox, by0 - oy, bx1 - ox, by1 - oy), pat['col'])
+    return lay, (ox, oy)
+
+
+def thumbnail_list():
+    """サムネイル（透かしなし）。第17弾の一覧型と同じ作り：
+    タイトル → 12パターンを2列×6段（色つきの名前・ひとこと・波形・点線の丸）→ 下の枠。
+    プロフィールのグリッド（中央 1080×1350、y 285〜1635）に要素が収まる。"""
+    im = grid()
+    d = ImageDraw.Draw(im, 'RGBA')
+    RED = (255, 92, 84)
+    YEL = (255, 196, 64)
+    d.line([(510, 300), (570, 300)], fill=RED + (255,), width=4)
+    put(im, '心電図で気づく', 34, 700, (118, 226, 150), cx=540, cy=342)
+    put(im, '徐脈', 126, 900, WHITE, cx=540, cy=436)
+    put(im, '見分けられる？', 60, 900, YEL, cx=540, cy=546)
+    COLS = [(135, 515), (565, 945)]             # 列のあいだは50px あける（線は引かない）
+    Y0, RH = 628, 142
+    for i, pat in enumerate(PATTERNS):
+        c, r = divmod(i, 6)
+        x0, x1 = COLS[c]
+        y = Y0 + r*RH
+        name = f"{pat['no']} {pat['name']}"
+        im_n, _ = text_img(name, 26, 800, pat['col'], max_w=x1 - x0)
+        put(im, name, 26, 800, pat['col'], x=x0, cy=y + 24, max_w=x1 - x0)
+        nx = x0 + im_n.size[0] + 8
+        im_h, _ = text_img(THUMB_DESC[i], 18, 500, (176, 186, 186))
+        assert nx + im_h.size[0] - 8 <= x1 + 4, f'{pat["no"]} のひとことが入らない'
+        put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
+        lay, pos = thumb_row_wave(i, x0, x1, y + 98, 30.0)
+        im.alpha_composite(lay, pos)
+        if r < 5:
+            d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
+    by = Y0 + 6*RH + 24
+    d.rounded_rectangle([(230, by), (850, by + 96)], radius=18, fill=(16, 22, 21, 255),
+                        outline=(70, 84, 80, 255), width=2)
+    parts = [('まず覚えたい', 40, WHITE), ('12', 72, YEL), ('パターン', 40, WHITE)]
+    ims = [text_img(t, sz, 900, col) for t, sz, col in parts]
+    tw = sum(a.size[0] - 8 for a, _ in ims) + 8
+    x = 540 - tw/2
+    base_line = by + 70                          # 文字の下端（ベースライン）をそろえる
+    for (t, sz, col), (a, asc) in zip(parts, ims):
+        put(im, t, sz, 900, col, x=x, cy=base_line - 0.38*asc)
+        x += a.size[0] - 8
+    return im.convert('RGB')
+
+
 # --- 検算 ------------------------------------------------------------------------
 def _pr_ms(prc):
     """P頂点→R頂点 prc のときの PR間隔（P波の始まり → QRSの始まり、ms）。"""
@@ -839,10 +948,10 @@ def ffmpeg_bin():
 
 
 def render_chunk(args):
-    i0, i1, fps, path = args
+    i0, i1, fps, path, crf, preset = args
     cmd = [ffmpeg_bin(), '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24',
-           '-s', f'{W}x{H}', '-r', str(fps), '-i', '-', '-c:v', 'libx264', '-preset', 'medium',
-           '-crf', '18', '-pix_fmt', 'yuv420p', path]
+           '-s', f'{W}x{H}', '-r', str(fps), '-i', '-', '-c:v', 'libx264', '-preset', preset,
+           '-crf', str(crf), '-profile:v', 'high', '-pix_fmt', 'yuv420p', path]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     for n in range(i0, i1):
         p.stdin.write(frame(n / fps).tobytes())
@@ -886,13 +995,19 @@ def main():
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--thumb', action='store_true')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 2)
+    ap.add_argument('--hq', action='store_true', help='高画質（CRF 10・slow）。out/reel18_brady_hq.mp4')
     o = ap.parse_args()
+    crf, preset = (10, 'slow') if o.hq else (18, 'medium')
+    if o.hq and o.out == ap.get_default('out'):
+        o.out = os.path.join(HERE, 'out', 'reel18_brady_hq.mp4')
     if o.check:
         check(); return
     if o.thumb:
         os.makedirs(os.path.dirname(o.out), exist_ok=True)
         p = os.path.join(os.path.dirname(o.out), 'thumb_reel18.png')
-        thumbnail().save(p); print(p); return
+        thumbnail().save(p); print(p)
+        p = os.path.join(os.path.dirname(o.out), 'thumb_reel18_list.png')
+        thumbnail_list().save(p); print(p); return
     os.makedirs(os.path.dirname(o.out), exist_ok=True)
     if o.still:
         for s in o.still:
@@ -903,7 +1018,7 @@ def main():
     step = math.ceil(total / o.jobs)
     tmp = os.path.join(os.path.dirname(o.out), 'parts')
     os.makedirs(tmp, exist_ok=True)
-    jobs = [(i, min(total, i+step), o.fps, os.path.join(tmp, f'p{j:02d}.mp4'))
+    jobs = [(i, min(total, i+step), o.fps, os.path.join(tmp, f'p{j:02d}.mp4'), crf, preset)
             for j, i in enumerate(range(0, total, step))]
     with Pool(o.jobs) as pool:
         parts = pool.map(render_chunk, jobs)
@@ -914,7 +1029,8 @@ def main():
     wav = os.path.join(tmp, 'beeps.wav')
     beeps(wav)
     subprocess.run([ffmpeg_bin(), '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', lst,
-                    '-i', wav, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', o.out],
+                    '-i', wav, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest',
+                    '-movflags', '+faststart', o.out],
                    check=True)
     print(o.out)
 
