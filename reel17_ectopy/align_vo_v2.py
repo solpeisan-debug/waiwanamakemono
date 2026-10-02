@@ -7,6 +7,8 @@
 使い方:
     python3 align_vo_v2.py out/vo/narration_raw.mp3      # out/vo/mix.wav と配置表を作る
     python3 align_vo_v2.py out/vo/narration_raw.mp3 --mux  # 映像（out/reel17_ectopy_v2.mp4）に入れる
+    python3 align_vo_v2.py out/vo/narration_raw.mp3 --fix out/vo/narration_fix.mp3 --mux
+        # 録り直した文（FIX_LINES）だけ、--fix のファイルから差し替える
 """
 import argparse
 import os
@@ -44,11 +46,17 @@ LINES = [
     ('まとめ', [28]),          # 1拍だけ早かったら、形と並び方を見てください。
     ('保存', [29]),            # 保存して、見返してね
 ]
+# 録り直し（2026-10-02 専門医レビュー）：②と⑬。--fix のファイルの声のかたまり番号
+# （0.05秒未満のかたまり＝雑音は数えない）。Whisper で確認済み。
+FIX_LINES = {
+    '②': [1],                 # P波がT波に重なると、Tの形が変わります。
+    '⑬': [2, 3, 4],           # 3つ以上、速く続けば、非持続性心室頻拍。／ショートランとも呼びます。／すぐ報告です。
+}
 TEXT = {
     '冒頭1': '1拍だけ、早い。', '冒頭2': '期外収縮は、形も、並び方も、いろいろ。',
     '冒頭3': 'まず覚えたいのは、この14パターン。',
     '①': '心房から早く来るのが、PAC。P波の形がちがいます。',
-    '②': 'P波がT波に重なると、Tがとがって見えます。',
+    '②': 'P波がT波に重なると、Tの形が変わります。',
     '③': '早すぎると心室に伝わらず、休みに見えます。',
     '④': 'P波があるのに、QRSが広い。これが、変行伝導。',
     '⑤': 'P波がなく、細いQRSが早く来る。接合部からです。',
@@ -57,7 +65,7 @@ TEXT = {
     '⑧': '形が2種類以上なら、多源性。',
     '⑨': '1拍おきなら、二段脈。脈は、指で数えます。',
     '⑩': '2拍おきなら、三段脈。', '⑪': '3拍おきなら、四段脈。', '⑫': '2つ続いたら、報告。',
-    '⑬': '3つ以上、速く続けば、心室頻拍。すぐ報告です。',
+    '⑬': '3つ以上、速く続けば、非持続性心室頻拍。ショートランとも呼びます。すぐ報告です。',
     '⑭': 'T波に乗るPVCは、QT延長があると危険です。',
     'まとめ': '1拍だけ早かったら、形と並び方を見てください。', '保存': '保存して、見返してね',
 }
@@ -77,7 +85,7 @@ def load(path):
     return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
 
 
-def speech_blocks(path, noise='-40dB', d=0.25):
+def speech_blocks(path, noise='-40dB', d=0.25, min_len=0.0):
     log = subprocess.run([ffmpeg(), '-hide_banner', '-i', path, '-af', f'silencedetect=noise={noise}:d={d}',
                           '-f', 'null', '-'], capture_output=True, text=True).stderr
     st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]
@@ -86,7 +94,7 @@ def speech_blocks(path, noise='-40dB', d=0.25):
         60*float(re.search(r'Duration: (\d+):(\d+):', log).group(2))
     blocks, prev = [], 0.0
     for a, b in zip(st, en):
-        if a > prev + 0.01:
+        if a > prev + max(0.01, min_len):
             blocks.append((prev, a))
         prev = b
     if dur > prev + 0.05:
@@ -112,6 +120,7 @@ def plan(lines_len):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('src')
+    ap.add_argument('--fix', help='録り直した文のファイル（FIX_LINES の文を差し替える）')
     ap.add_argument('--mux', action='store_true')
     o = ap.parse_args()
 
@@ -126,6 +135,15 @@ def main():
         b = blocks[ix[-1]-1][1] + PAD_OUT
         segs[name] = audio[max(0, int(a*SR)):int(b*SR)]
         lens[name] = len(segs[name]) / SR
+    if o.fix:
+        fb = speech_blocks(o.fix, min_len=0.05)
+        assert len(fb) == max(max(ix) for ix in FIX_LINES.values()), f'録り直しの声のかたまりが {len(fb)} 個'
+        fa = load(o.fix)
+        for name, ix in FIX_LINES.items():
+            a = fb[ix[0]-1][0] - PAD_IN
+            b = fb[ix[-1]-1][1] + PAD_OUT
+            segs[name] = fa[max(0, int(a*SR)):int(b*SR)]
+            lens[name] = len(segs[name]) / SR
     starts = plan(lens)
 
     # 検算：重なりと、言い終わりが次の場面に食いこまないか
