@@ -818,10 +818,10 @@ def ffmpeg_bin():
 
 
 def render_chunk(args):
-    i0, i1, fps, path = args
+    i0, i1, fps, path, crf, preset = args
     cmd = [ffmpeg_bin(), '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24',
-           '-s', f'{W}x{H}', '-r', str(fps), '-i', '-', '-c:v', 'libx264', '-preset', 'medium',
-           '-crf', '18', '-pix_fmt', 'yuv420p', path]
+           '-s', f'{W}x{H}', '-r', str(fps), '-i', '-', '-c:v', 'libx264', '-preset', preset,
+           '-crf', str(crf), '-profile:v', 'high', '-pix_fmt', 'yuv420p', path]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     for n in range(i0, i1):
         p.stdin.write(frame(n / fps).tobytes())
@@ -865,7 +865,11 @@ def main():
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--thumb', action='store_true')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 2)
+    ap.add_argument('--hq', action='store_true', help='高画質（CRF 10・slow）。out/reel17_ectopy_v2_hq.mp4')
     o = ap.parse_args()
+    crf, preset = (10, 'slow') if o.hq else (18, 'medium')
+    if o.hq and o.out == ap.get_default('out'):
+        o.out = os.path.join(HERE, 'out', 'reel17_ectopy_v2_hq.mp4')
     if o.check:
         check(); return
     if o.thumb:
@@ -882,7 +886,7 @@ def main():
     step = math.ceil(total / o.jobs)
     tmp = os.path.join(os.path.dirname(o.out), 'parts_v2')
     os.makedirs(tmp, exist_ok=True)
-    jobs = [(i, min(total, i+step), o.fps, os.path.join(tmp, f'p{j:02d}.mp4'))
+    jobs = [(i, min(total, i+step), o.fps, os.path.join(tmp, f'p{j:02d}.mp4'), crf, preset)
             for j, i in enumerate(range(0, total, step))]
     with Pool(o.jobs) as pool:
         parts = pool.map(render_chunk, jobs)
@@ -893,7 +897,8 @@ def main():
     wav = os.path.join(tmp, 'beeps.wav')
     beeps(wav)
     subprocess.run([ffmpeg_bin(), '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', lst,
-                    '-i', wav, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', o.out],
+                    '-i', wav, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest',
+                    '-movflags', '+faststart', o.out],
                    check=True)
     print(o.out)
 

@@ -142,6 +142,7 @@ def main():
     ap.add_argument('src')
     ap.add_argument('--fix', help='録り直した文のファイル（FIX_LINES の文を差し替える）')
     ap.add_argument('--mux', action='store_true')
+    ap.add_argument('--hq', action='store_true', help='高画質版（out/reel17_ectopy_v2_hq.mp4）に入れる。音声 320k')
     o = ap.parse_args()
 
     blocks = speech_blocks(o.src)
@@ -229,10 +230,12 @@ def main():
     print(tbl)
 
     if o.mux:
-        video = os.path.join(HERE, 'out', 'reel17_ectopy_v2.mp4')
-        dst = os.path.join(HERE, 'out', 'reel17_ectopy_v2_vo.mp4')
+        tag = '_hq' if o.hq else ''
+        video = os.path.join(HERE, 'out', f'reel17_ectopy_v2{tag}.mp4')
+        dst = os.path.join(HERE, 'out', f'reel17_ectopy_v2{tag}_vo.mp4')
         subprocess.run([ffmpeg(), '-v', 'error', '-y', '-i', video, '-i', out, '-map', '0:v', '-map', '1:a',
-                        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', dst], check=True)
+                        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k' if o.hq else '192k', '-ar', '48000',
+                        '-shortest', '-movflags', '+faststart', dst], check=True)
         print(dst)
 
 
