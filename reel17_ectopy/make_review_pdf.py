@@ -138,7 +138,7 @@ def beat_table(i):
         if k == 'p':
             rows.append(f"{r:4.2f}秒  洞のP（伝わらない・隠れる）")
             continue
-        name = {'N': 'ふつうの拍', 'A': 'PAC', 'Aa': '変行伝導のPAC', 'B': "伝わらないPAC（P'のみ）",
+        name = {'N': 'ふつうの拍', 'A': 'PAC', 'Aa': '変行伝導のPAC', 'Ah': "PAC（P'がT波の下り坂）", 'B': "伝わらないPAC（P'のみ）",
                 'J': 'PJC', 'V': 'PVC', 'Vr': 'PVC＋逆行性P', 'V2': 'PVC（形B）'}[k]
         rr = '' if prev is None else f"（前の拍から {r-prev:.2f}秒）"
         rows.append(f"{r:4.2f}秒  {name}{rr}")
