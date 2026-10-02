@@ -156,6 +156,16 @@ PATTERNS = [
 ]
 N_PAT = len(PATTERNS)
 
+# 区間の長さ（秒）。ナレーションの長さ＋0.2秒以上になる、いちばん短い「ふつうの拍の位置」で切る。
+# その位置には次のパターンの最初のふつうの拍が来るので、拍の間隔は変わらない。
+# 中部から縮むとき、見えている3.1秒がそのパターンだけになるよう、原則 3.2秒以上にする。
+SEG_D = {'①': 6.0, '②': 4.30, '③': 4.4, '④': 5.2, '⑤': 5.6, '⑥': 6.4, '⑦': 4.8,
+         '⑧': 4.0, '⑨': 4.8, '⑩': 4.0, '⑪': 3.2, '⑫': 2.4, '⑬': 5.6, '⑭': 4.8}
+for _p in PATTERNS:
+    _p['D'] = SEG_D[_p['no']]
+    _n = [r for r, k in _p['beats'] if k == 'N']
+    assert any(abs(((_p['D'] - r) / _p['L']) - round((_p['D'] - r) / _p['L'])) < 1e-6 for r in _n), _p['no']
+
 
 def beat_wave(tau, r, kind):
     """1拍ぶんの波形（tau は R の時刻からの秒）。"""
@@ -200,7 +210,7 @@ def periodic_beats(pat, t0, t1):
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
 T_TITLE = 7.5                     # ナレーションの冒頭3文（約7.4秒）が入る長さ
-DUR_TARGET = 90.0                 # 尺（ちょうど90秒）。14個そろってからの時間は、ここから逆算する
+END_HOLD = 5.9                    # 14個そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
 HOOK = [0, 8, 7, 13, 12]          # ①PAC → ⑨二段脈 → ⑧多源性 → ⑭R on T → ⑬3連以上
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
@@ -211,10 +221,10 @@ def _strip():
     t = 0.0
     for i, pat in enumerate(PATTERNS):
         s0 = t
-        for rep in range(pat['rep']):
-            for r, kind in pat['beats']:
+        for r, kind in periodic_beats(pat, 0.0, pat['D']):
+            if -1e-9 <= r < pat['D'] - 1e-9:
                 beats.append((t + r, kind, None if kind in ('N', 'p') else i))
-            t += pat['L']
+        t += pat['D']
         segs.append((s0, t))
     end = t
     k = -1
@@ -222,17 +232,22 @@ def _strip():
         beats.append((k*RR, 'N', None)); k -= 1
     # うしろ：洞調律。尺をちょうど DUR_TARGET にしてもループがつながるよう、
     # 最初の6拍の間隔を少しだけ広げて位相をそろえる（0.80秒 → 最大 0.80+0.8/6 秒）
-    shift = (DUR_TARGET - FREEZE - end) % RR
+    # 尺は「最後の2文が入る長さ」以上で、うしろの洞調律の位相が冒頭とそろういちばん短い長さ。
+    # こうすると、うしろの拍の間隔を変えずにループがつながる
+    need = T_TITLE + end + 0.8 + END_HOLD                      # 0.8 = FLY
+    k = math.ceil((need - FREEZE - end) / RR - 1e-9)
+    dur_target = FREEZE + end + k*RR
+    shift = 0.0
     tt = end
     beats.append((tt, 'N', None))
     for k in range(1, 60):
         tt += RR + (shift/6 if k <= 6 else 0.0)
         beats.append((tt, 'N', None))
     beats.sort(key=lambda b: b[0])
-    return beats, segs, end
+    return beats, segs, end, dur_target
 
 
-STRIP, SEGS, STRIP_END = _strip()
+STRIP, SEGS, STRIP_END, _DUR_LOOP = _strip()
 
 # 中部の帯：1mm = 14px、25mm/秒 → 実際の1秒 = 350px
 F_PXMM = 14.0
@@ -284,7 +299,7 @@ T_END = WINDOWS[-1][1]
 FLY = 0.8                                  # 中部から枠へ縮んで移る時間
 LOOP_FADE = 0.75                           # 最後に冒頭の画面へ戻す時間
 FPS_LOOP = 60
-END_HOLD = DUR_TARGET - T_END - FLY        # 14個そろってからの時間
+DUR_TARGET = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
 
 
 def _loop_dur_search():
