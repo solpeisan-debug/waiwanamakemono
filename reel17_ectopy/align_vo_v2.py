@@ -52,6 +52,8 @@ FIX_LINES = {
     '②': [1],                 # P波がT波に重なると、Tの形が変わります。
     '⑬': [2, 3, 4],           # 3つ以上、速く続けば、非持続性心室頻拍。／ショートランとも呼びます。／すぐ報告です。
 }
+# 文の中の息継ぎ（無音）を、この長さまで縮める。⑬の録り直しは息継ぎが 0.5〜0.6秒と長いので詰める
+GAP_CAP = {'⑬': 0.35}
 TEXT = {
     '冒頭1': '1拍だけ、早い。', '冒頭2': '期外収縮は、形も、並び方も、いろいろ。',
     '冒頭3': 'まず覚えたいのは、この14パターン。',
@@ -102,6 +104,24 @@ def speech_blocks(path, noise='-40dB', d=0.25, min_len=0.0):
     return blocks
 
 
+def cut(audio, blocks, ix, gap_cap=None):
+    """声のかたまり ix をつないで1文にする。gap_cap があれば、かたまりの間の無音をその長さまで縮める
+    （無音の真ん中を残して切るので、声には触れない）。"""
+    a = blocks[ix[0]-1][0] - PAD_IN
+    b = blocks[ix[-1]-1][1] + PAD_OUT
+    if gap_cap is None:
+        return audio[max(0, int(a*SR)):int(b*SR)]
+    parts, t = [], a
+    for j in range(len(ix) - 1):
+        g0, g1 = blocks[ix[j]-1][1], blocks[ix[j+1]-1][0]
+        if g1 - g0 > gap_cap:
+            mid = (g0 + g1) / 2
+            parts.append(audio[max(0, int(t*SR)):int((mid - gap_cap/2)*SR)])
+            t = mid + gap_cap/2
+    parts.append(audio[int(t*SR):int(b*SR)])
+    return np.concatenate(parts)
+
+
 def plan(lines_len):
     """各文を置く時刻。"""
     starts = {}
@@ -131,18 +151,14 @@ def main():
 
     segs, lens = {}, {}
     for name, ix in LINES:
-        a = blocks[ix[0]-1][0] - PAD_IN
-        b = blocks[ix[-1]-1][1] + PAD_OUT
-        segs[name] = audio[max(0, int(a*SR)):int(b*SR)]
+        segs[name] = cut(audio, blocks, ix, GAP_CAP.get(name))
         lens[name] = len(segs[name]) / SR
     if o.fix:
         fb = speech_blocks(o.fix, min_len=0.05)
         assert len(fb) == max(max(ix) for ix in FIX_LINES.values()), f'録り直しの声のかたまりが {len(fb)} 個'
         fa = load(o.fix)
         for name, ix in FIX_LINES.items():
-            a = fb[ix[0]-1][0] - PAD_IN
-            b = fb[ix[-1]-1][1] + PAD_OUT
-            segs[name] = fa[max(0, int(a*SR)):int(b*SR)]
+            segs[name] = cut(fa, fb, ix, GAP_CAP.get(name))
             lens[name] = len(segs[name]) / SR
     starts = plan(lens)
 
