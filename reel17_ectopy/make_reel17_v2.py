@@ -810,7 +810,7 @@ def thumb_row_wave(i, x0, x1, base_y, mv):
     pad = 40
     size = (int(x1 - x0) + 2*pad, int(3.2*mv) + 2*pad)
     ox, oy = int(x0) - pad, int(base_y - 1.7*mv) - pad
-    lay = glow_line(size, [list(zip(xs - ox, ys - oy))], pat['col'], 3.2, 1.0, blur=(4, 11))
+    lay = glow_line(size, [list(zip(xs - ox, ys - oy))], pat['col'], 2.8, 1.0, blur=(4, 10))
     # 期外収縮の拍の範囲
     ect = np.zeros(len(xs), dtype=bool)
     for r, k in bl:
@@ -831,7 +831,7 @@ def thumb_row_wave(i, x0, x1, base_y, mv):
         boxes.append((bx0 - ox, by0 - oy, bx1 - ox, by1 - oy))
     d = ImageDraw.Draw(lay)
     for b in boxes:
-        dashed_ellipse(d, b, pat['col'], dash=6, gap=5, width=3)
+        dashed_ellipse(d, b, pat['col'], dash=6, gap=5, width=2)
     return lay, (ox, oy)
 
 
@@ -843,38 +843,37 @@ def thumbnail_list():
     d = ImageDraw.Draw(im, 'RGBA')
     RED = (255, 92, 84)
     YEL = (255, 196, 64)
-    d.line([(505, 300), (575, 300)], fill=RED + (255,), width=4)
-    put(im, '心電図で気づく', 38, 700, (118, 226, 150), cx=540, cy=350)
-    put(im, '期外収縮', 150, 900, WHITE, cx=540, cy=462)
-    put(im, '見分けられる？', 74, 900, YEL, cx=540, cy=588)
-    COLS = [(130, 525), (555, 950)]
-    Y0, RH = 650, 116
+    d.line([(510, 300), (570, 300)], fill=RED + (255,), width=4)
+    put(im, '心電図で気づく', 34, 700, (118, 226, 150), cx=540, cy=342)
+    put(im, '期外収縮', 126, 900, WHITE, cx=540, cy=436)
+    put(im, '見分けられる？', 60, 900, YEL, cx=540, cy=546)
+    COLS = [(145, 505), (575, 935)]             # 列のあいだは70px あける（線は引かない）
+    Y0, RH = 628, 122
     for i, pat in enumerate(PATTERNS):
         c, r = divmod(i, 7)
         x0, x1 = COLS[c]
         y = Y0 + r*RH
         # 名前（色）＋ひとこと（灰色）
         name = f"{pat['no']} {pat['name']}"
-        im_n, _ = text_img(name, 30, 800, pat['col'], max_w=x1 - x0)
-        put(im, name, 30, 800, pat['col'], x=x0, cy=y + 20, max_w=x1 - x0)
-        nx = x0 + im_n.size[0] + 4
-        if nx + 120 < x1:
-            put(im, THUMB_DESC[i], 21, 600, (196, 204, 204), x=nx, cy=y + 22, max_w=x1 - nx)
-        lay, pos = thumb_row_wave(i, x0, x1, y + 80, 33.0)
+        im_n, _ = text_img(name, 27, 800, pat['col'], max_w=x1 - x0)
+        put(im, name, 27, 800, pat['col'], x=x0, cy=y + 22, max_w=x1 - x0)
+        nx = x0 + im_n.size[0] + 8
+        if nx + 110 < x1:
+            put(im, THUMB_DESC[i], 19, 500, (176, 186, 186), x=nx, cy=y + 24, max_w=x1 - nx)
+        lay, pos = thumb_row_wave(i, x0, x1, y + 86, 27.0)
         im.alpha_composite(lay, pos)
         if r < 6:
-            d.line([(x0 - 10, y + RH - 2), (x1 + 10, y + RH - 2)], fill=(52, 72, 64, 255), width=1)
-    d.line([(540, Y0 - 6), (540, Y0 + 7*RH - 12)], fill=(52, 72, 64, 255), width=1)
+            d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
     # 下の枠
-    by = Y0 + 7*RH + 22
-    d.rounded_rectangle([(200, by), (880, by + 92)], radius=18, fill=(16, 22, 21, 255),
+    by = Y0 + 7*RH + 24
+    d.rounded_rectangle([(230, by), (850, by + 80)], radius=18, fill=(16, 22, 21, 255),
                         outline=(70, 84, 80, 255), width=2)
-    parts = [('まず覚えたい', 46, RED), ('14', 62, YEL), ('パターン', 46, RED)]
+    parts = [('まず覚えたい', 40, RED), ('14', 54, YEL), ('パターン', 40, RED)]
     ims = [text_img(t, sz, 900, col) for t, sz, col in parts]
     tw = sum(a.size[0] - 8 for a, _ in ims) + 8
     x = 540 - tw/2
     for (t, sz, col), (a, _) in zip(parts, ims):
-        put(im, t, sz, 900, col, x=x, cy=by + 50 + (sz - 46)*0.12)
+        put(im, t, sz, 900, col, x=x, cy=by + 44 + (sz - 40)*0.12)
         x += a.size[0] - 8
     return im.convert('RGB')
 
