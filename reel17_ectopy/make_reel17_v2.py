@@ -774,6 +774,111 @@ def thumbnail():
     return im.convert('RGB')
 
 
+THUMB_DESC = ['形のちがうP波', 'Tの形が変わる', 'QRSが来ない', 'Pはあるのに広い', 'Pのない細いQRS',
+              '広いQRS', 'うしろに逆向きP', '形が2種類', '1拍おき', '2拍おき', '3拍おき',
+              '2つ続く', '3つ以上続く', 'T波に乗る']
+
+
+def dashed_ellipse(d, box, col, dash=7, gap=6, width=3):
+    """点線の楕円。"""
+    x0, y0, x1, y1 = box
+    cx, cy, rx, ry = (x0 + x1)/2, (y0 + y1)/2, (x1 - x0)/2, (y1 - y0)/2
+    th = np.linspace(0, 2*np.pi, 721)
+    pts = np.stack([cx + rx*np.cos(th), cy + ry*np.sin(th)], 1)
+    seg = np.r_[0, np.cumsum(np.hypot(*np.diff(pts, axis=0).T))]
+    on = (seg % (dash + gap)) < dash
+    idx = np.where(on)[0]
+    for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1):
+        if len(r) >= 2:
+            d.line([tuple(q) for q in pts[r]], fill=col + (255,), width=width)
+
+
+def thumb_row_wave(i, x0, x1, base_y, mv):
+    """パターン i を1本の色で描き、期外収縮の拍を点線の丸で囲む（サムネイル用）。"""
+    pat = PATTERNS[i]
+    span = 4.0                                    # どの段も同じ時間（4秒）を見せる
+    pxs = (x1 - x0) / span
+    first = min(r for r, k in pat['beats'] if k not in ('N', 'p'))
+    t0 = first - 1.25                             # 最初の期外収縮が左から3割くらい
+    xs = np.arange(x0, x1 + 0.5, 0.5)
+    rel = t0 + (xs - x0) / pxs
+    bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
+    v = wave_from(bl, rel)
+    # 端はなだらかに0へ（参考画像のように、線が枠の端で切れて見えないように）
+    v *= np.clip(np.minimum(xs - x0, x1 - xs) / 6.0, 0, 1)
+    ys = base_y - v*mv
+    pad = 40
+    size = (int(x1 - x0) + 2*pad, int(3.2*mv) + 2*pad)
+    ox, oy = int(x0) - pad, int(base_y - 1.7*mv) - pad
+    lay = glow_line(size, [list(zip(xs - ox, ys - oy))], pat['col'], 3.2, 1.0, blur=(4, 11))
+    # 期外収縮の拍の範囲
+    ect = np.zeros(len(xs), dtype=bool)
+    for r, k in bl:
+        if k in ('N', 'p'):
+            continue
+        lo, hi = (r - PR - 0.06, r + 0.30) if k in ('A', 'Aa', 'B', 'Ah') else (r - 0.08, r + 0.30)
+        ect |= (rel >= lo) & (rel <= hi)
+    ect &= (xs > x0 + 12) & (xs < x1 - 12)
+    # 続いている期外収縮（2連発・3連以上）は1つの丸にまとめる
+    idx = np.where(ect)[0]
+    runs = [r for r in (np.split(idx, np.where(np.diff(idx) > 0.25*pxs*2)[0] + 1) if len(idx) else [])
+            if len(r) >= 20]
+    boxes = []
+    for r in runs:
+        bx0, bx1 = xs[r[0]] - 6, xs[r[-1]] + 6
+        by0, by1 = ys[r].min() - 9, ys[r].max() + 9
+        by0, by1 = min(by0, base_y - 0.5*mv), max(by1, base_y + 0.35*mv)
+        boxes.append((bx0 - ox, by0 - oy, bx1 - ox, by1 - oy))
+    d = ImageDraw.Draw(lay)
+    for b in boxes:
+        dashed_ellipse(d, b, pat['col'], dash=6, gap=5, width=3)
+    return lay, (ox, oy)
+
+
+def thumbnail_list():
+    """サムネイル（透かしなし）。参考：房室ブロック「どれが危ない？」の作り。
+    タイトル → 14パターンを2列×7段（色つきの名前・ひとこと・波形・点線の丸）→ 下の枠。
+    プロフィールのグリッド（中央 1080×1350、y 285〜1635）に要素が収まる。"""
+    im = grid()
+    d = ImageDraw.Draw(im, 'RGBA')
+    RED = (255, 92, 84)
+    YEL = (255, 196, 64)
+    d.line([(505, 300), (575, 300)], fill=RED + (255,), width=4)
+    put(im, '心電図で気づく', 38, 700, (118, 226, 150), cx=540, cy=350)
+    put(im, '期外収縮', 150, 900, WHITE, cx=540, cy=462)
+    put(im, '見分けられる？', 74, 900, YEL, cx=540, cy=588)
+    COLS = [(130, 525), (555, 950)]
+    Y0, RH = 650, 116
+    for i, pat in enumerate(PATTERNS):
+        c, r = divmod(i, 7)
+        x0, x1 = COLS[c]
+        y = Y0 + r*RH
+        # 名前（色）＋ひとこと（灰色）
+        name = f"{pat['no']} {pat['name']}"
+        im_n, _ = text_img(name, 30, 800, pat['col'], max_w=x1 - x0)
+        put(im, name, 30, 800, pat['col'], x=x0, cy=y + 20, max_w=x1 - x0)
+        nx = x0 + im_n.size[0] + 4
+        if nx + 120 < x1:
+            put(im, THUMB_DESC[i], 21, 600, (196, 204, 204), x=nx, cy=y + 22, max_w=x1 - nx)
+        lay, pos = thumb_row_wave(i, x0, x1, y + 80, 33.0)
+        im.alpha_composite(lay, pos)
+        if r < 6:
+            d.line([(x0 - 10, y + RH - 2), (x1 + 10, y + RH - 2)], fill=(52, 72, 64, 255), width=1)
+    d.line([(540, Y0 - 6), (540, Y0 + 7*RH - 12)], fill=(52, 72, 64, 255), width=1)
+    # 下の枠
+    by = Y0 + 7*RH + 22
+    d.rounded_rectangle([(200, by), (880, by + 92)], radius=18, fill=(16, 22, 21, 255),
+                        outline=(70, 84, 80, 255), width=2)
+    parts = [('まず覚えたい', 46, RED), ('14', 62, YEL), ('パターン', 46, RED)]
+    ims = [text_img(t, sz, 900, col) for t, sz, col in parts]
+    tw = sum(a.size[0] - 8 for a, _ in ims) + 8
+    x = 540 - tw/2
+    for (t, sz, col), (a, _) in zip(parts, ims):
+        put(im, t, sz, 900, col, x=x, cy=by + 50 + (sz - 46)*0.12)
+        x += a.size[0] - 8
+    return im.convert('RGB')
+
+
 # --- 検算 ------------------------------------------------------------------------
 def check():
     print('パターンごとの拍（実際の秒）・紹介する画面の時間')
@@ -875,7 +980,9 @@ def main():
     if o.thumb:
         os.makedirs(os.path.dirname(o.out), exist_ok=True)
         p = os.path.join(os.path.dirname(o.out), 'thumb_reel17_v2.png')
-        thumbnail().save(p); print(p); return
+        thumbnail().save(p); print(p)
+        p = os.path.join(os.path.dirname(o.out), 'thumb_reel17_list.png')
+        thumbnail_list().save(p); print(p); return
     os.makedirs(os.path.dirname(o.out), exist_ok=True)
     if o.still:
         for s in o.still:
