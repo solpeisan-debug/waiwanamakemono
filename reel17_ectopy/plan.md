@@ -405,6 +405,8 @@ StatPearls（ncbi.nlm.nih.gov）は、ボット確認の画面が出て本文を
 - ミニ波形：期外収縮の拍は線を太く（3.8px）、ふつうの拍は少し薄く（72%）。中部から縮むあいだに少しずつ切り替わるので、つなぎ目は出ない
 - ループ：最後の0.75秒で冒頭の画面（タイトル・紫の波形）に戻す。最後に見えている洞調律と冒頭の洞調律の位相をそろえるため、尺を 89.4秒 に調整。最後のコマ→最初のコマの差 1.38（ふつうの1コマ送り 1.30）
 - サムネイル：`python3 make_reel17_v2.py --thumb`（透かしなし。14個の一覧＋「期外収縮」＋⑥PVCの波形）
+- 高画質：`python3 make_reel17_v2.py --hq` → `align_vo_v2.py out/vo/narration_raw.mp3 --fix out/vo/narration_fix.mp3 --mux --hq` で `out/reel17_ectopy_v2_hq_vo.mp4`（CRF 10・約58MB）。
+  チャットで送れる大きさにするときは、これを2パス（veryslow・映像 2800k）で約30MBに書き直す（`out/reel17_ectopy_v2_hq30_vo.mp4`。CRF 10版との差 PSNR 52dB）
 - 専門医レビュー：`python3 make_review_pdf.py` → 1ページ1コマのPDF（16ページ）と画面文言の書き出し。とくに⑦の休み、②③のP'の位置、④⑤の描き方を確認してもらう
 - ナレーション：`narration_v2.md`（秒数つき・読み上げ用・言い回しの注意）
 - キャプション：`caption_v2.txt`
