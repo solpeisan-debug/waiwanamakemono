@@ -162,7 +162,7 @@ def main():
         t = ectopic_time(i)
         n = NOTES[i]
         pages.append(page(m.frame(t), f"{pat['no']} {pat['name']}（{t:.1f}秒のコマ）", [
-            ('画面の文字', [f"名前：{pat['no']} {pat['name']}", f"ひとこと：{pat['one']}", f"紹介前のヒント：{pat['hint']}"]),
+            ('画面の文字', [f"名前：{pat['no']} {pat['name']}", f"ひとこと：{pat['one']}" + (f"（赤で {m.ALERT_TXT}）" if pat['no'] in m.ALERT else ''), f"紹介前のヒント：{pat['hint']}"]),
             ('波形（1周期の出来事）', beat_table(i)),
             ('根拠（LITFLほか）', n['basis']),
             ('見てほしい点', n['ask'] or ['とくになし']),
@@ -211,7 +211,7 @@ def main():
              '[冒頭の変形で出る名前] ' + ' → '.join(f"{m.PATTERNS[i]['no']} {m.PATTERNS[i]['name']}" for i in m.HOOK), '']
     for i, pat in enumerate(m.PATTERNS):
         a, b = m.WINDOWS[i]
-        lines.append(f"[{a:5.1f}〜{b:5.1f}秒] {pat['no']} {pat['name']} ／ {pat['one']} ／ ヒント：{pat['hint']}")
+        lines.append(f"[{a:5.1f}〜{b:5.1f}秒] {pat['no']} {pat['name']} ／ {pat['one']}{(' ' + m.ALERT_TXT) if pat['no'] in m.ALERT else ''} ／ ヒント：{pat['hint']}")
     lines += ['', f"[{m.T_END + m.FLY:.1f}秒〜] 遅いと思ったら、この12パターン ／ 保存して見返してね",
               '[左下] 実際の速さ（ふつうの拍は75/分） ／ ※数値はこの波形での一例',
               '[右下] @nurse_polarbearden（透かし）']

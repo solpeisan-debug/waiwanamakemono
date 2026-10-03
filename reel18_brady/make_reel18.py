@@ -708,6 +708,29 @@ def draw_header(base, a):
 _GRID = None
 
 
+# 専門医レビュー（2026-10-03）：症状がなくても見つけたらすぐ報告する波形には、ひとことのうしろに赤で「→ すぐ報告」
+ALERT = {'⑥', '⑧', '⑨', '⑪'}
+ALERT_TXT = '→ すぐ報告'
+ALERT_COL = (255, 96, 96)
+
+
+def draw_one(im, pat, a):
+    """中部のひとこと。ALERT のパターンは赤い「→ すぐ報告」を続けて、2つまとめて中央ぞろえ。"""
+    if pat['no'] not in ALERT:
+        put(im, pat['one'], 32, 500, (226, 232, 231), cx=540, cy=Y_ONE, a=a, max_w=820)
+        return
+    sz = 32
+    while True:
+        w1 = text_img(pat['one'], sz, 500, (226, 232, 231))[0].size[0] - 8
+        w2 = text_img(ALERT_TXT, sz, 800, ALERT_COL)[0].size[0] - 8
+        if w1 + 14 + w2 <= 820 or sz <= 24:
+            break
+        sz -= 1
+    x0 = 540 - (w1 + 14 + w2) / 2
+    put(im, pat['one'], sz, 500, (226, 232, 231), x=x0, cy=Y_ONE, a=a)
+    put(im, ALERT_TXT, sz, 800, ALERT_COL, x=x0 + w1 + 14, cy=Y_ONE, a=a)
+
+
 def frame(t):
     global _GRID
     if _GRID is None:
@@ -743,7 +766,7 @@ def frame(t):
         pat = PATTERNS[cur]
         al = ramp(t, a_i + 0.1, 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
         put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=al, max_w=820)
-        put(im, pat['one'], 32, 500, (226, 232, 231), cx=540, cy=Y_ONE, a=al, max_w=820)
+        draw_one(im, pat, al)
 
     # 冒頭：タイトルと、変形中のパターン名
     a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
