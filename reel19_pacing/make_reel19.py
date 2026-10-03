@@ -157,11 +157,11 @@ PATTERNS = [
          one='スパイクが小さく、見えにくいことも（双極リード）',
          ev=[(0, 'Vs')], L=LRI, hl=ALL),
     dict(no='⑦', name='融合収縮', col=C_FUS, hint='中間の形のQRS',
-         one='スパイクと自分の脈がほぼ同時。QRSが中間の形',
+         one='自分の脈とほぼ同時。QRSが中間の形',
          ev=[(0, 'V'), (LRI, 'V'), (2*LRI, 'F'), (2.8, 'N'), (3.6, 'N')], L=3.6 + LRI,
          hl=[(2*LRI - 0.25, 2*LRI + 0.45)]),
     dict(no='⑧', name='偽融合', col=C_FUS, hint='QRSの上にスパイク',
-         one='自分のQRSにスパイクが重なるだけ。形は変わらない',
+         one='QRSにスパイクが重なるだけ。形は同じ',
          ev=[(0, 'V'), (LRI, 'V'), (2*LRI, 'PF'), (2.8, 'N'), (3.6, 'N')], L=3.6 + LRI,
          hl=[(2*LRI - 0.25, 2*LRI + 0.45)]),
     dict(no='⑨', name='ペーシング不全', col=C_BAD, hint='スパイクだけ',
@@ -546,6 +546,16 @@ def strip_arrays(tau_center):
     return wave_from(STRIP, tau) + strip_fib(tau), strip_colors(tau), spk
 
 
+# スパイクは波形の線より少し太く、明るく描く（SNSで圧縮されても細い線が消えないように。専門医レビュー 2026-10-03）
+SPIKE_W = 1.35                   # 波形の線の太さに対する倍率
+SPIKE_W_MIN = 3.2                # 最小の太さ（px）
+SPIKE_LIGHT = 0.35               # 白に寄せる割合
+
+
+def spike_layer(size, runs, col, lw, a, blur):
+    return glow_line(size, runs, mix(col, (255, 255, 255), SPIKE_LIGHT), max(lw*SPIKE_W, SPIKE_W_MIN), a, blur=blur)
+
+
 def spike_runs(spk, xs, ys, mv, x_off=0.0, y_off=0.0):
     """スパイクを縦の線（点列）にする。根元は波形の高さ、少し下から上へ。"""
     out = []
@@ -610,9 +620,12 @@ def draw_wave(v, cid, base_col, a, spk=()):
         sel = sel | np.roll(sel, 1) | np.roll(sel, -1)
         idx = np.where(sel)[0]
         runs = [list(zip(FX[r], ys[r])) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
-        runs += spike_runs([q for q in spk if q[2] == ci], FX, ys, F_MV)
         col = base_col if ci < 0 else PATTERNS[ci]['col']
-        out.alpha_composite(glow_line((W, h), runs, col, 4.5, a))
+        if runs:
+            out.alpha_composite(glow_line((W, h), runs, col, 4.5, a))
+        sr = spike_runs([q for q in spk if q[2] == ci], FX, ys, F_MV)
+        if sr:
+            out.alpha_composite(spike_layer((W, h), sr, col, 4.5, a, (8, 20)))
     return out
 
 
@@ -659,11 +672,12 @@ def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=No
         sel = sel | np.roll(sel, 1) | np.roll(sel, -1)
         idx = np.where(sel)[0]
         runs = [list(zip(xs[r] - bx0, ys[r] - by0)) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
-        runs += spike_runs([q for q in spk if q[2] == flag], xs, ys, mv, bx0, by0)
-        if not runs:
-            continue
-        out.alpha_composite(glow_line(size, runs, col, (lw_e or lw) if flag else lw,
-                                      a if flag else a*a_norm, blur=blur))
+        w_, a_ = ((lw_e or lw) if flag else lw), (a if flag else a*a_norm)
+        if runs:
+            out.alpha_composite(glow_line(size, runs, col, w_, a_, blur=blur))
+        sr = spike_runs([q for q in spk if q[2] == flag], xs, ys, mv, bx0, by0)
+        if sr:
+            out.alpha_composite(spike_layer(size, sr, col, w_, a_, blur))
     return out, (bx0, by0)
 
 
@@ -767,23 +781,28 @@ _GRID = None
 ALERT = {'⑨', '⑩', '⑪', '⑫'}
 ALERT_TXT = '→ すぐ報告'
 ALERT_COL = (255, 96, 96)
+# 専門医レビュー（2026-10-03）：⑦⑧は異常に見えるが正常の作動。ひとことのうしろに緑で「→ 正常の動き」
+NORMAL = {'⑦', '⑧'}
+NORMAL_TXT = '→ 正常の動き'
+NORMAL_COL = (110, 226, 150)
 
 
 def draw_one(im, pat, a):
-    """中部のひとこと。ALERT のパターンは赤い「→ すぐ報告」を続けて、2つまとめて中央ぞろえ。"""
-    if pat['no'] not in ALERT:
+    """中部のひとこと。ALERT は赤い「→ すぐ報告」、NORMAL は緑の「→ 正常の動き」を続けて、まとめて中央ぞろえ。"""
+    tag = (ALERT_TXT, ALERT_COL) if pat['no'] in ALERT else (NORMAL_TXT, NORMAL_COL) if pat['no'] in NORMAL else None
+    if tag is None:
         put(im, pat['one'], 32, 500, (226, 232, 231), cx=540, cy=Y_ONE, a=a, max_w=820)
         return
     sz = 32
     while True:
         w1 = text_img(pat['one'], sz, 500, (226, 232, 231))[0].size[0] - 8
-        w2 = text_img(ALERT_TXT, sz, 800, ALERT_COL)[0].size[0] - 8
+        w2 = text_img(tag[0], sz, 800, tag[1])[0].size[0] - 8
         if w1 + 14 + w2 <= 820 or sz <= 24:
             break
         sz -= 1
     x0 = 540 - (w1 + 14 + w2) / 2
     put(im, pat['one'], sz, 500, (226, 232, 231), x=x0, cy=Y_ONE, a=a)
-    put(im, ALERT_TXT, sz, 800, ALERT_COL, x=x0 + w1 + 14, cy=Y_ONE, a=a)
+    put(im, tag[0], sz, 800, tag[1], x=x0 + w1 + 14, cy=Y_ONE, a=a)
 
 
 def frame(t):
@@ -930,8 +949,10 @@ def thumb_row_wave(i, x0, x1, base_y, mv, span=4.0):
     size = (int(x1 - x0) + 2*pad, int(3.2*mv) + 2*pad)
     ox, oy = int(x0) - pad, int(base_y - 1.7*mv) - pad
     spk = [(x0 + (ts - t0)*pxs, amp) for ts, amp in spike_times(bl) if rel[0] + 0.03 <= ts <= rel[-1] - 0.03]
-    runs = [list(zip(xs - ox, ys - oy))] + spike_runs(spk, xs, ys, mv, ox, oy)
-    lay = glow_line(size, runs, pat['col'], 2.8, 1.0, blur=(4, 10))
+    lay = glow_line(size, [list(zip(xs - ox, ys - oy))], pat['col'], 2.8, 1.0, blur=(4, 10))
+    sr = spike_runs(spk, xs, ys, mv, ox, oy)
+    if sr:
+        lay.alpha_composite(spike_layer(size, sr, pat['col'], 2.8, 1.0, (4, 10)))
     d = ImageDraw.Draw(lay)
     L = pat['L']
     n_max, n = THUMB_MAX_MARKS.get(i, 2), 0
