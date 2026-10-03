@@ -71,6 +71,7 @@ PAD_IN, PAD_OUT = 0.06, 0.15          # 声の前後に残す無音（無音の�
 LEAD = 0.55                           # パターンの名前が出てから話し始めるまで
 GAP_MIN = 0.20                        # 文と文のあいだの最小の間
 DUCK_DB = 8.0
+VO_PEAK = 0.75                        # 声のピーク（第17弾の声とおなじくらいの大きさ）
 
 
 def ffmpeg():
@@ -181,6 +182,9 @@ def main():
         i0 = int(starts[n] * SR)
         seg = segs[n][:max(0, n_all - i0)]
         vo[i0:i0+len(seg)] += seg
+
+    # 声の大きさをそろえる（この録音は第17弾より約4dB小さい）。声のいちばん大きいところを VO_PEAK に
+    vo *= VO_PEAK / (np.abs(vo).max() + 1e-9)
 
     # 効果音（モニター音）
     os.makedirs(os.path.join(HERE, 'out', 'vo'), exist_ok=True)
