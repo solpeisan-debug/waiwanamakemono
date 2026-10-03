@@ -5,6 +5,7 @@ ecg-reel-qc の決まり：1枚の縦長シートではなく、1ページ1コ�
 
 使い方:
     python3 make_review_pdf.py      # out/review_reel18.pdf と out/screen_text_reel18.txt
+                                    # ＋ out/review_reel18_frames.pdf（映像のコマを等倍・無圧縮で1ページずつ）
 """
 import os
 
@@ -148,7 +149,7 @@ def main():
     pages.append(page(m.frame(hook_t), '全体（冒頭3秒のフック）', [
         ('構成', [f'0〜{m.T_GO:.1f}秒：波形を止めて、②→⑤→⑦→⑨→⑪ に素早く変形（フック）',
                   f'{m.T_TITLE:.1f}〜{m.T_END:.1f}秒：12パターンを1つずつ紹介。紹介が終わると、その波形が縮んで上下の枠へ移り、ミニ波形として流れ続ける',
-                  f'{m.T_END + m.FLY:.1f}秒〜：14個の一覧と「保存して見返してね」。最後は冒頭の画面に戻り、ループでつながる',
+                  f'{m.T_END + m.FLY:.1f}秒〜：12個の一覧と「保存して見返してね」。最後は冒頭の画面に戻り、ループでつながる',
                   '実際の速さ（25mm/秒）・ふつうの拍は75/分・II誘導を想定']),
         ('とくに見てほしい点', ['⑥ モビッツII型のQRSを細く描いてよいか（7ページめ）',
                                  '② 洞停止と ③ 洞房ブロックの対比（休みが倍数か）',
@@ -173,6 +174,31 @@ def main():
         ('見てほしい点', ['ミニ波形では、見どころ（休み・伝わらないP波・PR）だけ線を太く、色を付けている',
                           'スマホの大きさで、⑥⑦⑧の伝わらないP波が読み取れるか']),
     ], foot))
+
+    # 等倍：映像のコマ（1080×1920）をそのまま1ページずつ。PNGのまま入れる（JPEGにしない）
+    frames = [('冒頭のフック', hook_t)] + [(f"{p['no']} {p['name']}", ectopic_time(i)) for i, p in enumerate(m.PATTERNS)] \
+        + [('最後：12個の一覧', m.T_END + m.FLY + 2.5)]
+    fdir = os.path.join(OUT, 'review_frames')
+    os.makedirs(fdir, exist_ok=True)
+    pngs, index = [], []
+    for k, (name, t) in enumerate(frames, 1):
+        fp = os.path.join(fdir, f'{k:02d}.png')
+        m.frame(t).save(fp)
+        pngs.append(fp); index.append(f'{k}ページ：{name}（{t:.1f}秒のコマ）')
+    thumb = os.path.join(OUT, 'thumb_reel18_list.png')
+    if os.path.exists(thumb):
+        pngs.append(thumb); index.append(f'{len(pngs)}ページ：サムネイル（投稿の表紙）')
+    fpdf = os.path.join(OUT, 'review_reel18_frames.pdf')
+    try:
+        import img2pdf
+        with open(fpdf, 'wb') as f:
+            f.write(img2pdf.convert(pngs))
+    except ImportError:                     # img2pdf がなければ、JPEGの高画質で
+        ims = [Image.open(q).convert('RGB') for q in pngs]
+        ims[0].save(fpdf, save_all=True, append_images=ims[1:], resolution=72, quality=95, subsampling=0)
+    with open(os.path.join(OUT, 'review_reel18_frames_index.txt'), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(index) + '\n')
+    print(fpdf, len(pngs), 'ページ（等倍）')
 
     pdf = os.path.join(OUT, 'review_reel18.pdf')
     pages[0].save(pdf, save_all=True, append_images=pages[1:], resolution=150)
