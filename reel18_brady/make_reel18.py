@@ -128,7 +128,7 @@ PATTERNS = [
          ev=[(0, 'N')], L=4/3, hl=ALL),
     dict(no='②', name='洞停止', col=C_SA, rep=1, hint='長く止まる',
          one='P波ごと止まる。3秒をこえる休み',
-         ev=[(0, 'N'), (.8, 'N'), (1.6, 'N'), (4.9, 'N')], L=5.7, hl=[(1.6 + 0.32, 4.9 + 0.40)]),
+         ev=[(0, 'N'), (.8, 'N'), (4.1, 'N')], L=4.9, hl=[(0.8 + 0.32, 4.1 + 0.40)]),
     dict(no='③', name='洞房ブロック', col=C_SA, rep=1, hint='休みがぴったり2拍',
          one='P波が1つ抜ける。休みはちょうど2拍ぶん',
          ev=[(0, 'N'), (.8, 'N'), (1.6, 'N'), (2.4, 'N'), (4.0, 'N')], L=4.8, hl=[(2.4 + 0.32, 4.0 + 0.40)]),
@@ -165,6 +165,18 @@ PATTERNS = [
 N_PAT = len(PATTERNS)
 for _p in PATTERNS:
     _p['beats'] = _p['ev']
+
+# 区間の長さ（秒）。ナレーションの長さ＋0.2秒以上で、拍の並びがくずれない位置で切る（第17弾と同じ考え方）。
+# - 周期のちょうど倍数（①④⑦⑧⑩）
+# - 周期の途中なら、次のパターンの最初の拍と同じ種類の拍がそこに来る位置（②③⑤⑥⑨⑫）
+#   ②4.1 ③4.0 は洞の拍、⑤4.0 ⑥4.8 は伝わるP波、⑨5.52 は接合部の拍、⑫4.8 はうしろの洞調律
+# - ⑪5.0：最後の補充収縮から⑫の最初の拍まで 1.3秒（心房細動のR-Rと同じくらい）
+# 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
+SEG_D = {'①': 4.0, '②': 4.1, '③': 4.0, '④': 4.8, '⑤': 4.0, '⑥': 4.8,
+         '⑦': 4.8, '⑧': 4.0, '⑨': 5.52, '⑩': 5.0, '⑪': 5.0, '⑫': 4.8}
+for _p in PATTERNS:
+    _p['D'] = SEG_D[_p['no']]
+    assert _p['D'] >= 3.44 - 1e-9, _p['no']
 
 
 def beat_wave(tau, r, kind):
@@ -225,8 +237,8 @@ def hl_mask(pat, rel):
 # 元の波形に戻ってから T_GO でまた流す。T_TITLE でパターン①が右端から入ってくる。
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
-T_TITLE = 7.5                     # ナレーションの冒頭3文（約7.4秒）が入る長さ
-DUR_TARGET = 90.0                 # 尺（ちょうど90秒）。14個そろってからの時間は、ここから逆算する
+T_TITLE = 3.6                     # 冒頭の1文（約3.1秒）が入り、見出しと枠が出そろう長さ
+END_HOLD = 5.7                    # 12個そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
 HOOK = [1, 4, 6, 8, 10]           # ②洞停止 → ⑤ウェンケバッハ → ⑦2:1 → ⑨完全房室ブロック → ⑪心室補充調律
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
@@ -237,28 +249,31 @@ def _strip():
     t = 0.0
     for i, pat in enumerate(PATTERNS):
         s0 = t
-        for rep in range(pat['rep']):
-            for r, kind in pat['ev']:
+        for r, kind in periodic_beats(pat, 0.0, pat['D']):
+            if -1e-9 <= r < pat['D'] - 1e-9:
                 beats.append((t + r, kind, i))
-            t += pat['L']
+        t += pat['D']
         segs.append((s0, t))
     end = t
     k = -1
     while k*RR > -12:                     # 前：洞調律
         beats.append((k*RR, 'N', None)); k -= 1
-    # うしろ：洞調律。尺をちょうど DUR_TARGET にしてもループがつながるよう、
-    # 最初の6拍の間隔を少しだけ広げて位相をそろえる（0.80秒 → 最大 0.80+0.8/6 秒）
-    shift = (DUR_TARGET - FREEZE - end) % RR
+    # うしろ：洞調律（間隔は変えない）。尺は「最後の2文が入る長さ」以上で、
+    # うしろの洞調律の位相が冒頭とそろういちばん短い長さにする。こうするとループがつながる
+    need = T_TITLE + end - HANDOFF_EARLY + 0.8 + END_HOLD      # 0.8 = FLY
+    k = math.ceil((need - FREEZE - end) / RR - 1e-9)
+    dur_target = FREEZE + end + k*RR
     tt = end
     beats.append((tt, 'N', None))
     for k in range(1, 60):
-        tt += RR + (shift/6 if k <= 6 else 0.0)
+        tt += RR
         beats.append((tt, 'N', None))
     beats.sort(key=lambda b: b[0])
-    return beats, segs, end
+    return beats, segs, end, dur_target
 
 
-STRIP, SEGS, STRIP_END = _strip()
+HANDOFF_EARLY = 0.35
+STRIP, SEGS, STRIP_END, _DUR_LOOP = _strip()
 
 # 中部の帯：1mm = 14px、25mm/秒 → 実際の1秒 = 350px
 F_PXMM = 14.0
@@ -301,7 +316,6 @@ def t_of(tau_center):
     return t if t < T_STOP else t + FREEZE
 
 
-HANDOFF_EARLY = 0.35
 WINDOWS = []
 for _i in range(len(PATTERNS)):
     _a = T_TITLE if _i == 0 else WINDOWS[-1][1]
@@ -313,7 +327,7 @@ T_END = WINDOWS[-1][1]
 FLY = 0.8                                  # 中部から枠へ縮んで移る時間
 LOOP_FADE = 0.75                           # 最後に冒頭の画面へ戻す時間
 FPS_LOOP = 60
-END_HOLD = DUR_TARGET - T_END - FLY        # 14個そろってからの時間
+DUR_TARGET = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
 
 
 def _loop_dur_search():
@@ -793,7 +807,7 @@ def thumbnail():
 # パターンごとに (見せ始めの時刻, 点線の丸で囲む範囲[周期の中の時刻])。丸のないものは全体が特徴
 THUMB_VIEW = {
     0: (0.0, []),
-    1: (1.15, [(1.98, 4.68)]),                 # 洞停止：止まっているところ
+    1: (0.35, [(1.18, 3.88)]),                 # 洞停止：止まっているところ
     2: (1.6, [(2.86, 3.34)]),                  # 洞房ブロック：P波ごと抜けたところ
     3: (-1.0, [(-0.36, 0.0)]),                 # 1度：長いPR
     4: (-0.5, [(2.30, 2.52)]),                 # ウェンケバッハ：伝わらなかったP
@@ -918,10 +932,15 @@ def check():
     print('パターンごとの紹介の時間')
     for i, pat in enumerate(PATTERNS):
         a, b = WINDOWS[i]
-        print(f"{pat['no']} {pat['name']:<10} 周期{pat['L']:.2f}s×{pat['rep']}  画面 {a:5.1f}–{b:5.1f}s（{b-a:4.1f}s）")
-    print(f'12個目の終わり {T_END:.1f}s → 一覧 {T_END+FLY:.1f}〜{DUR:.0f}s（{END_HOLD:.1f}s）')
+        print(f"{pat['no']} {pat['name']:<10} 周期{pat['L']:.2f}s 区間{pat['D']:.2f}s  画面 {a:5.1f}–{b:5.1f}s（{b-a:4.1f}s）")
+    print(f'12個目の終わり {T_END:.1f}s → 一覧 {T_END+FLY:.1f}〜{DUR:.1f}s')
+    # 区間のつなぎ目：前のパターンの最後の拍 → 次のパターン（またはうしろの洞調律）の最初の拍
+    for i, (s0, s1) in enumerate(SEGS):
+        last = max((b for b in STRIP if s0 <= b[0] < s1 and b[1] != 'P'), key=lambda b: b[0])
+        nxt = min((b for b in STRIP if b[0] >= s1 - 1e-9 and b[1] != 'P'), key=lambda b: b[0])
+        print(f"  つなぎ目 {PATTERNS[i]['no']}→ : QRS {last[1]} {last[0]-s0:.2f} → {nxt[1]} 間隔 {nxt[0]-last[0]:.2f}s")
     print(f'① 洞徐脈：{60/PATTERNS[0]["L"]:.0f}/分（60/分未満）')
-    print(f'② 洞停止：休み {4.9-1.6:.1f}秒（3秒をこえる。洞の間隔0.80の倍数ではない：{(4.9-1.6)/0.8:.2f}倍）')
+    print(f'② 洞停止：休み {4.1-0.8:.1f}秒（3秒をこえる。洞の間隔0.80の倍数ではない：{(4.1-0.8)/0.8:.2f}倍）')
     print(f'③ 洞房ブロック：休み {4.0-2.4:.1f}秒 = 洞の間隔0.80のちょうど2倍')
     print(f'④ 1度房室ブロック：PR {_pr_ms(PR_LONG):.0f}ms（200ms超）／ふつうのPR {_pr_ms(PR):.0f}ms')
     print(f'⑤ ウェンケバッハ：PR {_pr_ms(.18):.0f} → {_pr_ms(.28):.0f} → {_pr_ms(.33):.0f}ms、R-R {1.08-.18:.2f} → {1.93-1.08:.2f} → 抜けをはさんで {3.2+.18-1.93:.2f}s')
@@ -931,8 +950,8 @@ def check():
     print(f'⑨ 完全：心房 {60/(6.4/9):.0f}/分、心室 {60/1.28:.0f}/分（接合部 40〜60）。比 {(1.28)/(6.4/9):.2f}（整数でない）')
     print(f'⑩ 接合部補充調律：{60/1.25:.0f}/分（40〜60）')
     print(f'⑪ 心室補充調律：{60/2.0:.0f}/分（20〜40）')
-    rr = np.diff([.3, 1.45, 2.85, 3.65, 5.05, 6.3])
-    print(f'⑫ 徐脈性心房細動：R-R {list(np.round(rr,2))}、平均 {60/rr.mean():.0f}/分（60未満）')
+    rr = np.diff([.3, 1.45, 2.85, 3.65, 5.05, 6.3][:-1])
+    print(f'⑫ 徐脈性心房細動：R-R {[round(float(x), 2) for x in rr]}、平均 {60/rr.mean():.0f}/分（60未満）')
     print(f'QRS幅：ふつう {_qrs_ms(qrs_normal):.0f}ms、心室補充 {_qrs_ms(qrs_escape):.0f}ms（120以上）')
     tr = [b[0] for b in STRIP if b[0] >= STRIP_END - 1e-9][:8]
     print('うしろの洞調律の間隔', [round(y - x, 3) for x, y in zip(tr, tr[1:])])

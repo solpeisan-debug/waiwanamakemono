@@ -118,7 +118,7 @@ def cut(audio, blocks, ix, gap_cap=None):
             mid = (g0 + g1) / 2
             parts.append(audio[max(0, int(t*SR)):int((mid - gap_cap/2)*SR)])
             t = mid + gap_cap/2
-    parts.append(audio[int(t*SR):int(b*SR)])
+    parts.append(audio[max(0, int(t*SR)):int(b*SR)])
     return np.concatenate(parts)
 
 

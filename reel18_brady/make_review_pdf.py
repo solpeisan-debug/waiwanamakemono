@@ -128,7 +128,7 @@ def beat_table(i):
     rows = [f"{r:4.2f}秒  {name[k]}" for r, k in pat['ev']]
     if len(rows) > 9:
         rows = rows[:8] + [f'…ほか {len(rows)-8}個']
-    rows.append(f"周期 {pat['L']:.2f}秒 × {pat['rep']}回")
+    rows.append(f"周期 {pat['L']:.2f}秒・区間 {pat['D']:.2f}秒")
     return rows
 
 
