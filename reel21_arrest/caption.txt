@@ -1,0 +1,29 @@
+@nurse_polarbearden📍他の投稿をチェック
+---------------------------------------------------------
+▶︎こんにちは、看護師でんです。
+
+急変のときのモニター。電気ショックが必要な波形、わかりますか？
+心停止の波形で、まず覚えたい10パターンをまとめました。
+
+⚡【電気ショックをする】
+・心室細動（VF）：粗いVF・細かいVF
+・脈のない心室頻拍：単形性・多形性・トルサード
+※脈のある心室頻拍は、ショックとは別の治療になります。まず脈を確認
+
+🫀【電気ショックをしない（CPRを続ける）】
+・心静止（P波だけで、QRSがないものも）
+・PEA：波形があっても、脈がない
+※細かいVFか心静止か迷うときは、ショックせずにCPRを続けます
+
+💡胸骨圧迫中は、揺れで波形が見えません。波形を確かめるための中断は、できるだけ短く
+
+まず、反応・呼吸を確認して、人を呼び、CPRを始めてください。
+
+保存して、見返してね。
+
+※数値はこの波形での一例です（II誘導）
+※参考：LITFL ECG Library（Ventricular Fibrillation／Polymorphic VT and Torsades de Pointes／ECG Motion Artefacts）、LITFL CCC（Pulseless Electrical Activity）、ERC Guidelines 2021（Adult Advanced Life Support）
+
+（caption_template.txt の定型3行：シェア歓迎／転載・素材使用はDMで）
+
+#看護師 #看護学生 #心電図 #心停止 #急変 #BLS #モニター心電図 #不整脈
