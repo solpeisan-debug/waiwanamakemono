@@ -1,9 +1,9 @@
-"""第21弾 致死性不整脈と心停止 まず覚えたい10パターン（第17〜20弾と同じ作り）
+"""第21弾 致死性不整脈と心停止 まず覚えたい12パターン（第17〜20弾と同じ作り）
 
 配置：
-- 上部：①〜⑥ のミニ波形（2列×3段。左が心室頻拍、右が心室細動と心静止）
-- 中部：いま紹介中の波形（大きく流れる）と、名前・ひとこと（うしろに、電気ショックの適応を色で）
-- 下部：⑦〜⑩ のミニ波形（2列×2段。ショック適応のない波形と、胸骨圧迫中の波形）
+- 上部：①〜⑥ のミニ波形（2列×3段。速くなる道：R on T → 連発 → VT → 多形性VT → トルサード → 粗いVF）
+- 中部：いま紹介中の波形（大きく流れる）と、名前・ひとこと（うしろに、対応を色で）
+- 下部：⑦〜⑫ のミニ波形（2列×3段。細かいVF、遅くなる道：モビッツII型 → 完全房室ブロック → 心静止、PEA）
 
 波形は、パターンの周期でくり返す決まった形（乱数の種を固定）。区間の端は0.2秒でなめらかに切りかえる。
 II誘導を想定。
@@ -40,10 +40,10 @@ PURPLE = (178, 150, 240)
 GREEN = (130, 232, 172)
 WAVE_GREEN = (40, 214, 128)
 
+C_PRE = (255, 212, 90)           # 心停止につながるサイン（すぐ報告）
 C_VT = (255, 152, 72)            # 心室頻拍（脈がなければショック）
 C_VF = (255, 92, 112)            # 心室細動（ショック）
 C_NS = (110, 200, 255)           # ショック適応なし（心静止・PEA）
-C_CPR = (255, 212, 90)           # 胸骨圧迫中
 
 FONT = os.environ.get('REEL_FONT', os.path.join(HERE, 'fonts', 'NotoSansJP.ttf'))
 
@@ -140,7 +140,7 @@ def burst(rel, L, a, b, edge=0.25):
     return w*w*(3 - 2*w)
 
 
-# ② 多形性VT：幅の広いQRSが約230/分で、形・大きさ・向きが1拍ごとに変わる
+# ④ 多形性VT：幅の広いQRSが約230/分で、形・大きさ・向きが1拍ごとに変わる
 POLY_N, POLY_L = 15, 4.0
 _rs2 = _rs(21)
 POLY = [(k*POLY_L/POLY_N + _rs2.uniform(-0.03, 0.03), _rs2.uniform(0.45, 1.15)*(1 if _rs2.rand() < 0.6 else -1),
@@ -159,7 +159,7 @@ def art_poly(rel, L):
     return out
 
 
-# ③ トルサード：QT延長の洞調律 → T波の上のPVC（R on T）から、QRSの大きさがねじれるように変わる → 自然に止まる
+# ⑤ トルサード：QT延長の洞調律 → T波の上のPVC（R on T）から、QRSの大きさがねじれるように変わる → 自然に止まる
 TDP_A, TDP_B = 1.40, 3.95                  # 周期の中のトルサードの区間（秒）
 TDP_F = 4.0                                # 約240/分
 
@@ -183,65 +183,58 @@ def gain_tdp(rel, L):                      # トルサードのあいだは洞�
     return np.where((r >= TDP_A - 0.02) & (r < TDP_B + 0.05), 0.0, 1.0)
 
 
-def art_vf_coarse(rel, L):                 # ④ 粗いVF：3〜9Hzの不規則で大きな揺れ
+def art_vf_coarse(rel, L):                 # ⑥ 粗いVF：3〜9Hzの不規則で大きな揺れ
     env = 0.75 + 0.25*np.sin(2*np.pi*rel/L)
     return env*band_noise(rel, L, 3.0, 9.0, 0.42, 24)
 
 
-def art_vf_fine(rel, L):                   # ⑤ 細かいVF：同じ揺れが小さい
+def art_vf_fine(rel, L):                   # ⑦ 細かいVF：同じ揺れが小さい
     return band_noise(rel, L, 3.5, 10.0, 0.075, 25)
 
 
-def art_asys(rel, L):                      # ⑥ 心静止：ほぼまっすぐ（ごくわずかな基線のゆれ）
+def art_asys(rel, L):                      # ⑩ 心静止：ほぼまっすぐ（ごくわずかな基線のゆれ）
     return band_noise(rel, L, 0.25, 1.5, 0.012, 26)
 
 
-# ⑩ 胸骨圧迫中：約110回/分の大きな揺れ → 圧迫を止めると、下にVFが見える
-CPR_A, CPR_B, CPR_T = 0.25, 3.05, 60/110
-
-
-def art_cpr(rel, L):
-    r = np.mod(rel, L)
-    w = burst(rel, L, CPR_A, CPR_B, 0.12)
-    ph = (r - CPR_A) / CPR_T
-    comp = 0.72*np.sin(2*np.pi*ph) + 0.18*np.sin(4*np.pi*ph + 0.6)
-    vf = band_noise(rel, L, 3.0, 9.0, 0.30, 27)
-    return w*comp + vf
-
-
-# 10パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、連続した波形 art・倍率 gain、色を付ける範囲 hl
+# 12パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、連続した波形 art・倍率 gain、色を付ける範囲 hl
 PATTERNS = [
-    dict(no='①', name='単形性VT', col=C_VT, hint='速い・幅広・同じ形',
+    dict(no='①', name='R on T', col=C_PRE, hint='T波に乗るPVC',
+         one='T波の上にPVCが乗る。VFのきっかけに', tag='report',
+         ev=[(0, 'N'), (0.8, 'N'), (0.8 + 0.27, 'V'), (2.4, 'N')], L=3.2, hl=[(0.8 + 0.18, 0.8 + 0.27 + 0.42)]),
+    dict(no='②', name='PVCの連発', col=C_PRE, hint='3つ以上続く',
+         one='PVCが3つ以上続く（ショートラン）', tag='report',
+         ev=[(0, 'N'), (0.8, 'N'), (1.28, 'V'), (1.66, 'V'), (2.04, 'V'), (3.2, 'N')], L=4.0, hl=[(1.19, 2.46)]),
+    dict(no='③', name='単形性VT', col=C_VT, hint='速い・幅広・同じ形',
          one='幅の広いQRSが、速く規則正しい', tag='shock_if',
          ev=[(k*0.32, 'V') for k in range(15)], L=4.8, hl=ALL),
-    dict(no='②', name='多形性VT', col=C_VT, hint='形が毎回ちがう',
+    dict(no='④', name='多形性VT', col=C_VT, hint='形が毎回ちがう',
          one='QRSの形が、1拍ごとに変わる', tag='shock_if',
          ev=[], L=POLY_L, art=art_poly, hl=ALL),
-    dict(no='③', name='トルサード・ド・ポワント', col=C_VT, hint='ねじれる',
+    dict(no='⑤', name='トルサード・ド・ポワント', col=C_VT, hint='ねじれる',
          one='ねじれるように変わる。QT延長のあと', tag='shock_if',
          ev=[(0, 'Q'), (1.0, 'Q'), (4.6, 'Q')], L=5.6, art=art_tdp, gain=gain_tdp,
          hl=[(TDP_A - 0.1, TDP_B + 0.1)]),
-    dict(no='④', name='粗いVF', col=C_VF, hint='大きくバラバラ',
+    dict(no='⑥', name='粗いVF', col=C_VF, hint='大きくバラバラ',
          one='不規則で大きな揺れ。QRSが見えない', tag='shock',
          ev=[], L=4.0, art=art_vf_coarse, hl=ALL),
-    dict(no='⑤', name='細かいVF', col=C_VF, hint='小さくバラバラ',
+    dict(no='⑦', name='細かいVF', col=C_VF, hint='小さくバラバラ',
          one='揺れが小さい。時間がたつと小さくなる', tag='shock',
          ev=[], L=4.0, art=art_vf_fine, hl=ALL),
-    dict(no='⑥', name='心静止', col=C_NS, hint='ほぼまっすぐ',
+    dict(no='⑧', name='モビッツII型', col=C_PRE, hint='突然抜ける',
+         one='PRは同じまま、突然QRSが抜ける', tag='report',
+         ev=[(0.16, 'N'), (0.96, 'N'), (1.76, 'N'), (2.4, 'P')], L=3.2, hl=[(2.30, 2.52)]),
+    dict(no='⑨', name='完全房室ブロック', col=C_PRE, hint='PとQRSがバラバラ',
+         one='PとQRSが別々に動く。とても遅い', tag='report',
+         ev=[(k*0.68, 'P') for k in range(10)] + [(0.3 + k*1.7, 'W') for k in range(4)], L=6.8, hl=ALL),
+    dict(no='⑩', name='心静止', col=C_NS, hint='ほぼまっすぐ',
          one='まっすぐの線。CPRと並行して電極も確認', tag='noshock',
          ev=[], L=4.0, art=art_asys, hl=ALL),
-    dict(no='⑦', name='P波だけ', col=C_NS, hint='QRSがない',
-         one='P波はあるのに、QRSがない', tag='noshock',
-         ev=[(k*0.8, 'P') for k in range(5)], L=4.0, hl=ALL),
-    dict(no='⑧', name='PEA（ふつうに見える）', col=C_NS, hint='波形はふつう',
+    dict(no='⑪', name='PEA（ふつうに見える）', col=C_NS, hint='波形はふつう',
          one='波形はふつうに見えても、脈がない', tag='noshock',
          ev=[(k*0.75, 'N') for k in range(6)], L=4.5, hl=ALL),
-    dict(no='⑨', name='PEA（遅く幅広い）', col=C_NS, hint='遅く幅広い',
+    dict(no='⑫', name='PEA（遅く幅広い）', col=C_NS, hint='遅く幅広い',
          one='遅く幅の広いQRS。脈がない', tag='noshock',
          ev=[(0.3, 'W'), (2.3, 'W')], L=4.0, hl=ALL),
-    dict(no='⑩', name='胸骨圧迫中', col=C_CPR, hint='大きく規則的な揺れ',
-         one='圧迫の揺れで、下の波形が見えない', tag='check',
-         ev=[], L=4.4, art=art_cpr, hl=[(CPR_A, CPR_B)]),
 ]
 
 
@@ -259,13 +252,6 @@ N_PAT = len(PATTERNS)
 for _p in PATTERNS:
     _p['beats'] = _p['ev']
 
-# 区間の長さ（秒）。ナレーション（2026-10-03）の長さ＋0.2秒以上で、拍の並びがくずれない位置で切る（第18弾と同じ考え方）。
-# - 周期のちょうど倍数（①②③④⑥⑦⑨⑩⑪）
-# - ⑤3.6：2つめのペーシングの位置。次の⑥のペーシングまで下限の間隔（1.0秒）
-# - ⑧6.6：偽融合の位置。次の⑨のペーシングは、直前のペーシングから下限の間隔（1.0秒）
-# - ⑫4.0：ペースメーカー頻拍が止まって、洞調律に戻る（最後のパターンは0.35秒早く縮むので、そのぶん長め）
-# ペーシングの拍は、直前の拍から下限の間隔（1.0秒）より早く来ないようにする（④⑫の心房に合わせる拍は別）。
-# 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
 # 区間の長さ（秒）。ナレーションが届くまでの仮の値（周期の倍数）。録音が届いたら声に合わせて切り直す。
 # 切る位置は洞調律の拍の位置（0.80秒の倍数）にする。ノイズは区間の端0.2秒でなめらかに足し引きする
 SEG_D = {_p['no']: _p['L']*math.ceil(5.0/_p['L'] - 1e-9) for _p in PATTERNS}
@@ -343,7 +329,7 @@ T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
 T_TITLE = 4.0                     # 冒頭の1文が入り、見出しと枠が出そろう長さ（録音が届いたら合わせる）
 END_HOLD = 5.7                    # 12個そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
-HOOK = [0, 2, 3, 5, 9]            # ①単形性VT → ③トルサード → ④粗いVF → ⑥心静止 → ⑩胸骨圧迫中
+HOOK = [0, 4, 5, 8, 9]            # ①R on T → ⑤トルサード → ⑥粗いVF → ⑨完全房室ブロック → ⑩心静止
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
 
@@ -456,7 +442,7 @@ DUR = DUR_TARGET
 CELL_W, CELL_H = 400, 110
 COL_X = (130, 550)
 TOP_Y = [396, 516, 636]
-BOT_Y = [1188, 1308]
+BOT_Y = [1188, 1308, 1428]
 CELL_FILL = 225                    # 枠の中の塗りの濃さ（0〜255）。方眼をうっすら残す
 M_PXS = 66.0                      # ミニ波形：実際の1秒 = 66px（約5.8秒ぶんが見える。洞停止・完全房室ブロック用）
 M_MV = 33.0
@@ -468,7 +454,7 @@ def cell_rect(i):
         x, y = COL_X[col], TOP_Y[row]
     else:
         j = i - 6
-        col, row = j // 2, j % 2                # 下は2列×2段（⑦⑧ と ⑨⑩）
+        col, row = j // 3, j % 3
         x, y = COL_X[col], BOT_Y[row]
     return (x, y, x + CELL_W, y + CELL_H)
 
@@ -830,7 +816,7 @@ def draw_cell(base, i, t, state, a_all):
 
 
 # --- 画面 ---------------------------------------------------------------------------
-HEADER = [('致死性不整脈と心停止', 1.0, WHITE), ('10', 2.0, (255, 214, 64)), ('パターン', 1.0, WHITE)]
+HEADER = [('致死性不整脈と心停止', 1.0, WHITE), ('12', 2.0, (255, 214, 64)), ('パターン', 1.0, WHITE)]
 HEADER_BASE = 372                   # 見出しのベースライン（y）
 NOTE1 = '実際の速さ（ふつうの拍は75/分）'
 NOTE2 = '※数値はこの波形での一例'
@@ -872,7 +858,7 @@ TAGS = {
     'shock_if': ('→ 脈なしならショック', (255, 96, 96)),
     'shock': ('→ 電気ショック', (255, 96, 96)),
     'noshock': ('→ ショックしない・CPR', (120, 196, 255)),
-    'check': ('→ 止めて波形を見る', (255, 212, 90)),
+    'report': ('→ すぐ報告', (255, 196, 64)),
 }
 ALERT_TXT = '→ 電気ショック'               # 書き出し用（画面文言の一覧）
 
@@ -946,7 +932,7 @@ def frame(t):
 
     a_end = ramp(t, T_END + FLY, 0.6)*keep
     if a_end > 0:
-        put(im, '急変のときに、この10パターン', 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end, max_w=820)
+        put(im, '急変のまえに、この12パターン', 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end, max_w=820)
         put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=Y_ONE,
             a=ramp(t, T_END + FLY + 1.5, 0.6)*keep)
 
@@ -992,12 +978,14 @@ def thumbnail():
 
 # --- 一覧型のサムネイル（第17弾と同じ作り） ---------------------------------------
 # パターンごとに (見せ始めの時刻, 点線の丸で囲む範囲[周期の中の時刻])。丸のないものは全体が特徴
-THUMB_VIEW = {i: (0.0, []) for i in range(10)}
-THUMB_VIEW[2] = (0.6, [])                              # トルサード：ねじれるところ
-THUMB_VIEW[9] = (0.0, [(CPR_B + 0.05, 4.3)])           # 胸骨圧迫中：止めたときに見えるVF
-THUMB_MAX_MARKS = {}
-THUMB_DESC = ['速く同じ形', '形が毎回ちがう', '', '大きくバラバラ', '小さくバラバラ', 'ほぼまっすぐ',
-              'QRSがない', '', '', '止めて確認']
+THUMB_VIEW = {i: (0.0, []) for i in range(12)}
+THUMB_VIEW[0] = (0.2, [(0.8 + 0.18, 0.8 + 0.27 + 0.42)])     # R on T：T波に乗るPVC
+THUMB_VIEW[1] = (0.4, [(1.19, 2.46)])                       # 連発
+THUMB_VIEW[4] = (0.6, [])                                    # トルサード：ねじれるところ
+THUMB_VIEW[7] = (-0.5, [(2.30, 2.52)])                      # モビッツII型：伝わらなかったP
+THUMB_MAX_MARKS = {0: 1, 1: 1}
+THUMB_DESC = ['T波に乗る', '3つ以上', '速く同じ形', '形が毎回ちがう', '', '大きくバラバラ',
+              '小さくバラバラ', '突然抜ける', '', 'ほぼまっすぐ', '', '']
 
 
 def dashed_ellipse(d, box, col, dash=6, gap=5, width=2):
@@ -1127,16 +1115,18 @@ def check():
         last = max(inside, key=lambda b: b[0])
         nxt = min((b for b in STRIP if b[0] >= s1 - 1e-9 and b[1] != 'P'), key=lambda b: b[0])
         print(f"  つなぎ目 {PATTERNS[i]['no']}→ : QRS {last[1]} {last[0]-s0:.2f} → {nxt[1]} 間隔 {nxt[0]-last[0]:.2f}s")
-    print(f'① 単形性VT：{60/0.32:.0f}/分、QRS幅 {_qrs_ms(qrs_pvc):.0f}ms')
-    print(f'② 多形性VT：約{60*POLY_N/POLY_L:.0f}/分、大きさ・向きが1拍ごとに変わる')
-    print(f'③ トルサード：QT延長の洞調律（60/分、QT 約0.56秒）→ T波の上から {TDP_B-TDP_A:.1f}秒、約{TDP_F*60:.0f}/分、ねじれの周期 1.25秒 → 自然に止まる')
-    print('④ 粗いVF：3〜9Hz（180〜540/分）、約±0.4mV（LITFL：150〜500/分）')
-    print('⑤ 細かいVF：3.5〜10Hz、約±0.08mV')
-    print('⑥ 心静止：ほぼまっすぐ（±0.01mV）')
-    print('⑦ P波だけ：P波 75/分、QRSなし')
-    print(f'⑧ PEA：ふつうの形 {60/0.75:.0f}/分（脈がない）')
-    print(f'⑨ PEA：幅の広いQRS {60/2.0:.0f}/分、QRS幅 {_qrs_ms(qrs_escape):.0f}ms')
-    print(f'⑩ 胸骨圧迫中：{60/CPR_T:.0f}回/分の揺れ {CPR_B-CPR_A:.1f}秒 → 止めるとVFが見える')
+    print('① R on T：洞調律 75/分、PVCは直前のRから 0.27秒（T波の頂点）')
+    print(f'② PVCの連発：3連、間隔 0.38秒（{60/0.38:.0f}/分）')
+    print(f'③ 単形性VT：{60/0.32:.0f}/分、QRS幅 {_qrs_ms(qrs_pvc):.0f}ms')
+    print(f'④ 多形性VT：約{60*POLY_N/POLY_L:.0f}/分、大きさ・向きが1拍ごとに変わる')
+    print(f'⑤ トルサード：QT延長の洞調律（60/分、QT 約0.56秒）→ T波の上から {TDP_B-TDP_A:.1f}秒、約{TDP_F*60:.0f}/分 → 自然に止まる')
+    print('⑥ 粗いVF：3〜9Hz（180〜540/分）、約±0.4mV（LITFL：150〜500/分）')
+    print('⑦ 細かいVF：3.5〜10Hz、約±0.08mV')
+    print('⑧ モビッツII型：PR 0.16秒で一定、4拍目のP波が伝わらない（4:3）')
+    print(f'⑨ 完全房室ブロック：心房 {60/0.68:.0f}/分、心室 {60/1.7:.0f}/分（幅の広い補充調律、QRS {_qrs_ms(qrs_escape):.0f}ms）')
+    print('⑩ 心静止：ほぼまっすぐ（±0.01mV）')
+    print(f'⑪ PEA：ふつうの形 {60/0.75:.0f}/分（脈がない）')
+    print(f'⑫ PEA：幅の広いQRS {60/2.0:.0f}/分')
     tr = [b[0] for b in STRIP if b[0] >= STRIP_END - 1e-9][:8]
     print('うしろの洞調律の間隔', [round(y - x, 3) for x, y in zip(tr, tr[1:])])
 

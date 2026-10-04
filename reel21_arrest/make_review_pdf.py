@@ -22,13 +22,15 @@ OUT = os.path.join(HERE, 'out')
 
 L = 'https://litfl.com/'
 SRC = {
-    'LITFL Ventricular Fibrillation (VF)': L + 'ventricular-fibrillation-vf-ecg-library/',
-    'LITFL Polymorphic VT and Torsades de Pointes': L + 'polymorphic-vt-and-torsades-de-pointes-tdp/',
+    'LITFL Premature Ventricular Complex（R on T・連発）': L + 'premature-ventricular-complex-pvc-ecg-library/',
     'LITFL Ventricular Tachycardia – Monomorphic': L + 'ventricular-tachycardia-monomorphic-ecg-library/',
+    'LITFL Polymorphic VT and Torsades de Pointes': L + 'polymorphic-vt-and-torsades-de-pointes-tdp/',
+    'LITFL Ventricular Fibrillation (VF)': L + 'ventricular-fibrillation-vf-ecg-library/',
+    'LITFL AV Block: 2nd degree, Mobitz II': L + 'av-block-2nd-degree-mobitz-ii-hay-block/',
+    'LITFL AV Block: 3rd degree (Complete Heart Block)': L + 'av-block-3rd-degree-complete-heart-block/',
     'LITFL CCC Pulseless Electrical Activity': L + 'pulseless-electrical-activity/',
-    'LITFL ECG Motion Artefacts（胸骨圧迫中の揺れ）': L + 'ecg-motion-artefacts-ecg-library/',
     '（LITFL以外）ERC Guidelines 2021: Adult Advanced Life Support（Soar J, et al. Resuscitation 2021;161:115-151）': 'https://cprguidelines.eu/',
-    '（LITFL以外）Resuscitation Council UK: Adult advanced life support guidelines（波形確認の中断は5秒以内）': 'https://www.resus.org.uk/library/2021-resuscitation-guidelines/adult-advanced-life-support-guidelines',
+    '（LITFL以外）JRC蘇生ガイドライン2020（日本蘇生協議会）：医療従事者の BLS': 'https://www.jrc.or.jp/guideline/',
 }
 
 
@@ -52,16 +54,18 @@ def ms(x):
 def describe():
     """各パターンの描き方（モデルの値から）。"""
     return [
+        f'洞調律 {60/0.8:.0f}/分。PVC（QRS 約{m._qrs_ms(m.qrs_pvc):.0f}ms）が直前のRから 0.27秒（T波の頂点）に乗る。1回だけで洞調律に戻る',
+        f'洞調律 {60/0.8:.0f}/分のあと、PVCが3つ（間隔 0.38秒＝{60/0.38:.0f}/分）続いて、洞調律に戻る',
         f'幅の広いQRS（約{m._qrs_ms(m.qrs_pvc):.0f}ms）が {60/0.32:.0f}/分で規則正しく続く',
         f'幅の広いQRSが約{60*m.POLY_N/m.POLY_L:.0f}/分。大きさ（0.45〜1.15mV）と向きが1拍ごとに変わる',
         f'QT延長の洞調律（60/分、QT 約0.56秒）→ T波の上から始まり、約{m.TDP_F*60:.0f}/分で大きさがねじれるように変わる（ねじれの周期 1.25秒）→ {m.TDP_B-m.TDP_A:.1f}秒で自然に止まる',
         '3〜9Hz（180〜540/分）の不規則で大きな揺れ（約±0.4mV）。P・QRS・Tは見えない',
         '3.5〜10Hz の不規則な小さな揺れ（約±0.08mV）',
+        f'洞調律 {60/0.8:.0f}/分、PR {m.PR:.2f}秒で一定。4つめのP波のあとQRSが抜ける（4:3）。抜けたところのR-Rは 1.60秒（P-Pの2倍）',
+        f'P波 {60/0.68:.0f}/分と、幅の広い心室補充調律（QRS 約{m._qrs_ms(m.qrs_escape):.0f}ms）{60/1.7:.0f}/分が、関係なく別々に出る',
         'ほぼまっすぐの線（±0.01mV のごくわずかな揺れ）',
-        'P波が75/分。QRSはない（P波のみの心静止＝心室静止）',
         f'ふつうの形のP・QRS・T（{60/0.75:.0f}/分）。脈はない設定',
         f'幅の広いQRS（約{m._qrs_ms(m.qrs_escape):.0f}ms）が {60/2.0:.0f}/分。脈はない設定',
-        f'約{60/m.CPR_T:.0f}回/分の大きく規則的な揺れが {m.CPR_B-m.CPR_A:.1f}秒 → 圧迫を止めると、下に粗いVFが見える',
     ]
 
 
@@ -70,7 +74,7 @@ def main():
     hook_t = m.HOOK_T0 + 3*m.HOOK_STEP + 0.2
     frames = [('冒頭のフック（止めた波形を変形しているところ）', hook_t)] \
         + [(f"{p['no']} {p['name']}", key_time(i)) for i, p in enumerate(m.PATTERNS)] \
-        + [('最後：10個の一覧', m.T_END + m.FLY + 2.5)]
+        + [('最後：12個の一覧', m.T_END + m.FLY + 2.5)]
     fdir = os.path.join(OUT, 'review_frames')
     os.makedirs(fdir, exist_ok=True)
     pngs, index = [], []
@@ -103,11 +107,13 @@ def main():
 添付は「映像のコマを等倍で1ページずつ並べたPDF」です。ナレーションとキャプションは、この依頼文の中にあります。
 
 ## 作品の概要
-- 第21弾「致死性不整脈と心停止、10パターン」。縦 1080×1920・60fps・ナレーション入り（録音前。下の台本で録る）
+- 第21弾「致死性不整脈と心停止、12パターン」。縦 1080×1920・60fps・ナレーション入り（録音前。下の台本で録る）
 - 見る人：看護師・看護学生（病棟でモニター心電図を見る人。急変の第一発見者になりうる）
-- 第17〜20弾と同じ作り：冒頭3秒で波形を止めて5パターンに素早く変形（フック）→ 10パターンを1つずつ紹介 → 紹介が終わった波形は縮んで上下の枠に移り、ミニ波形として流れ続ける → 最後に10個の一覧
+- 第17〜20弾と同じ作り：冒頭3秒で波形を止めて5パターンに素早く変形（フック）→ 12パターンを1つずつ紹介 → 紹介が終わった波形は縮んで上下の枠に移り、ミニ波形として流れ続ける → 最後に12個の一覧
 - 波形はモデルで作った模式図。**II誘導・実際の速さ（25mm/秒）**
-- 各パターンのひとことのうしろに、電気ショックの適応を色の文字で出す（赤「→ 脈なしならショック」「→ 電気ショック」、青「→ ショックしない・CPR」、黄「→ 止めて波形を見る」）
+- 各パターンのひとことのうしろに、対応を色の文字で出す（赤「→ 脈なしならショック」「→ 電気ショック」、青「→ ショックしない・CPR」、黄「→ すぐ報告」）
+- 名前の色で3つの群に分けている：速くなる道（①〜⑦）、遅くなる道（⑧〜⑩）、脈がない（⑪⑫）。①②⑧⑨は「心停止につながるサイン」として黄色
+- 前回（10パターン版）のレビューを反映したうえで、タイトルを「致死性不整脈と心停止」に変え、12パターンに組み替えた（胸骨圧迫中・P波だけの心静止を外し、R on T・PVCの連発・モビッツII型・完全房室ブロックを足した）
 - 画面とキャプションに「数値はこの波形での一例」と明記している
 - 出典は LITFL ECG Library／CCC と、LITFL以外のガイドライン（下に一覧）
 
@@ -128,15 +134,15 @@ def main():
 ```
 
 ## とくに見てほしい点
-1. ①②③に「脈なしならショック」と出す言い方は妥当か（脈のあるVTは同期カルディオバージョン・薬など別の治療）。看護師向けとして、どこまで書くか
-2. ③ トルサードを「ショック適応（脈がなければ）」の群に入れたこと。自然に止まる描き方（LITFL：often self terminating）は妥当か
-3. ⑤「心静止と迷ったら、CPRを続けます」（ERC 2021）の言い方は、看護師向けに誤解がないか
-4. ⑥ 心静止の「電極と感度も確かめて」は妥当か。CPRを遅らせる心配はないか
-5. ⑦ P波だけ（心室静止）を入れたことと、「ショックしない・CPR」の表示。ペーシングに触れるべきか
-6. ⑧⑨ PEA：「波形はふつうに見えても、脈がない」という教え方。⑨ の描き方（30/分・幅の広いQRS）
-7. ⑩ 胸骨圧迫中：「止めて、短く確かめます」とキャプションの「中断はできるだけ短く」。秒数を書くべきか
-8. 10パターンの選び方（脈のあるVTとの見分け、ROSC、電気ショック直後の波形、徐脈頻脈などは入れていない）
-9. キャプションの最後「まず、反応・呼吸を確認して、人を呼び、CPRを始めてください」の順番と言い方（院内の看護師向け）
+1. タイトル「致死性不整脈と心停止」と、冒頭の一文「致死性不整脈と心停止。まず覚えたいのは、この12パターン。」。心停止の波形（VF・無脈性VT・心静止・PEA）と、そこにつながる不整脈を1本にまとめる言い方として誤解がないか
+2. 12パターンの選び方。①R on T・②PVCの連発・⑧モビッツII型・⑨完全房室ブロック を「心停止につながるサイン（すぐ報告）」として足したことは妥当か。ほかに入れるべきもの（洞停止、徐脈頻脈、ブルガダ型、QT延長そのもの など）はあるか
+3. ① R on T：PVCを直前のRから0.27秒（T波の頂点）に置いた描き方と、台本「心室頻拍や心室細動のきっかけになることがあります」（LITFL：QT延長の状況でトルサードの引き金）。QT延長に触れるべきか
+4. ② PVCの連発：3連（158/分）で「ショートラン、非持続性の心室頻拍」と呼ぶこと。「すぐ報告」でよいか
+5. ⑧ モビッツII型：4:3、PR 0.16秒一定、幅の狭いQRSで描いた。代表の形として妥当か（実際は幅の広いQRSが多い、という点をどう扱うか）。台本「完全房室ブロックに進むことがあります」
+6. ⑨ 完全房室ブロック：心房88/分・幅の広い補充調律35/分。台本「補充調律が止まると、心静止になります」の言い方
+7. ⑧⑨を「すぐ報告」にしたこと（ショック・CPRの表示ではない）。徐脈のアルゴリズム（アトロピン・ペーシング）に触れるべきか
+8. 前回のレビューで直したところ（⑤トルサードの台本、⑩心静止の台本と画面、キャプションの初動の順番）が、12パターン版でも正しく残っているか
+9. スマホの大きさで、① のT波の上のPVC、⑧ の抜けたP波が読み取れるか。誤解を招く表現はないか
 
 ## 返してほしい形
 - パターン番号（またはページ）ごとに：判定（OK／要修正／推奨）・理由・直し方（数値や言い換えまで具体的に）
@@ -151,15 +157,15 @@ def main():
         f.write(txt)
     print(os.path.join(HERE, 'review_request.md'))
 
-    lines = ['第21弾 致死性不整脈と心停止 10パターン ― 画面の文字', '',
-             '[見出し] 致死性不整脈と心停止 10パターン（「10」は黄色・2倍）',
+    lines = ['第21弾 致死性不整脈と心停止 12パターン ― 画面の文字', '',
+             '[見出し] 致死性不整脈と心停止 12パターン（「12」は黄色・2倍）',
              f'[冒頭 0〜{m.T_GO:.1f}秒] 心電図で気づく ／ 致死性不整脈と心停止',
              '[冒頭の変形で出る名前] ' + ' → '.join(f"{m.PATTERNS[i]['no']} {m.PATTERNS[i]['name']}" for i in m.HOOK), '']
     for i, pat in enumerate(m.PATTERNS):
         a, b = m.WINDOWS[i]
-        alert = f" {m.TAGS[pat['tag']][0]}" 
+        alert = f" {m.TAGS[pat['tag']][0]}"
         lines.append(f"[{a:5.1f}〜{b:5.1f}秒] {pat['no']} {pat['name']} ／ {pat['one']}{alert} ／ ヒント：{pat['hint']}")
-    lines += ['', '[最後] 急変のときに、この10パターン ／ 保存して見返してね',
+    lines += ['', '[最後] 急変のまえに、この12パターン ／ 保存して見返してね',
               f'[左下] {m.NOTE1} ／ {m.NOTE2}', '[右下] @nurse_polarbearden（透かし）']
     txt = os.path.join(OUT, 'screen_text_reel21.txt')
     with open(txt, 'w', encoding='utf-8') as f:
