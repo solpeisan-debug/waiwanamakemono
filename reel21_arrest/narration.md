@@ -11,23 +11,28 @@
 
 致死性不整脈と心停止。まず覚えたいのは、この12パターン。
 
-T波の上に乗るPVC、R on T。心室頻拍や心室細動のきっかけになることがあります。
-PVCが3つ以上、速く続く。ショートラン、非持続性の心室頻拍です。
-幅の広いQRSが、速く規則正しく。単形性の心室頻拍。
-QRSの形が、1拍ごとに変わる。多形性の心室頻拍。
-ねじれるように変わる。トルサード・ド・ポワント。QT延長がきっかけです。止まらずに持続して脈がなければ、電気ショックです。
-不規則で大きな揺れ。粗い心室細動。
-揺れが小さい、細かい心室細動。心静止と迷ったら、CPRを続けます。
+T波に乗るPVC、R on T。
+3つ以上続けば、ショートラン。
+速く、幅広く、規則正しい。単形性VT。
+形が毎回変わる、多形性VT。
+ねじれる、トルサード。持続して脈がなければ、ショック。
+大きくバラバラ、粗いVF。
+小さな揺れは、細かいVF。心静止と迷ったら、CPR。
 
-PRは変わらず、突然QRSが抜ける。モビッツII型。完全房室ブロックに進むことがあります。
-PとQRSが、別々に動く。完全房室ブロック。補充調律が止まると、心静止になります。
-ほぼまっすぐの線、心静止。すぐにCPRを始め、並行して電極と感度も確かめて。
+突然QRSが抜ける、モビッツII型。
+PとQRSがバラバラ、完全房室ブロック。
+ほぼまっすぐ、心静止。すぐCPR、並行して電極も確認。
 
-波形はふつうに見えても、脈がない。無脈性電気活動、PEA。
-遅く幅の広いQRSでも、脈がなければPEA。
+ふつうに見えても、脈がない。PEA。
+遅く幅広くても、脈がなければPEA。
 
-電気ショックをするのは、心室細動と、脈のない心室頻拍。
+ショックするのは、VFと、脈のないVT。
 保存して、見返してね
+
+- 2026-10-04：「長い」ので、1パターン1文（声で3〜4秒）に詰めた。102秒 → 約62秒（仮。録音に合わせて切り直す）
+- 詳しい説明（VFのきっかけ・完全房室ブロックに進む・心静止になる など）は、画面のひとことと、キャプションにまかせる
+- 前回のレビューで直したところは、短くしても意味を残した：⑤「持続して脈がなければ、ショック」、⑩「すぐCPR、並行して電極も確認」（CPRが先）
+- 1パターンの声の長さの目安（区間の長さ − 0.75秒）：①3.2 ②3.2 ③3.4 ④2.8 ⑤4.8 ⑥2.8 ⑦4.2 ⑧3.2 ⑨3.6 ⑩4.6 ⑪3.0 ⑫2.9 秒
 
 ---
 
@@ -40,8 +45,8 @@ PとQRSが、別々に動く。完全房室ブロック。補充調律が止ま�
 
 ## 言い回しの注意（LITFL本文で確認。LITFL以外は出典を書いた）
 
-- **① R on T**：LITFL（PVC）「in the context of an prolonged QTc … may predispose to malignant ventricular arrhythmias such as Torsades de Pointes by causing "R on T" phenomenon」。LITFL（PVT and TdP）「initiated when a PVC occurs during the preceding T wave (R on T)」。声は「きっかけになることがあります」（必ずではない）
-- **② PVCの連発**：LITFL（PVC）「3-30 consecutive PVCs with a rate >100bpm described as non-sustained VT」。第17弾⑬と同じ言い方（「非持続性」をつけて、持続性VTと取りちがえない）
+- **① R on T**（声は名前だけ。画面「VFのきっかけに」）：LITFL（PVC）「in the context of an prolonged QTc … may predispose to malignant ventricular arrhythmias such as Torsades de Pointes by causing "R on T" phenomenon」。LITFL（PVT and TdP）「initiated when a PVC occurs during the preceding T wave (R on T)」。
+- **② PVCの連発**：LITFL（PVC）「3-30 consecutive PVCs with a rate >100bpm described as non-sustained VT」。声は「ショートラン」、キャプションで「＝非持続性の心室頻拍」
 - **③〜⑤ VT・トルサード**：LITFL（PVT and TdP）「QRS complexes twist around the isoelectric line」「often short lived and self terminating … may degenerate into VF」。③〜⑤は画面で「→ 脈なしならショック」（脈があるVTは別の治療）
 - **⑥⑦ VF**：LITFL（VF）「Chaotic irregular deflections of varying amplitude」「Rate 150 to 500 per minute」「Amplitude decreases with duration (coarse VF → fine VF)」
 - **⑦ 迷ったら**：ERC 2021「If there is doubt about whether the rhythm is asystole or very fine VF … continue CPR」
