@@ -15,14 +15,14 @@
 ・PEA：波形があっても、脈がない
 ※細かいVFか心静止か迷うときは、ショックせずにCPRを続けます
 
-💡胸骨圧迫中は、揺れで波形が見えません。波形を確かめるための中断は、できるだけ短く
+💡胸骨圧迫中は、揺れで波形が見えません。波形を確かめるための中断は、できるだけ短く（10秒以内）
 
-まず、反応・呼吸を確認して、人を呼び、CPRを始めてください。
+まずは患者さんの反応を確認し、なければ人を呼びます。次に呼吸と脈を確認し、なければすぐにCPRを始めてください。
 
 保存して、見返してね。
 
 ※数値はこの波形での一例です（II誘導）
-※参考：LITFL ECG Library（Ventricular Fibrillation／Polymorphic VT and Torsades de Pointes／ECG Motion Artefacts）、LITFL CCC（Pulseless Electrical Activity）、ERC Guidelines 2021（Adult Advanced Life Support）
+※参考：LITFL ECG Library / LITFL CCC / ERC Guidelines 2021 / JRC蘇生ガイドライン2020（医療従事者のBLS）
 
 （caption_template.txt の定型3行：シェア歓迎／転載・素材使用はDMで）
 

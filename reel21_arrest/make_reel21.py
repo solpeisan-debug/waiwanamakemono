@@ -228,7 +228,7 @@ PATTERNS = [
          one='揺れが小さい。時間がたつと小さくなる', tag='shock',
          ev=[], L=4.0, art=art_vf_fine, hl=ALL),
     dict(no='⑥', name='心静止', col=C_NS, hint='ほぼまっすぐ',
-         one='ほぼまっすぐの線。電極・感度も確認', tag='noshock',
+         one='まっすぐの線。CPRと並行して電極も確認', tag='noshock',
          ev=[], L=4.0, art=art_asys, hl=ALL),
     dict(no='⑦', name='P波だけ', col=C_NS, hint='QRSがない',
          one='P波はあるのに、QRSがない', tag='noshock',
