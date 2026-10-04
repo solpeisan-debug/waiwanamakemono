@@ -271,7 +271,7 @@ def rhythm_wave(key, t):
     if R.get('f'):
         v += band_noise(t, R['L'], 5.0, 8.0, 0.035, 5)
     if R.get('vf'):
-        v += band_noise(t, R['L'], 3.0, 9.0, 0.40, 9)
+        v += band_noise(t, R['L'], 3.0, 9.0, 0.30, 9)          # 枠に収まる大きさ（山は約±0.9mV）
     if R.get('flut'):
         v += flutter_waves(t, R['L'])
     return v
@@ -372,7 +372,7 @@ for _i, _r in enumerate(ROWS):                       # 親の行
             _r['parent'] = _j
             break
 
-TREE_Y0 = 638
+TREE_Y0 = 648
 ROW_H = 44 if len(ROWS) > 19 else 48           # 行が少ないマップは、行の間を少し広げる
 X0, IND = 146, 20                  # IND：親の質問の書き出しから、子の行までの字下げ
 SZ_Q, SZ_T, SZ_A = 29, 30, 22
@@ -445,8 +445,21 @@ LOOP_FADE = 0.7
 DUR = T_OUTRO + OUTRO_D
 
 # --- 画面の部品 -------------------------------------------------------------------------
-PANEL = (130, 418, 950, 594)          # 上の波形の枠（見出しとのあいだを約40px空ける）
-P_BASE = 532                          # 波形の基線
+PANEL = (130, 418, 950, 604)          # 上の波形の枠（見出しとのあいだを約40px空ける）
+LABEL_BOTTOM = PANEL[1] + 44           # 枠の上のラベル（30px）の字の下端
+_EXT = {}
+
+
+def p_base(key):
+    """波形の基線の y。ラベルの下端〜枠の下端のまん中に、その波形の上端〜下端のまん中が来るようにする
+    （ラベルとのあいだ＝枠の下とのあいだ）"""
+    if key not in _EXT:
+        L = RHYTHMS[key]['L']
+        v = rhythm_wave(key, np.arange(0, 2*L, 0.002))
+        _EXT[key] = (v.max()*P_MV, -v.min()*P_MV)
+    top, bot = _EXT[key]
+    mid = (LABEL_BOTTOM + PANEL[3]) / 2
+    return mid + (top - bot) / 2
 P_PXS, P_MV = 300.0, 62.0             # 1秒 = 300px、1mV = 62px
 
 
@@ -490,9 +503,10 @@ def panel(im, t):
     col = WAVE_GREEN
     if 0 <= k < len(CASES) and u >= reveal_t(k):
         col = mix(WAVE_GREEN, ROWS[CASES[k]['path'][-1]]['col'], ramp(u, reveal_t(k), 0.4))
-    ys = P_BASE - v*P_MV
+    base = p_base(key)
+    ys = base - v*P_MV
     edge = np.clip(np.minimum(xs - (x0 + 14), (x1 - 14) - xs)/30, 0, 1)
-    ys = P_BASE + (ys - P_BASE)*edge
+    ys = base + (ys - base)*edge
     im.alpha_composite(glow_line((W, H), [list(zip(xs, ys))], col, 3.6, a, blur=(6, 14)))
     # 枠の上のラベル
     if 0 <= k < len(CASES):
