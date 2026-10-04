@@ -417,21 +417,13 @@ def link(p, i):
 
 
 def anchor(i):
-    """その行の、線がつながる点（いちばん上の質問は字の書き出し、ほかは答えの字の手前）"""
-    if ROWS[i]['parent'] is None:
-        return (stem_x(i), row_y(i))
-    return (row_x(i) - 6, row_y(i))
+    """光る点の出発点：質問の下（線が出るところ）"""
+    return (stem_x(i), row_y(i) + 16)
 
 
-def path_points(rows):
-    """たどる行の列 → 光る点が通る折れ線。
-    答えの行に着いたら、答えの字の下をくぐって（下線）、その行の質問の下から次へ下りる（字の上は通らない）"""
-    pts = [anchor(rows[0])]
-    for a, b in zip(rows, rows[1:]):
-        if ROWS[a]['parent'] is not None:
-            pts.append((row_x(a) - 6, row_y(a) + 16))
-        pts += link(a, b)
-    return pts
+def path_runs(rows):
+    """たどる行の列 → 光る線（質問 → 答え ごとに別の線。答えで切れて、次はその行の質問の下から出る）"""
+    return [link(a, b) for a, b in zip(rows, rows[1:])]
 
 
 # --- 例（6つ）：答えの行から、親をたどって道すじを作る ---------------------------------
@@ -542,7 +534,7 @@ def tree_state(t):
     dot = None
     if 0 <= prog < len(path) - 1:                        # 次の行へ移動中
         j = int(prog); f = ease(prog - j)
-        pts = path_points(path[j:j+2])
+        pts = link(path[j], path[j+1])
         seg = np.r_[0, np.cumsum([math.hypot(x1 - x0, y1 - y0) for (x0, y0), (x1, y1) in zip(pts, pts[1:])])]
         s = f*seg[-1]
         q = int(np.searchsorted(seg, s, side='right') - 1); q = min(q, len(pts) - 2)
@@ -569,7 +561,7 @@ def draw_tree(im, t):
     im.alpha_composite(lay)
     # たどった線（光る）
     if reached and len(reached) >= 2:
-        im.alpha_composite(glow_line((W, H), [path_points(reached)], YEL, 3.0, 1.0, blur=(5, 12)))
+        im.alpha_composite(glow_line((W, H), path_runs(reached), YEL, 3.0, 1.0, blur=(5, 12)))
     # 文字
     for i, r in enumerate(ROWS):
         a = bright[i]
