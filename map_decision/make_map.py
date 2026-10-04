@@ -374,7 +374,7 @@ for _i, _r in enumerate(ROWS):                       # 親の行
 
 TREE_Y0 = 638
 ROW_H = 44 if len(ROWS) > 19 else 48           # 行が少ないマップは、行の間を少し広げる
-X0, IND = 146, 34
+X0, IND = 146, 20                  # IND：親の質問の書き出しから、子の行までの字下げ
 SZ_Q, SZ_T, SZ_A = 29, 30, 22
 
 
@@ -382,27 +382,55 @@ def row_y(i):
     return TREE_Y0 + i*ROW_H
 
 
-def row_x(i):
-    return X0 + ROWS[i]['d']*IND
+C_LINK = (98, 124, 116)                 # 質問から答えへの線（背景のマス目より明るく）
+_ANS_W = {}
 
 
 def ans_w(i):
-    s = ROWS[i]['ans']
-    return (text_img(s, SZ_A, 700, YEL)[0].size[0] - 8 + 12) if s else 0
+    if i not in _ANS_W:
+        s = ROWS[i]['ans']
+        _ANS_W[i] = (text_img(s, SZ_A, 700, YEL)[0].size[0] - 8 + 12) if s else 0
+    return _ANS_W[i]
+
+
+def q_x(i):
+    """その行の質問（または名前）の書き出し位置（答えのうしろ）"""
+    return row_x(i) + ans_w(i)
+
+
+def row_x(i):
+    """行の書き出し位置。子の行は、親の「質問」の書き出しから IND 右へ（答えの字の下からは線を出さない）"""
+    p = ROWS[i]['parent']
+    return X0 if p is None else q_x(p) + IND
+
+
+def stem_x(i):
+    """質問の行から下へ出る線の x（質問の字の書き出しの少し右）"""
+    return q_x(i) + 8
+
+
+def link(p, i):
+    """親の質問 p → 子の行 i の線（質問の下から下ろして、子の答えの手前で止める）"""
+    xa, ya = stem_x(p), row_y(p)
+    xb, yb = row_x(i), row_y(i)
+    return [(xa, ya + 16), (xa, yb), (xb - 6, yb)]
 
 
 def anchor(i):
-    """その行の、線がつながる点（字下げの位置の中心）"""
-    return (row_x(i), row_y(i))
+    """その行の、線がつながる点（いちばん上の質問は字の書き出し、ほかは答えの字の手前）"""
+    if ROWS[i]['parent'] is None:
+        return (stem_x(i), row_y(i))
+    return (row_x(i) - 6, row_y(i))
 
 
 def path_points(rows):
-    """たどる行の列 → 光る点が通る折れ線"""
+    """たどる行の列 → 光る点が通る折れ線。
+    答えの行に着いたら、答えの字の下をくぐって（下線）、その行の質問の下から次へ下りる（字の上は通らない）"""
     pts = [anchor(rows[0])]
     for a, b in zip(rows, rows[1:]):
-        xa, ya = row_x(a) + 8, row_y(a)
-        xb, yb = row_x(b), row_y(b)
-        pts += [(xa, ya + 16), (xa, yb), (xb - 6, yb)]
+        if ROWS[a]['parent'] is not None:
+            pts.append((row_x(a) - 6, row_y(a) + 16))
+        pts += link(a, b)
     return pts
 
 
@@ -536,10 +564,8 @@ def draw_tree(im, t):
         p = r['parent']
         if p is None:
             continue
-        xa, ya = row_x(p) + 8, row_y(p)
-        xb, yb = row_x(i), row_y(i)
         a = min(bright[i], bright[p]) * 0.8
-        d.line([(xa, ya + 16), (xa, yb), (xb - 6, yb)], fill=CARD_EDGE + (int(255*a),), width=2)
+        d.line(link(p, i), fill=C_LINK + (int(255*a),), width=3)
     im.alpha_composite(lay)
     # たどった線（光る）
     if reached and len(reached) >= 2:
