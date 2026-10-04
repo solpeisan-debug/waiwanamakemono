@@ -1,16 +1,16 @@
-"""心電図 見分けマップ（1枚で動く保存版）。
+"""モニター心電図 見分けマップ（1枚で動く保存版。2枚組）。
 
+① 規則的な波形 ／ ② 不規則な波形・QRSがない。
 モニター（II誘導）の波形を、質問をたどって名前までたどり着く「見分けマップ」にする。
-上で例の波形が流れ、光る点がマップの質問を1つずつたどり、答え（と、くわしい回：第◯弾）にたどり着く。
+上で例の波形が流れ、光る点がマップの質問を1つずつたどり、答えにたどり着く。
 例を6つ見せたあと、マップ全体を光らせて「保存してね」。最後は冒頭の画面に戻ってループする。
 
-マップの中身は、LITFL ECG Library と、これまでのシリーズ（第16〜21弾）をもとにした入口の一例（例外あり）。
-ほかの投稿の図を写したものではない（構成・言葉は独自）。
+マップの中身は LITFL ECG Library をもとにした入口の一例（例外あり）。ほかの投稿の図を写したものではない（構成・言葉は独自）。
 
 使い方:
-    python3 make_map.py              # 書き出し（out/map_decision.mp4）
-    python3 make_map.py --still 12   # 1コマだけ
-    python3 make_map.py --thumb      # サムネイル（透かしなし）
+    python3 make_map.py --map 1              # 書き出し（out/map1.mp4）
+    python3 make_map.py --map 2 --still 12   # 1コマだけ
+    python3 make_map.py --map 1 --thumb      # サムネイル（透かしなし）
 """
 import argparse
 import math
@@ -191,43 +191,77 @@ def band_noise(t, L, f_lo, f_hi, amp, seed):
     return out * amp / np.sqrt(np.sum(a**2)/2 + 1e-9)
 
 
+def qrs_wide(t):                  # 幅の広いQRS（補充調律）
+    return (0.70*_ga(t, 0.0, 0.030, 0.034) - 0.18*_g(t, 0.085, 0.022)
+            - 0.32*_ga(t, 0.34, 0.075, 0.055))
+
+
+def qrs_paced(t):                 # 右室ペーシング（II誘導）：下向きの幅の広いQRS、上向きのT
+    return (-0.78*_ga(t, 0.0, 0.030, 0.036) + 0.08*_g(t, 0.072, 0.016)
+            + 0.32*_ga(t, 0.30, 0.075, 0.055))
+
+
 def beats_wave(t, beats):
-    """beats: [(時刻, 種類)]。'N' 洞調律、'Q' P波なしの細いQRS、'V' 幅の広いQRS、'P' P波だけ"""
+    """beats: [(時刻, 種類[, PR])]。'N' P＋細いQRS、'Q' P波なしの細いQRS、'V' PVC、'W' 幅の広いQRS、
+    'P' P波だけ、'S' ペーシング（スパイク＋幅の広いQRS）、'A' 早いP'＋細いQRS"""
     v = np.zeros_like(t)
-    for r, k in beats:
-        m = np.abs(t - r) < 0.8
+    for b in beats:
+        r, k = b[0], b[1]
+        pr = b[2] if len(b) > 2 else 0.16
+        m = np.abs(t - r) < 0.9
         if not m.any():
             continue
         tau = t[m] - r
-        if k in ('N', 'Q'):
+        if k in ('N', 'Q', 'A'):
             v[m] += qrs_normal(tau)
+        if k == 'N':
+            v[m] += p_sinus(tau + pr)
+        if k == 'A':
+            v[m] += 0.13*_g(tau + pr, 0.0, 0.015) - 0.04*_g(tau + pr, 0.032, 0.013)
         if k == 'V':
             v[m] += qrs_pvc(tau)
-        if k == 'N':
-            v[m] += p_sinus(tau + 0.16)
+        if k == 'W':
+            v[m] += qrs_wide(tau)
         if k == 'P':
             v[m] += p_sinus(tau)
+        if k == 'S':
+            v[m] += qrs_paced(tau) + 1.0*_g(tau, -0.075, 0.0022)
     return v
 
 
 def periodic(ev, L, t0, t1):
     out = []
     for k in range(int(math.floor(t0/L)) - 1, int(math.ceil(t1/L)) + 2):
-        out += [(k*L + r, kd) for r, kd in ev]
+        out += [(k*L + e[0],) + tuple(e[1:]) for e in ev]
     return out
 
 
 # 例の波形：周期 L でくり返す
 _AF_RR = [0.62, 0.95, 0.48, 0.80, 1.10, 0.55, 0.74, 0.90]
 _AF_T = np.cumsum([0] + _AF_RR[:-1]).tolist()
+_SA_RR = [0.72, 0.68, 0.70, 0.78, 0.90, 1.00, 1.02, 0.95, 0.85]            # 洞性不整脈（呼吸でゆれる）
+_SA_T = np.cumsum([0] + _SA_RR[:-1]).tolist()
 RHYTHMS = {
-    'af': dict(ev=[(t, 'Q') for t in _AF_T], L=sum(_AF_RR), f=True),        # 心房細動
-    'pvc': dict(ev=[(0, 'N'), (0.8, 'N'), (1.28, 'V'), (2.4, 'N')], L=3.2),  # 期外収縮（PVC）
-    'chb': dict(ev=[(k*0.6, 'P') for k in range(10)] + [(0.25 + k*1.5, 'Q') for k in range(4)], L=6.0),  # 完全房室ブロック
-    'psvt': dict(ev=[(k*1/3, 'Q') for k in range(9)], L=3.0),                # PSVT（細く速い）
-    'vf': dict(ev=[], L=4.0, vf=True),                                         # 心室細動
-    'nsr': dict(ev=[(k*0.8, 'N') for k in range(5)], L=4.0),                 # 洞調律
+    'nsr': dict(ev=[(k*0.8, 'N') for k in range(5)], L=4.0),                         # 洞調律
+    'av1': dict(ev=[(k*0.8, 'N', 0.30) for k in range(5)], L=4.0),                   # 1度房室ブロック
+    'chb': dict(ev=[(k*0.6, 'P') for k in range(10)] + [(0.25 + k*1.5, 'Q') for k in range(4)], L=6.0),
+    'flut': dict(ev=[(k*0.4, 'Q') for k in range(10)], L=4.0, flut=True),           # 心房粗動（2:1）
+    'vt': dict(ev=[(k*0.32, 'V') for k in range(15)], L=4.8),                        # 心室頻拍
+    'pace': dict(ev=[(k*1.0, 'S') for k in range(4)], L=4.0),                        # ペースメーカー調律
+    'af': dict(ev=[(t, 'Q') for t in _AF_T], L=sum(_AF_RR), f=True),                # 心房細動
+    'pvc': dict(ev=[(0, 'N'), (0.8, 'N'), (1.28, 'V'), (2.4, 'N')], L=3.2),          # 心室期外収縮
+    'wk': dict(ev=[(0.18, 'N', 0.18), (1.08, 'N', 0.28), (1.93, 'N', 0.33), (2.4, 'P')], L=3.2),  # ウェンケバッハ
+    'sarr': dict(ev=[(t, 'N') for t in _SA_T], L=sum(_SA_RR)),                      # 洞性不整脈
+    'vf': dict(ev=[], L=4.0, vf=True),                                                 # 心室細動
+    'pasys': dict(ev=[(k*0.8, 'P') for k in range(5)], L=4.0),                       # P波だけ
 }
+
+
+def flutter_waves(t, L):
+    """心房粗動の鋸歯状波（F波）：300/分、II誘導で下向きの鋸歯（ゆっくり下がって、すっと戻る）"""
+    ph = np.mod(t, 0.2) / 0.2
+    saw = np.where(ph < 0.78, -ph/0.78, -(1 - ph)/0.22)
+    return 0.16*(saw + 0.5)
 
 
 def rhythm_wave(key, t):
@@ -237,38 +271,99 @@ def rhythm_wave(key, t):
         v += band_noise(t, R['L'], 5.0, 8.0, 0.035, 5)
     if R.get('vf'):
         v += band_noise(t, R['L'], 3.0, 9.0, 0.40, 9)
+    if R.get('flut'):
+        v += flutter_waves(t, R['L'])
     return v
 
 
 def rhythm_r_times(key, t0, t1):
     R = RHYTHMS[key]
-    return [r for r, k in periodic(R['ev'], R['L'], t0, t1) if k in ('N', 'Q', 'V') and t0 <= r < t1]
+    return [b[0] for b in periodic(R['ev'], R['L'], t0, t1) if b[1] in ('N', 'Q', 'V', 'W', 'S', 'A') and t0 <= b[0] < t1]
 
 
 # --- マップ（行ごと） -------------------------------------------------------------------
-# depth：字下げの段、ans：前の質問への答え、text：質問か名前、kind：'q' 質問 / 't' 名前、reel：くわしい回
-ROWS = [
-    dict(d=0, ans='', text='QRSはある？', kind='q'),
-    dict(d=1, ans='いいえ', text='揺れはある？', kind='q'),
-    dict(d=2, ans='ある', text='心室細動（VF）', kind='t', col=C_RED, reel='第21弾'),
-    dict(d=2, ans='ない', text='心静止', kind='t', col=C_BLUE, reel='第21弾'),
-    dict(d=1, ans='はい', text='R-Rは規則的？', kind='q'),
-    dict(d=2, ans='不規則', text='P波はある？', kind='q'),
-    dict(d=3, ans='ない', text='QRSの幅は？', kind='q'),
-    dict(d=4, ans='狭い', text='心房細動', kind='t', col=C_ORANGE, reel=''),
-    dict(d=4, ans='広い', text='多形性VT・トルサード', kind='t', col=C_RED, reel='第21弾'),
-    dict(d=3, ans='ある', text='早い1拍がある？', kind='q'),
-    dict(d=4, ans='ある', text='期外収縮', kind='t', col=C_YEL, reel='第17弾'),
-    dict(d=4, ans='ぬける', text='2度房室ブロック・洞停止', kind='t', col=C_BLUE, reel='第18弾'),
-    dict(d=2, ans='規則的', text='心拍数は？', kind='q'),
-    dict(d=3, ans='60未満', text='P波のあと、毎回QRS？', kind='q'),
-    dict(d=4, ans='はい', text='洞徐脈', kind='t', col=C_BLUE, reel='第18弾'),
-    dict(d=4, ans='いいえ', text='2:1・完全房室ブロック', kind='t', col=C_BLUE, reel='第18弾'),
-    dict(d=3, ans='60〜100', text='洞調律', kind='t', col=C_GREEN, reel=''),
-    dict(d=3, ans='100以上', text='QRSの幅は？', kind='q'),
-    dict(d=4, ans='狭い', text='洞頻脈・PSVT・心房粗動', kind='t', col=C_ORANGE, reel='第16弾'),
-    dict(d=4, ans='広い', text='心室頻拍（VT）', kind='t', col=C_RED, reel='第21弾'),
-]
+# d：字下げの段、ans：前の質問への答え、text：質問か名前、kind：'q' 質問 / 't' 名前
+def T(d, ans, text, col):
+    return dict(d=d, ans=ans, text=text, kind='t', col=col)
+
+
+def Q(d, ans, text):
+    return dict(d=d, ans=ans, text=text, kind='q')
+
+
+MAPS = {
+    1: dict(
+        title=('見分けマップ①', ' 規則的な波形'),
+        rows=[
+            Q(0, '', 'ペースメーカーのスパイクがある？'),
+            T(1, 'ある', 'ペースメーカー調律', C_BLUE),
+            Q(1, 'ない', '心拍数は？'),
+            Q(2, '60未満', 'P波はある？'),
+            Q(3, 'ない', 'QRSの幅は？'),
+            T(4, '狭い', '接合部補充調律', C_BLUE),
+            T(4, '広い', '心室補充調律', C_RED),
+            Q(3, 'ある', 'P波のあと、毎回QRS？'),
+            T(4, 'はい', '洞徐脈', C_BLUE),
+            Q(4, 'いいえ', 'PとQRSの関係は？'),
+            T(5, '一定', '2:1・高度房室ブロック', C_RED),
+            T(5, 'バラバラ', '完全房室ブロック', C_RED),
+            Q(2, '60〜100', 'PRは？'),
+            T(3, '0.2秒以下', '洞調律', C_GREEN),
+            T(3, '0.2秒より長い', '1度房室ブロック', C_YEL),
+            Q(2, '100以上', 'QRSの幅は？'),
+            Q(3, '狭い', 'P波は？'),
+            T(4, 'ふつう', '洞頻脈', C_GREEN),
+            T(4, 'のこぎり状', '心房粗動', C_ORANGE),
+            T(4, '見えない', 'PSVT', C_ORANGE),
+            T(3, '広い', '心室頻拍（VT）', C_RED),
+        ],
+        cases=[
+            dict(key='nsr', name='洞調律', end='洞調律'),
+            dict(key='av1', name='1度房室ブロック', end='1度房室ブロック'),
+            dict(key='chb', name='完全房室ブロック', end='完全房室ブロック'),
+            dict(key='flut', name='心房粗動（2:1）', end='心房粗動'),
+            dict(key='vt', name='心室頻拍（VT）', end='心室頻拍（VT）'),
+            dict(key='pace', name='ペースメーカー調律', end='ペースメーカー調律'),
+        ],
+        notes=['※モニター（II誘導）で見る入口の一例。例外あり', '※幅の広い速い頻拍は、迷ったらVT（LITFL）'],
+    ),
+    2: dict(
+        title=('見分けマップ②', ' 不規則・QRSなし'),
+        rows=[
+            Q(0, '', 'QRSはある？'),
+            Q(1, 'ない', '何が見える？'),
+            T(2, 'バラバラな揺れ', '心室細動（VF）', C_RED),
+            T(2, 'P波だけ', 'P波だけの心静止', C_BLUE),
+            T(2, 'まっすぐ', '心静止（電極も確認）', C_BLUE),
+            Q(1, 'ある', 'どう不規則？'),
+            Q(2, '全部バラバラ', 'QRSの幅は？'),
+            T(3, '狭い', '心房細動', C_ORANGE),
+            T(3, '広い', '多形性VT・トルサード', C_RED),
+            Q(2, '早い1拍', '早い拍は？'),
+            T(3, "狭い・前にP'", '心房期外収縮（PAC）', C_BLUE),
+            T(3, '狭い・Pなし', '接合部期外収縮（PJC）', C_BLUE),
+            T(3, '広い', '心室期外収縮（PVC）', C_YEL),
+            Q(2, 'ときどき抜ける', '抜けるのは？'),
+            T(3, 'P波ごと', '洞停止・洞房ブロック', C_BLUE),
+            Q(3, 'QRSだけ', 'PRは？'),
+            T(4, '伸びて抜ける', 'ウェンケバッハ', C_YEL),
+            T(4, '一定で突然', 'モビッツII型', C_RED),
+            T(2, '呼吸でゆれる', '洞性不整脈', C_GREEN),
+        ],
+        cases=[
+            dict(key='af', name='心房細動', end='心房細動'),
+            dict(key='pvc', name='心室期外収縮（PVC）', end='心室期外収縮（PVC）'),
+            dict(key='wk', name='ウェンケバッハ', end='ウェンケバッハ'),
+            dict(key='sarr', name='洞性不整脈', end='洞性不整脈'),
+            dict(key='vf', name='心室細動（VF）', end='心室細動（VF）'),
+            dict(key='pasys', name='P波だけの心静止', end='P波だけの心静止'),
+        ],
+        notes=['※波形があっても、脈がなければPEA。まず患者さん', '※モニター（II誘導）で見る入口の一例。例外あり'],
+    ),
+}
+MAP = int(os.environ.get('MAP_NO', '1'))
+CFG = MAPS[MAP]
+ROWS = CFG['rows']
 for _i, _r in enumerate(ROWS):                       # 親の行
     _r['parent'] = None
     for _j in range(_i - 1, -1, -1):
@@ -276,8 +371,9 @@ for _i, _r in enumerate(ROWS):                       # 親の行
             _r['parent'] = _j
             break
 
-TREE_Y0, ROW_H = 646, 46
-X0, IND = 150, 40
+TREE_Y0 = 616
+ROW_H = 45 if len(ROWS) > 19 else 48           # 行が少ないマップは、行の間を少し広げる
+X0, IND = 146, 34
 SZ_Q, SZ_T, SZ_A = 29, 30, 22
 
 
@@ -309,15 +405,16 @@ def path_points(rows):
     return pts
 
 
-# --- 例（6つ） ------------------------------------------------------------------------
-CASES = [
-    dict(key='af', path=[0, 4, 5, 6, 7], name='心房細動'),
-    dict(key='pvc', path=[0, 4, 5, 9, 10], name='期外収縮（PVC）'),
-    dict(key='chb', path=[0, 4, 12, 13, 15], name='完全房室ブロック'),
-    dict(key='psvt', path=[0, 4, 12, 17, 18], name='PSVT'),
-    dict(key='vf', path=[0, 1, 2], name='心室細動（VF）'),
-    dict(key='nsr', path=[0, 4, 12, 16], name='洞調律'),
-]
+# --- 例（6つ）：答えの行から、親をたどって道すじを作る ---------------------------------
+def _path_to(name):
+    i = next(j for j, r in enumerate(ROWS) if r['kind'] == 't' and r['text'] == name)
+    out = [i]
+    while ROWS[out[-1]]['parent'] is not None:
+        out.append(ROWS[out[-1]]['parent'])
+    return out[::-1]
+
+
+CASES = [dict(c, path=_path_to(c['end'])) for c in CFG['cases']]
 T_INTRO = 3.0
 CASE_D = 6.2
 STEP = 0.55                    # 1つの質問から次へ進む時間
@@ -327,8 +424,8 @@ LOOP_FADE = 0.7
 DUR = T_OUTRO + OUTRO_D
 
 # --- 画面の部品 -------------------------------------------------------------------------
-PANEL = (130, 404, 950, 604)          # 上の波形の枠
-P_BASE = 530                          # 波形の基線
+PANEL = (130, 392, 950, 572)          # 上の波形の枠
+P_BASE = 506                          # 波形の基線
 P_PXS, P_MV = 300.0, 62.0             # 1秒 = 300px、1mV = 62px
 
 
@@ -465,10 +562,6 @@ def draw_tree(im, t):
             put(im, '■', 16, 900, r['col'], x=x - 2, cy=y + 1, a=a)
             x += 22
             put(im, r['text'], size, 900, col, x=x, cy=y, a=a)
-            if r['reel']:
-                tw = text_img(r['text'], size, 900, col)[0].size[0] - 8
-                ra = a * (0.75 if final not in (i, 'all') else 1.0)
-                put(im, r['reel'], 19, 700, (176, 186, 186), x=x + tw + 12, cy=y + 3, a=ra)
     # 答えの行を強調（枠）
     if isinstance(final, int):
         lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
@@ -489,8 +582,8 @@ _GRID = None
 
 def notes(im):
     """左下の注意書き（右下の透かしと重ねない：x 600 まで）"""
-    put(im, '※モニター（II誘導）で見る入口の一例。例外あり', 20, 400, GREY, x=135, cy=1566, max_w=470)
-    put(im, '※幅の広い速い頻拍は、迷ったらVT（LITFL）', 20, 400, GREY, x=135, cy=1592, max_w=470)
+    put(im, CFG['notes'][0], 20, 400, GREY, x=135, cy=1566, max_w=470)
+    put(im, CFG['notes'][1], 20, 400, GREY, x=135, cy=1592, max_w=470)
 
 
 def frame(t):
@@ -503,12 +596,12 @@ def frame(t):
         tl = t                                            # 下でまぜる
     im = _GRID.copy()
     # 見出し
-    put(im, '心電図で気づく', 30, 700, (118, 226, 150), cx=540, cy=300)
-    parts = [('モニター心電図', 52, WHITE), (' 見分けマップ', 52, YEL)]
+    put(im, 'モニター心電図', 30, 700, (118, 226, 150), cx=540, cy=298)
+    parts = [(CFG['title'][0], 52, YEL), (CFG['title'][1], 52, WHITE)]
     ims = [text_img(s_, sz, 900, c_) for s_, sz, c_ in parts]
     x = 540 - (sum(a_.size[0] - 8 for a_, _ in ims))/2
     for (s_, sz, c_), (a_, asc) in zip(parts, ims):
-        put(im, s_, sz, 900, c_, x=x, cy=362)
+        put(im, s_, sz, 900, c_, x=x, cy=350)
         x += a_.size[0] - 8
     panel(im, tl)
     draw_tree(im, tl)
@@ -538,12 +631,12 @@ def thumbnail():
         _GRID = grid()
     t = T_OUTRO + 1.5
     im = _GRID.copy()
-    put(im, '心電図で気づく', 30, 700, (118, 226, 150), cx=540, cy=300)
-    parts = [('モニター心電図', 52, WHITE), (' 見分けマップ', 52, YEL)]
+    put(im, 'モニター心電図', 30, 700, (118, 226, 150), cx=540, cy=298)
+    parts = [(CFG['title'][0], 52, YEL), (CFG['title'][1], 52, WHITE)]
     ims = [text_img(s_, sz, 900, c_) for s_, sz, c_ in parts]
     x = 540 - (sum(a_.size[0] - 8 for a_, _ in ims))/2
     for (s_, sz, c_), (a_, asc) in zip(parts, ims):
-        put(im, s_, sz, 900, c_, x=x, cy=362)
+        put(im, s_, sz, 900, c_, x=x, cy=350)
         x += a_.size[0] - 8
     panel(im, t)
     draw_tree(im, t)
@@ -602,28 +695,33 @@ def sounds(path, sr=44100):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--fps', type=int, default=60)
-    ap.add_argument('--out', default=os.path.join(HERE, 'out', 'map_decision.mp4'))
+    ap.add_argument('--out', default=os.path.join(HERE, 'out', f'map{MAP}.mp4'))
     ap.add_argument('--still', type=float, nargs='*')
     ap.add_argument('--thumb', action='store_true')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 2)
     ap.add_argument('--hq', action='store_true')
+    ap.add_argument('--map', type=int, default=MAP, help='1：規則的な波形 / 2：不規則・QRSなし（環境変数 MAP_NO でも）')
     o = ap.parse_args()
+    if o.map != MAP:                                    # マップを切りかえて、自分をもう一度動かす
+        env = dict(os.environ, MAP_NO=str(o.map))
+        import sys
+        raise SystemExit(subprocess.call([sys.executable] + sys.argv, env=env))
     os.makedirs(os.path.dirname(o.out), exist_ok=True)
     if o.thumb:
-        p = os.path.join(os.path.dirname(o.out), 'thumb_map_decision.png')
+        p = os.path.join(os.path.dirname(o.out), f'thumb_map{MAP}.png')
         thumbnail().save(p); print(p); return
     if o.still:
         for s in o.still:
-            p = os.path.join(os.path.dirname(o.out), f'still_{s:05.1f}.png')
+            p = os.path.join(os.path.dirname(o.out), f'still_map{MAP}_{s:05.1f}.png')
             frame(s).save(p); print(p)
         return
     crf, preset = (10, 'slow') if o.hq else (18, 'medium')
     if o.hq and o.out == ap.get_default('out'):
-        o.out = os.path.join(HERE, 'out', 'map_decision_hq.mp4')
+        o.out = os.path.join(HERE, 'out', f'map{MAP}_hq.mp4')
     frame0()
     total = int(round(DUR*o.fps))
     step = math.ceil(total / o.jobs)
-    tmp = os.path.join(os.path.dirname(o.out), 'parts')
+    tmp = os.path.join(os.path.dirname(o.out), f'parts_map{MAP}')
     os.makedirs(tmp, exist_ok=True)
     jobs = [(i, min(total, i+step), o.fps, os.path.join(tmp, f'p{j:02d}.mp4'), crf, preset)
             for j, i in enumerate(range(0, total, step))]
