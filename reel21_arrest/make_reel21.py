@@ -205,20 +205,20 @@ PATTERNS = [
          one='PVCが3つ以上続く（ショートラン）', tag='report',
          ev=[(0, 'N'), (0.8, 'N'), (1.28, 'V'), (1.66, 'V'), (2.04, 'V'), (3.2, 'N')], L=4.0, hl=[(1.19, 2.46)]),
     dict(no='③', name='単形性VT', col=C_VT, hint='速い・幅広・同じ形',
-         one='幅の広いQRSが、速く規則正しい', tag='shock_if',
+         one='幅広いQRSが、速く規則正しい', tag='shock_if',
          ev=[(k*0.32, 'V') for k in range(15)], L=4.8, hl=ALL),
     dict(no='④', name='多形性VT', col=C_VT, hint='形が毎回ちがう',
          one='QRSの形が、1拍ごとに変わる', tag='shock_if',
          ev=[], L=POLY_L, art=art_poly, hl=ALL),
     dict(no='⑤', name='トルサード・ド・ポワント', col=C_VT, hint='ねじれる',
-         one='ねじれるように変わる。QT延長のあと', tag='shock_if',
+         one='ねじれる。QT延長がきっかけ', tag='shock_if',
          ev=[(0, 'Q'), (1.0, 'Q'), (4.6, 'Q')], L=5.6, art=art_tdp, gain=gain_tdp,
          hl=[(TDP_A - 0.1, TDP_B + 0.1)]),
     dict(no='⑥', name='粗いVF', col=C_VF, hint='大きくバラバラ',
          one='不規則で大きな揺れ。QRSが見えない', tag='shock',
          ev=[], L=4.0, art=art_vf_coarse, hl=ALL),
     dict(no='⑦', name='細かいVF', col=C_VF, hint='小さくバラバラ',
-         one='揺れが小さい。時間がたつと小さくなる', tag='shock',
+         one='小さな揺れ。時間がたつと小さく', tag='shock',
          ev=[], L=4.0, art=art_vf_fine, hl=ALL),
     dict(no='⑧', name='モビッツII型', col=C_PRE, hint='突然抜ける',
          one='PRは同じまま、突然QRSが抜ける', tag='report',
@@ -227,13 +227,13 @@ PATTERNS = [
          one='PとQRSが別々に動く。とても遅い', tag='report',
          ev=[(k*0.68, 'P') for k in range(10)] + [(0.3 + k*1.7, 'W') for k in range(4)], L=6.8, hl=ALL),
     dict(no='⑩', name='心静止', col=C_NS, hint='ほぼまっすぐ',
-         one='まっすぐの線。CPRと並行して電極も確認', tag='noshock',
+         one='まっすぐ。CPRしながら電極確認', tag='noshock',
          ev=[], L=4.0, art=art_asys, hl=ALL),
     dict(no='⑪', name='PEA（ふつうに見える）', col=C_NS, hint='波形はふつう',
-         one='波形はふつうに見えても、脈がない', tag='noshock',
+         one='波形はふつう。でも脈がない', tag='noshock',
          ev=[(k*0.75, 'N') for k in range(6)], L=4.5, hl=ALL),
     dict(no='⑫', name='PEA（遅く幅広い）', col=C_NS, hint='遅く幅広い',
-         one='遅く幅の広いQRS。脈がない', tag='noshock',
+         one='遅く幅広いQRS。脈がない', tag='noshock',
          ev=[(0.3, 'W'), (2.3, 'W')], L=4.0, hl=ALL),
 ]
 
@@ -860,6 +860,7 @@ _GRID = None
 
 
 # ひとことのうしろに、電気ショックの適応を色で（ERC 2021：ショック適応は VF・無脈性VT、適応なしは 心静止・PEA）
+ONE_W = 760                         # ひとこと＋色の文字の幅の上限（左右に 160px 以上の余白。端で切れて見えないように）
 TAGS = {
     'shock_if': ('→ 脈なしならショック', (255, 96, 96)),
     'shock': ('→ 電気ショック', (255, 96, 96)),
@@ -879,7 +880,7 @@ def draw_one(im, pat, a):
     while True:
         w1 = text_img(pat['one'], sz, 500, (226, 232, 231))[0].size[0] - 8
         w2 = text_img(tag[0], sz, 800, tag[1])[0].size[0] - 8
-        if w1 + 14 + w2 <= 820 or sz <= 24:
+        if w1 + 14 + w2 <= ONE_W or sz <= 24:
             break
         sz -= 1
     x0 = 540 - (w1 + 14 + w2) / 2
