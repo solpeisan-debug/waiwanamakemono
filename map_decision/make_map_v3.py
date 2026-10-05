@@ -109,8 +109,8 @@ MAP = int(os.environ.get('MAP_NO', '1'))
 CFG = MAPS[MAP]
 
 # --- 配置 ---------------------------------------------------------------------------------
-X0, X_END = 60, 1000
-Y_FIRST, Y_LAST = 474, 1496       # 1枚目と最後のカードのまん中
+X0, X_END = 72, 1000                # 左72px・右80px（右下はリールのボタンがかかるので少し広め）
+Y_FIRST, Y_LAST = 494, 1500       # 1枚目と最後のカードのまん中（見出しとの間を約60px空ける）
 GAP_X = 30                        # 箱の右 → 縦の線 14px → 子 16px
 SZ_Q, SZ_A = 24, 18
 CARD_H = 84
@@ -293,14 +293,14 @@ def frame(t, wm=True, highlight=True):
     if _GRID is None:
         _GRID = b.grid()
     im = _GRID.copy()
-    put(im, 'モニター心電図', 30, 700, (118, 226, 150), cx=540, cy=298)
+    put(im, 'モニター心電図', 30, 700, (118, 226, 150), cx=540, cy=270)
     parts = [(CFG['title'][0], 52, YEL), (CFG['title'][1], 52, WHITE)]
     ims = [text_img(s_, sz, 900, c_) for s_, sz, c_ in parts]
     xx = 540 - (sum(a_.size[0] - 8 for a_, _ in ims))/2
     for (s_, sz, c_), (a_, _) in zip(parts, ims):
-        put(im, s_, sz, 900, c_, x=xx, cy=350)
+        put(im, s_, sz, 900, c_, x=xx, cy=322)
         xx += a_.size[0] - 8
-    put(im, '左の質問から、線をたどるだけ。保存して、迷ったら見返してね', 23, 700, GREEN_SAVE, cx=540, cy=402)
+    put(im, '左の質問から、線をたどるだけ。保存して、迷ったら見返してね', 23, 700, GREEN_SAVE, cx=540, cy=374)
     im.alpha_composite(lines_layer())
     # 光る道すじ（前の道から0.25秒で移る）
     glow_leaf = [0.0]*N
