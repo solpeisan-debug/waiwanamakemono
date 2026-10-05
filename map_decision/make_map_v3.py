@@ -198,8 +198,11 @@ _y(CFG['tree'])
 _max_d = max(n['depth'] for n in NODES)
 COL_W = [max(node_size(n)[0] for n in NODES if n['depth'] == d) for d in range(_max_d + 1)]
 COL_X = [X0 + sum(COL_W[:d]) + d*GAP_X for d in range(_max_d + 1)]
+SNAP_W = 8 if MAP == 3 else 0    # ③：同じ列で幅の差が 8px 以内の箱は、列でいちばん広い幅にそろえる（カードの左端をそろえる）
 for _n in NODES:
     _n['w'], _n['h'] = node_size(_n)
+    if SNAP_W and _n['w'] >= COL_W[_n['depth']] - SNAP_W:
+        _n['w'] = COL_W[_n['depth']]
     _n['x'] = COL_X[_n['depth']]
     _n['bar'] = _n['x'] + _n['w'] + 14
 for _n in LEAVES:
@@ -257,6 +260,17 @@ def fit_line(ans, name, wmax):
             sn -= 1
 
 
+def fit_group(c, wmax):
+    """③：同じ質問の兄弟カードで、答えの字の大きさをそろえる（兄弟の fit_line の答えの字の、いちばん小さいもの）。
+    名前は 26px から、入るまで縮める"""
+    kids = [k for k in c['parent']['kids'] if k['kind'] == 'l']
+    sa = min(fit_line(k['ans'], k['name'], int(round(k['w'])) - 26)[0] for k in kids)
+    sn, wa = 26, tw(c['ans'], sa, 700)
+    while wa + 12 + tw(c['name'], sn, 900) > wmax and sn > 17:
+        sn -= 1
+    return sa, sn, wa
+
+
 def draw_card(im, c, t, glow):
     x, y0, w, h = int(c['x']), int(c['y'] - CARD_H/2), int(round(c['w'])), CARD_H
     lay = Image.new('RGBA', (w + 40, h + 40), (0, 0, 0, 0))
@@ -268,7 +282,10 @@ def draw_card(im, c, t, glow):
     d.rounded_rectangle((20, 20, 20 + w, 20 + h), radius=14, fill=CARD_FILL + (232,),
                         outline=mix(NODE_EDGE, c['col'], max(glow, 0.35)) + (255,), width=2 + int(round(glow)))
     im.alpha_composite(lay, (x - 20, y0 - 20))
-    sa, sn, wa = fit_line(c['ans'], c['name'], w - 26)
+    if MAP == 3:
+        sa, sn, wa = fit_group(c, w - 26)
+    else:
+        sa, sn, wa = fit_line(c['ans'], c['name'], w - 26)
     put(im, c['ans'], sa, 700, mix(DIM_ANS, YEL, glow), x=x + 13, cy=y0 + 21)
     put(im, c['name'], sn, 900, c['col'], x=x + 13 + wa + 12, cy=y0 + 20)
     x0, x1, base, s = wave_geom(c)
@@ -372,6 +389,10 @@ def draw_title(im):
     _draw_title_at(im, TITLE_CY)
 
 
+# 注意書きと透かしの高さ。③は注意書き2行目の字の下端が 1600 を超えないよう 3px 上げる（①②は前のまま）
+NOTE_CY, WM_CY = ((1563, 1589), 1574) if MAP == 3 else ((1566, 1592), 1576)
+
+
 def frame(t, wm=True, highlight=True):
     global _GRID
     if _GRID is None:
@@ -398,10 +419,10 @@ def frame(t, wm=True, highlight=True):
         draw_node(im, n, on_node[id(n)])
     for c in LEAVES:
         draw_card(im, c, t, glow_leaf[c['i']])
-    put(im, CFG['notes'][0], 20, 400, (150, 160, 162), x=135, cy=1566, max_w=470)
-    put(im, CFG['notes'][1], 20, 400, (150, 160, 162), x=135, cy=1592, max_w=470)
+    put(im, CFG['notes'][0], 20, 400, (150, 160, 162), x=135, cy=NOTE_CY[0], max_w=470)
+    put(im, CFG['notes'][1], 20, 400, (150, 160, 162), x=135, cy=NOTE_CY[1], max_w=470)
     if wm:
-        put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
+        put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=WM_CY, a=0.42)
     return im.convert('RGB')
 
 
