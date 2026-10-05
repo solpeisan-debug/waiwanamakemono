@@ -24,6 +24,8 @@
 ※数値はこの波形での一例です（II誘導・ふつうの拍は75/分）
 ※参考：LITFL ECG Library（ECG Motion Artefacts／Limb Lead Reversal）、Mondal S et al. World J Cardiol 2026（心電図アーチファクトの総説）、Knight BP et al. N Engl J Med 1999（歯みがきによる偽VT）
 
-（caption_template.txt の定型3行：シェア歓迎／転載・素材使用はDMで）
+📌保存・シェアは大歓迎です
+🚫画像・動画の無断転載、素材としての使用はご遠慮ください
+✉️ご相談はDMへどうぞ
 
 #看護師 #看護学生 #心電図 #ノイズ #アーチファクト #モニター心電図 #不整脈
