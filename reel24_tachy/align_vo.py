@@ -1,5 +1,5 @@
-"""第21弾 致死性不整脈と心停止：ナレーション（ElevenLabs の通し読み）を文に切り分けて、映像の秒数に置き直す。
-第17弾の align_vo_v2.py と同じ作り。
+"""第24弾 頻脈（幅の狭いQRS）：ナレーション（ElevenLabs の通し読み）を文に切り分けて、映像の秒数に置き直す。
+第21弾の align_vo.py と同じ作り。
 
 決めごと（README）：
 - 無音を手がかりに文へ切り分ける。継ぎ目は必ず無音の中で切る
@@ -8,8 +8,8 @@
 使い方:
     cp 録音.mp3 out/vo/narration_raw.mp3
     python3 align_vo.py out/vo/narration_raw.mp3            # out/vo/mix.wav と配置表を作る
-    python3 align_vo.py out/vo/narration_raw.mp3 --mux      # 映像（out/reel21_arrest.mp4）に入れる
-    python3 align_vo.py out/vo/narration_raw.mp3 --mux --hq # 高画質版（out/reel21_arrest_hq.mp4）に入れる
+    python3 align_vo.py out/vo/narration_raw.mp3 --mux      # 映像（out/reel24_tachy.mp4）に入れる
+    python3 align_vo.py out/vo/narration_raw.mp3 --mux --hq # 高画質版（out/reel24_tachy_hq.mp4）に入れる
     python3 align_vo.py out/vo/narration_raw.mp3 --fix out/vo/narration_fix.mp3 --mux
         # 録り直した文（FIX_LINES）だけ、--fix のファイルから差し替える
 """
@@ -21,7 +21,7 @@ import wave
 
 import numpy as np
 
-import make_reel21 as m
+import make_reel24 as m
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SR = 44100
@@ -30,38 +30,39 @@ SR = 44100
 # 番号は 1 から。録音が届いたら、Whisper の書き起こしで順番と中身を確かめて直す
 # （読点で 0.25秒以上の間があると、1つの文が2つ以上のかたまりになる）。
 LINES = [
-    ('冒頭', [1, 2]),          # 致死性不整脈と心停止。／まず覚えたいのは、この12パターン。
-    ('①', [3, 4]), ('②', [5]), ('③', [6, 7]), ('④', [8, 9]), ('⑤', [10, 11, 12]), ('⑥', [13]),
-    ('⑦', [14, 15]), ('⑧', [16]), ('⑨', [17, 18]), ('⑩', [19, 20, 21]), ('⑪', [22, 23]), ('⑫', [24]),
-    ('まとめ', [25]),          # ショックするのは、VFと、脈のないVT。
-    ('保存', [26]),            # 保存して、見返してね
+    ('冒頭', [1]),             # 幅の狭いQRSの頻脈。まず覚えたいのは、この12パターン。（仮：録音が届いたら直す）
+    ('①', [2]), ('②', [3]), ('③', [4]), ('④', [5]), ('⑤', [6]), ('⑥', [7]),
+    ('⑦', [8]), ('⑧', [9]), ('⑨', [10]), ('⑩', [11]), ('⑪', [12]), ('⑫', [13]),
+    ('まとめ', [14]),          # 規則正しいか、P波はどこか。まずこの2つ。
+    ('保存', [15]),            # 保存して、見返してね
 ]
 # 録り直した文（--fix のファイルの声のかたまり番号。0.05秒未満のかたまり＝雑音は数えない）
 FIX_LINES = {}
 # 文の中の息継ぎ（無音）を、この長さまで縮める（離脱を防ぐ）。録音が届いたら間の長さを見て決める
 GAP_CAP = {n: 0.45 for n, _ in LINES}
+# 台本（narration.md の「読み上げ用」と同じ。「すぐ報告」は声では言わない。数字も読まない）
 TEXT = {
-    '冒頭': '致死性不整脈と心停止。まず覚えたいのは、この12パターン。',
-    '①': 'T波に乗るPVC、R on T。',
-    '②': '3つ以上続けば、ショートラン。',
-    '③': '速く、幅広く、規則正しい。単形性VT。',
-    '④': '形が毎回変わる、多形性VT。',
-    '⑤': 'ねじれる、トルサード。持続して脈がなければ、ショック。',
-    '⑥': '大きくバラバラ、粗いVF。',
-    '⑦': '小さな揺れは、細かいVF。心静止と迷ったら、CPR。',
-    '⑧': '突然QRSが抜ける、モビッツII型。',
-    '⑨': 'PとQRSが別々に動く、完全房室ブロック。',
-    '⑩': 'ほぼまっすぐ、心静止。すぐCPR、並行して電極も確認。',
-    '⑪': 'ふつうに見えても、脈がない。PEA。',
-    '⑫': '遅く幅広くても、脈がなければPEA。',
-    'まとめ': 'ショックするのは、VFと、脈のないVT。',
+    '冒頭': '幅の狭いQRSの頻脈。まず覚えたいのは、この12パターン。',
+    '①': 'どの拍にもP波がある、洞頻脈。',
+    '②': '形のちがうP波が3つ続く、PACの連発。',
+    '③': '形のちがうP波が、規則正しく。心房頻拍。',
+    '④': 'P波の形が3種類以上、多源性心房頻拍。',
+    '⑤': 'P波がなく、バラバラ。速い心房細動。',
+    '⑥': 'のこぎりの波が隠れる、心房粗動の2対1。',
+    '⑦': '規則正しく速く、P波が見えない。PSVT。',
+    '⑧': 'PACをきっかけに突然始まり、突然止まる。',
+    '⑨': 'QRSのすぐあとに逆向きのP波。房室回帰性頻拍。',
+    '⑩': 'PRが短く、デルタ波がある。WPW。',
+    '⑪': 'QRSの直前に逆向きのP。接合部頻拍。',
+    '⑫': 'P波がT波に隠れると、洞頻脈もPSVTに見える。',
+    'まとめ': '規則正しいか、P波はどこか。まずこの2つ。',
     '保存': '保存して、見返してね',
 }
 PAD_IN, PAD_OUT = 0.06, 0.15          # 声の前後に残す無音（無音の中で切る）
 LEAD = 0.55                           # パターンの名前が出てから話し始めるまで
 GAP_MIN = 0.20                        # 文と文のあいだの最小の間
 DUCK_DB = 8.0
-VO_PEAK = 0.75                        # 声のピーク（第17弾の声とおなじくらいの大きさ）
+VO_PEAK = 0.75                        # 声のピーク（第17・21弾の声とおなじくらいの大きさ）
 
 
 def ffmpeg():
@@ -126,7 +127,7 @@ def main():
     ap.add_argument('src')
     ap.add_argument('--fix', help='録り直した文のファイル（FIX_LINES の文を差し替える）')
     ap.add_argument('--mux', action='store_true')
-    ap.add_argument('--hq', action='store_true', help='高画質版（out/reel21_arrest_hq.mp4）に入れる。音声 320k')
+    ap.add_argument('--hq', action='store_true', help='高画質版（out/reel24_tachy_hq.mp4）に入れる。音声 320k')
     o = ap.parse_args()
 
     blocks = speech_blocks(o.src)
@@ -173,7 +174,7 @@ def main():
         seg = segs[n][:max(0, n_all - i0)]
         vo[i0:i0+len(seg)] += seg
 
-    # 声の大きさをそろえる（この録音は第17弾より約4dB小さい）。声のいちばん大きいところを VO_PEAK に
+    # 声の大きさをそろえる。声のいちばん大きいところを VO_PEAK に
     vo *= VO_PEAK / (np.abs(vo).max() + 1e-9)
 
     # 効果音（モニター音）
@@ -218,8 +219,8 @@ def main():
 
     if o.mux:
         tag = '_hq' if o.hq else ''
-        video = os.path.join(HERE, 'out', f'reel21_arrest{tag}.mp4')
-        dst = os.path.join(HERE, 'out', f'reel21_arrest{tag}_vo.mp4')
+        video = os.path.join(HERE, 'out', f'reel24_tachy{tag}.mp4')
+        dst = os.path.join(HERE, 'out', f'reel24_tachy{tag}_vo.mp4')
         subprocess.run([ffmpeg(), '-v', 'error', '-y', '-i', video, '-i', out, '-map', '0:v', '-map', '1:a',
                         '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k' if o.hq else '192k', '-ar', '48000',
                         '-shortest', '-movflags', '+faststart', dst], check=True)
