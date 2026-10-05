@@ -1,4 +1,4 @@
-"""モニター心電図 見分けマップ v3（1枚で動く保存版。2枚組）。
+"""モニター心電図 見分けマップ v3（1枚で動く保存版。3枚組：①規則的な波形 ②不規則・QRSなし ③幅の広いQRS）。
 
 v2（カードを並べただけ）は「なぜ並んでいるのか」がわかりにくかったので、マップ（質問と線）を第一にした。
 - 左から右へ流れる分かれ道の図。質問は箱、線はまっすぐな直角の線だけ
@@ -8,12 +8,15 @@ v2（カードを並べただけ）は「なぜ並んでいるのか」がわか
   （中身は v1 と同じ。専門医レビュー 2026-10-04 を反映済み。review_log.md）
 
 波形は make_map_v2.py と同じ（周期はすべて 24 の約数なので、最後のコマの次が最初のコマとぴったり同じ）。
+③（第27弾）の波形は make_map_v2.py の RHYTHMS に足した（'pace' 'vt' 'vesc' は①と同じ波形）。
+③の字の大きさ・配置で①②とちがうのは ANS_MIN（答えの字の下限）だけ。専門医レビュー用の資料は make_review_pdf_v3.py。
 ナレーションなし。
 
 使い方:
     python3 make_map_v3.py --map 1              # 書き出し（out/map1_v3.mp4）
     python3 make_map_v3.py --map 2 --still 0 5  # 1コマだけ
     python3 make_map_v3.py --map 1 --thumb      # サムネイル（透かしなし）
+    python3 make_map_v3.py --map 3 --still 9    # マップ③（幅の広いQRS）
     python3 make_map_v3.py --map 1 --hq         # 高画質（out/map1_v3_hq.mp4）
 """
 import argparse
@@ -27,10 +30,15 @@ from multiprocessing import Pool
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-import make_map as b
-from make_map import (W, H, WHITE, YEL, CARD_FILL, C_RED, C_ORANGE, C_YEL, C_BLUE, C_GREEN, C_Q,
+# make_map / make_map_v2 は読み込むときに自分のマップ（①②）の設定を作る。③は v3 にしかないので、
+# ③のときは①として読み込む（使うのは部品と波形だけなので、どちらでも同じ）
+_MAP_ENV = os.environ.get('MAP_NO', '1')
+os.environ['MAP_NO'] = _MAP_ENV if _MAP_ENV in ('1', '2') else '1'
+import make_map as b  # noqa: E402
+from make_map import (W, H, WHITE, YEL, CARD_FILL, C_RED, C_ORANGE, C_YEL, C_BLUE, C_GREEN, C_Q,  # noqa: E402
                       WATERMARK, put, text_img, glow_line, mix, ramp)
-from make_map_v2 import RHYTHMS, rhythm_wave, r_times, DUR, SPEED
+from make_map_v2 import RHYTHMS, rhythm_wave, r_times, DUR, SPEED  # noqa: E402
+os.environ['MAP_NO'] = _MAP_ENV
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GREEN_SAVE = (130, 232, 172)
@@ -103,6 +111,32 @@ MAPS = {
             ]),
         ]),
         notes=['※波形があっても、脈がなければPEA。まず患者さん', '※モニター（II誘導）で見る入口の一例。例外あり'],
+    ),
+    3: dict(
+        title=('見分けマップ③', ' 幅の広いQRS'),
+        tree=Q('', 'スパイクが\nある？', [
+            L('ある・あとに広いQRS', 'ペースメーカー調律', C_BLUE, 'pace'),
+            Q('ない', '心拍数は？', [
+                Q('100以上', 'リズム\nは？', [
+                    L('規則的・迷ったらこれ', '心室頻拍（VT）', C_RED, 'vt'),
+                    L('規則的・前から脚ブロック', 'SVT＋変行伝導', C_ORANGE, 'svtbbb'),
+                    L('規則的・前からWPW', '逆方向性AVRT', C_RED, 'avrtw'),
+                    L('不規則・ねじれる', '多形性VT・トルサード', C_RED, 'tdp'),
+                    L('不規則・同じ形', '心房細動＋脚ブロック', C_ORANGE, 'afbbb3'),
+                    L('不規則・とても速い', '心房細動＋WPW', C_RED, 'afwpw'),
+                ]),
+                Q('60〜100', 'P波は？', [
+                    L('あり・PRふつう', '脚ブロック', C_YEL, 'bbb'),
+                    L('あり・PR短い・デルタ波', 'WPW', C_YEL, 'wpw'),
+                    L('なし', '促進心室固有調律（AIVR）', C_YEL, 'aivr'),
+                ]),
+                Q('60未満', 'P波と\nT波は？', [
+                    L('P波なし', '心室補充調律', C_RED, 'vesc'),
+                    L('P波平ら・T波とがる', '高カリウム血症', C_RED, 'hyperk'),
+                ]),
+            ]),
+        ]),
+        notes=['※幅の広い速い頻拍は、迷ったらVT。まず患者さん', '※II誘導の一例。右脚・左脚の区別は12誘導で'],
     ),
 }
 MAP = int(os.environ.get('MAP_NO', '1'))
@@ -207,14 +241,17 @@ def wave_geom(c):
     return x0, x1, base, s
 
 
+ANS_MIN = 18 if MAP == 3 else 15   # ③は答えの字を 18px より小さくしない（①②は前のまま）
+
+
 def fit_line(ans, name, wmax):
-    """答え（小）と名前を1行に。入らなければ、まず答えの字を小さく（15まで）、それでも入らなければ名前を小さく"""
+    """答え（小）と名前を1行に。入らなければ、まず答えの字を小さく（ANS_MIN まで）、それでも入らなければ名前を小さく"""
     sa, sn = 21, 26
     while True:
         wa, wn = tw(ans, sa, 700), tw(name, sn, 900)
         if wa + 12 + wn <= wmax or sn <= 17:
             return sa, sn, wa
-        if sa > 15:
+        if sa > ANS_MIN:
             sa -= 1
         else:
             sn -= 1

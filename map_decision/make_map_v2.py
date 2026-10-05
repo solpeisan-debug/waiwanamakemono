@@ -69,14 +69,119 @@ RHYTHMS = {
     'm2':     dict(ev=[(0.16, 'N'), (1.16, 'N'), (2.16, 'N'), (3.0, 'P')], L=4.0),
     'sarr':   dict(ev=[(t, 'N') for t in _SA_T], L=8.0),
 }
-QRS_KINDS = ('N', 'Q', 'V', 'W', 'S', 'A')
+
+
+# --- マップ③（幅の広いQRS）で使う拍の形（II誘導の一例。秒、mV。0 は R の頂点） -------------------
+def _g(t, c, s):
+    return np.exp(-0.5*((t - c)/s)**2)
+
+
+def _ga(t, c, sl, sr):
+    return np.exp(-0.5*((t - c)/np.where(t < c, sl, sr))**2)
+
+
+def qrs_bbb(tau, t_at=0.30, t_amp=1.0):
+    """脚ブロック型：切れこみのある幅の広いR＋逆向きのT（II誘導の一例）。t_at は T の頂点の時刻。
+    t_amp は T の大きさ（0 にすると QRS だけ。レビュー資料で幅を測るとき）"""
+    return (0.58*_ga(tau, -0.012, 0.020, 0.016) + 0.50*_ga(tau, 0.040, 0.016, 0.022)
+            - t_amp*0.26*_ga(tau, t_at, 0.060*t_at/0.30, 0.045*t_at/0.30))
+
+
+def qrs_wpw(tau, t_amp=1.0):
+    """WPW（洞調律）：ゆっくり立ち上がるデルタ波 → 細いR → 小さいS、Tは少し逆向き"""
+    return (0.46*_ga(tau, -0.008, 0.038, 0.012) + 0.58*_g(tau, 0.0, 0.011)
+            - 0.16*_g(tau, 0.032, 0.010) - t_amp*0.10*_ga(tau, 0.28, 0.060, 0.045))
+
+
+def qrs_preex(tau, w=1.0, t_amp=1.0):
+    """副伝導路だけを通る幅の広いQRS（逆方向性AVRT・心房細動＋WPW）。w は幅の倍率"""
+    u = tau / w
+    return (0.82*_ga(u, 0.0, 0.040, 0.018) - 0.30*_g(u, 0.048, 0.018)
+            - t_amp*0.22*_ga(tau, 0.15, 0.030, 0.026))
+
+
+def qrs_hyperk(tau, t_amp=1.0):
+    """高カリウム血症：平らで広いP、幅の広いQRSがそのまま高くとがったTにつながる（サイン波に近づく）"""
+    return (0.05*_g(tau, -0.30, 0.040) + 0.50*_ga(tau, 0.0, 0.045, 0.040)
+            - 0.30*_ga(tau, 0.110, 0.035, 0.050) + t_amp*0.80*_ga(tau, 0.330, 0.055, 0.038))
+
+
+def qrs_torsade(tau, r, Tm=1.5):
+    """多形性VT（トルサード）：幅の広い拍の大きさと向きが、Tm 秒ごとにねじれるように入れかわる"""
+    a = math.cos(math.pi*r/Tm)
+    amp = math.copysign(0.18 + 0.82*abs(a), a)
+    return amp*(0.95*_g(tau, 0.0, 0.034) - 0.55*_g(tau, 0.105, 0.040))
+
+
+P_BBB, P_WPW = 0.18, 0.14          # R の頂点から P波の頂点までの時間（脚ブロック型・WPW）
+
+
+def extra_wave(t, beats):
+    """マップ③の拍。'B' P＋脚ブロック型QRS、'C' 脚ブロック型QRS（P波なし・速い）、'D' WPW（P＋デルタ波）、
+    'Y' 副伝導路を通る幅の広いQRS（3つめの値は幅の倍率）、'K' 高カリウム血症、'T' トルサード"""
+    v = np.zeros_like(t)
+    for bt in beats:
+        r, k = bt[0], bt[1]
+        if k not in EXTRA_KINDS:
+            continue
+        m = np.abs(t - r) < 0.9
+        if not m.any():
+            continue
+        tau = t[m] - r
+        if k == 'B':
+            v[m] += qrs_bbb(tau) + b.p_sinus(tau + P_BBB)
+        elif k == 'C':
+            v[m] += qrs_bbb(tau, t_at=0.21)
+        elif k == 'D':
+            v[m] += qrs_wpw(tau) + b.p_sinus(tau + P_WPW)
+        elif k == 'Y':
+            v[m] += qrs_preex(tau, bt[2] if len(bt) > 2 else 1.0)
+        elif k == 'K':
+            v[m] += qrs_hyperk(tau)
+        elif k == 'T':
+            v[m] += qrs_torsade(tau, r)
+    return v
+
+
+EXTRA_KINDS = ('B', 'C', 'D', 'Y', 'K', 'T')
+
+
+def _rr_times(rr, total):
+    """R-R のリストを合計 total 秒にそろえて、拍の時刻にする"""
+    rr = np.array(rr, dtype=float)*total/sum(rr)
+    return np.cumsum([0.0] + rr[:-1].tolist()).tolist()
+
+
+_AFF_T = _rr_times([0.42, 0.61, 0.38, 0.55, 0.70, 0.44, 0.52, 0.36, 0.58, 0.47, 0.40, 0.57], 6.0)   # 平均120/分
+_AFW_RR = [0.24, 0.30, 0.21, 0.36, 0.26, 0.20, 0.33, 0.25, 0.28, 0.22, 0.38,
+           0.24, 0.27, 0.21, 0.31, 0.26, 0.20, 0.34, 0.23, 0.29, 0.25, 0.26]                          # 平均220/分
+_AFW_T = _rr_times(_AFW_RR, 6.0)
+_AFW_W = [1.00, 0.88, 1.12, 0.95, 1.18, 0.86, 1.05, 0.92, 1.15, 0.84, 1.00,
+          1.10, 0.90, 1.16, 0.94, 1.06, 0.85, 1.12, 0.96, 1.02, 0.88, 1.08]                          # 拍ごとに少し幅がちがう
+_TDP_T = _rr_times([0.22, 0.26, 0.24, 0.28, 0.23, 0.27, 0.25, 0.22, 0.26, 0.24, 0.27, 0.26], 3.0)    # 平均240/分
+RHYTHMS.update({
+    # マップ③（'pace' 'vt' 'vesc' はマップ①と同じ波形を使う）
+    'svtbbb': dict(ev=[(k*0.375, 'C') for k in range(8)], L=3.0),                    # 160/分、P波見えない、脚ブロック型
+    'avrtw':  dict(ev=[(k*0.25, 'Y') for k in range(12)], L=3.0),                    # 240/分、副伝導路を通る幅の広いQRS
+    'tdp':    dict(ev=[(t, 'T') for t in _TDP_T], L=3.0),                            # 平均240/分、1.5秒ごとにねじれる
+    'afbbb3': dict(ev=[(t, 'C') for t in _AFF_T], L=6.0, f=True),                    # 平均120/分、形はそろう
+    'afwpw':  dict(ev=[(t, 'Y', w) for t, w in zip(_AFW_T, _AFW_W)], L=6.0, f=True),  # 平均220/分、幅が拍ごとにちがう
+    'bbb':    dict(ev=[(k*0.8, 'B') for k in range(5)], L=4.0),                      # 75/分、P波あり
+    'wpw':    dict(ev=[(k*0.8, 'D') for k in range(5)], L=4.0),                      # 75/分、PR短い・デルタ波
+    'aivr':   dict(ev=[(k*0.8, 'W') for k in range(5)], L=4.0),                      # 75/分、P波なし
+    'hyperk': dict(ev=[(k*1.2, 'K') for k in range(4)], L=4.8),                      # 50/分
+})
+QRS_KINDS = ('N', 'Q', 'V', 'W', 'S', 'A') + EXTRA_KINDS
 for _k, _r in RHYTHMS.items():
     assert abs(DUR/_r['L'] - round(DUR/_r['L'])) < 1e-9, _k
 
 
 def rhythm_wave(key, t):
     R = RHYTHMS[key]
-    v = beats_wave(t, b.periodic(R['ev'], R['L'], t[0], t[-1]))
+    beats = b.periodic(R['ev'], R['L'], t[0], t[-1])
+    v = beats_wave(t, beats)
+    if any(e[1] in EXTRA_KINDS for e in R['ev']):
+        v += extra_wave(t, beats)
     if R.get('f'):
         v += band_noise(t, R['L'], 5.0, 8.0, 0.035, 5)
     if R.get('vf'):

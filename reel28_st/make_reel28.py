@@ -1,0 +1,1275 @@
+"""第28弾 心筋梗塞とST変化 まず覚えたい12パターン（第17〜21弾と同じ作り）
+
+配置：
+- 上部：①〜⑥ のミニ波形（2列×3段。心筋梗塞の時間の流れ：基準 → 超急性期T → ST上昇 → 墓石型 → 異常Q → 冠性T）
+- 中部：いま紹介中の波形（大きく流れる）と、名前・ひとこと（うしろに、対応を色で。ST変化は「12誘導」）
+- 下部：⑦〜⑫ のミニ波形（2列×3段。ST低下2つ、心筋梗塞とまぎらわしいST上昇3つ、再灌流のときのAIVR）
+
+波形は、パターンの周期でくり返す決まった形。各拍の ST-T（特徴のところ）だけ、パターンの色にする。
+II誘導のモニター・実際の速さ（25mm/秒）を想定。モニターだけでは ST 変化は判断できないので、
+画面のうしろの色の文字と左下の注記で「12誘導で確認」を出す。
+
+使い方:
+    python3 make_reel28.py              # 書き出し・60fps（CPU 4つなので --jobs 2）
+    python3 make_reel28.py --still 20   # 1コマだけ
+    python3 make_reel28.py --check      # 検算・タイミング表・ひとことの幅
+    python3 make_reel28.py --thumb      # サムネイル（透かしなし）
+"""
+import argparse
+import math
+import os
+import subprocess
+import wave
+from multiprocessing import Pool
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+W, H = 1080, 1920
+SLOW = 1.0                        # 実際の速さ
+
+BG = (2, 7, 6)
+G_MINOR = (13, 26, 21)
+G_MAJOR = (34, 56, 46)
+WHITE = (236, 241, 240)
+GREY = (150, 160, 162)
+DIM = (70, 82, 82)
+CARD_FILL = (9, 19, 16)
+CARD_EDGE = (60, 78, 72)
+PURPLE = (178, 150, 240)
+GREEN = (130, 232, 172)
+WAVE_GREEN = (40, 214, 128)
+
+C_BASE = (240, 244, 243)         # ① 基準（いつもの形）。緑の線と見分けられるよう白に近く（ST の部分だけこの色）
+C_ACUTE = (255, 92, 112)         # ②〜④ 心筋梗塞の急性期（すぐ報告・12誘導）
+C_OLD = (255, 152, 72)           # ⑤⑥ 時間がたったあと（異常Q・冠性T）
+C_DEP = (255, 212, 90)           # ⑦⑧ ST低下
+C_MIM = (110, 200, 255)          # ⑨〜⑪ 心筋梗塞とまぎらわしいST上昇
+C_REP = (196, 162, 255)          # ⑫ 再灌流のときの不整脈
+
+FONT = os.environ.get('REEL_FONT', os.path.join(HERE, 'fonts', 'NotoSansJP.ttf'))
+
+# --- 波形の部品（実際の時間・秒、mV） ---------------------------------------
+# II誘導のモニターを想定。ST の高さは TP（基線）からの高さ。1mm = 0.1mV。
+RR = 0.80                        # 洞調律 75/分
+PR = 0.16                        # P頂点 → R頂点
+
+
+def _g(t, c, s):
+    return np.exp(-0.5*((t-c)/s)**2)
+
+
+def _ga(t, c, sl, sr):
+    s = np.where(t < c, sl, sr)
+    return np.exp(-0.5*((t-c)/s)**2)
+
+
+def _win(t, a, b, ea, eb):
+    """a〜b 秒で 1 になる窓。立ち上がり ea 秒・立ち下がり eb 秒（なめらか）。"""
+    u = np.clip((t - a) / ea, 0, 1); d = np.clip((b - t) / eb, 0, 1)
+    u = u*u*(3 - 2*u); d = d*d*(3 - 2*d)
+    return np.minimum(u, d)
+
+
+def _dome(t, j, pk, end, a_j, a_pk):
+    """J点（j 秒・a_j mV）から上に凸に頂点（pk 秒・a_pk mV）まで上がり、end 秒で基線に戻る ST-T。"""
+    up = np.clip((t - j) / 0.014, 0, 1); up = up*up*(3 - 2*up)
+    x = np.clip((t - j) / (pk - j), 0, 1)
+    rise = a_j + (a_pk - a_j)*np.sin(0.5*np.pi*x)
+    y = np.clip((t - pk) / (end - pk), 0, 1)
+    fall = a_pk*(1 - y*y*(3 - 2*y))
+    return up*np.where(t < pk, rise, fall)
+
+
+def p_sinus(t):
+    return 0.15*_g(t, 0.0, 0.022)
+
+
+def _qrs(t, r=1.00, q=0.08, s=0.20):
+    """幅の狭い QRS（小さな q・R・s）。"""
+    return -q*_g(t, -0.030, 0.008) + r*_g(t, 0.0, 0.011) - s*_g(t, 0.028, 0.009)
+
+
+def _q_deep(t, r):
+    """異常Q波：幅 40ms 以上・深さ 0.3mV（R より深い＝QRS の 25% 以上）。"""
+    return -0.32*_ga(t, -0.016, 0.013, 0.010) + r*_g(t, 0.016, 0.009) - 0.05*_g(t, 0.038, 0.008)
+
+
+def qrs_normal(t):               # ① 基準：ST は基線（TP）と同じ高さ
+    return _qrs(t) + 0.27*_ga(t, 0.27, 0.060, 0.042)
+
+
+def qrs_hyperacute(t):           # ② 超急性期T波：T が高く幅広く、左右非対称。R は少し低い。ST はほぼ基線
+    return (_qrs(t, r=0.88, s=0.14) + 0.04*_win(t, 0.03, 0.20, 0.02, 0.08)
+            + 0.68*_ga(t, 0.26, 0.075, 0.048))
+
+
+def qrs_ste(t):                  # ③ ST上昇：J点 約0.25mV、上に凸の ST がそのまま T につながる
+    return _qrs(t, r=0.85, s=0.10) + _dome(t, 0.024, 0.20, 0.33, 0.27, 0.46)
+
+
+def qrs_tomb(t):                 # ④ 墓石型：R が低く、R・ST・T が1つの大きな山（約0.8mV）
+    return _qrs(t, r=0.36, q=0.0, s=0.0) + _dome(t, -0.010, 0.14, 0.31, 0.36, 0.80)
+
+
+def qrs_qwave(t):                # ⑤ 異常Q波：深く幅広い Q、ST はまだ少し高い、T の終わりが下向き
+    return (_q_deep(t, 0.42) + 0.13*_win(t, 0.035, 0.24, 0.012, 0.10) - 0.12*_g(t, 0.33, 0.035))
+
+
+def qrs_ctw(t):                  # ⑥ 冠性T波：Q が残り、ST は基線、左右対称の深い陰性T（約0.36mV）
+    return _q_deep(t, 0.45) - 0.36*_g(t, 0.27, 0.050)
+
+
+def qrs_stdep_h(t):              # ⑦ 水平型ST低下：J点から 0.15mV 下がったまま水平、そのあと T
+    return (_qrs(t) - 0.15*_win(t, 0.030, 0.19, 0.010, 0.06) + 0.20*_ga(t, 0.28, 0.05, 0.04))
+
+
+def qrs_stdep_up(t):             # ⑧ 上行型ST低下：J点 -0.15mV からまっすぐ上り坂（頻脈。QT は短め）
+    ramp = np.clip((0.15 - t) / (0.15 - 0.03), 0, 1)
+    return (_qrs(t, s=0.24) - 0.15*ramp*_win(t, 0.018, 1.0, 0.012, 0.1)
+            + 0.24*_ga(t, 0.22, 0.05, 0.035))
+
+
+def qrs_peri(t):                 # ⑨ 心膜炎：PR 部分が 0.07mV 下がり、ST は下に凸で 0.10mV 上がる（頻脈）
+    return (_qrs(t) - 0.07*_win(t, -0.12, -0.035, 0.03, 0.010)
+            + 0.10*_win(t, 0.03, 0.22, 0.02, 0.08) + 0.24*_ga(t, 0.22, 0.05, 0.035))
+
+
+def qrs_ber(t):                  # ⑩ 早期再分極：J点のノッチ（釣り針）、下に凸の ST 約0.1mV、高い T（ST/T 0.25 未満）
+    return (_qrs(t, s=0.10) + 0.13*_g(t, 0.040, 0.008)
+            + 0.08*_win(t, 0.035, 0.24, 0.015, 0.10) + 0.60*_ga(t, 0.30, 0.075, 0.045))
+
+
+def qrs_lbbb(t):                 # ⑪ 左脚ブロック：幅広い・ノッチのある R、ST-T は QRS と逆向き（下がる）
+    return (0.68*_ga(t, -0.014, 0.018, 0.013) + 0.74*_ga(t, 0.024, 0.013, 0.018)
+            - 0.12*_win(t, 0.062, 0.30, 0.025, 0.10) - 0.24*_ga(t, 0.27, 0.08, 0.05))
+
+
+def qrs_pvc(t):                  # ⑫ AIVR の1拍：幅の広い QRS、逆向きの ST-T
+    return (0.95*_ga(t, 0.0, 0.020, 0.015) - 0.55*_g(t, 0.050, 0.019)
+            - 0.38*_ga(t, 0.25, 0.058, 0.045))
+
+
+KINDS = {
+    'N': (qrs_normal, p_sinus, PR),         # 洞調律の1拍（基準）
+    'H': (qrs_hyperacute, p_sinus, PR),     # 超急性期T波
+    'E': (qrs_ste, p_sinus, PR),            # ST上昇
+    'T': (qrs_tomb, p_sinus, PR),           # 墓石型
+    'Q': (qrs_qwave, p_sinus, PR),          # 異常Q波
+    'I': (qrs_ctw, p_sinus, PR),            # 冠性T波
+    'D': (qrs_stdep_h, p_sinus, PR),        # 水平型ST低下
+    'U': (qrs_stdep_up, p_sinus, PR),       # 上行型ST低下
+    'C': (qrs_peri, p_sinus, PR),           # 心膜炎
+    'B': (qrs_ber, p_sinus, PR),            # 早期再分極
+    'L': (qrs_lbbb, p_sinus, PR),           # 左脚ブロック
+    'V': (qrs_pvc, None, 0.0),              # 心室の拍（AIVR）
+}
+SPIKES = {}                                 # この回はペーシングスパイクなし
+ALL = [(-1e9, 1e9)]                         # 全部をその色で
+
+
+def _each(beats, a, b):
+    """拍ごとに、R頂点から a〜b 秒の範囲（色を付ける範囲）。"""
+    return [(r + a, r + b) for r, _ in beats]
+
+
+def _reg(kind, rr, n):
+    return [(k*rr, kind) for k in range(n)]
+
+
+# 12パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、色を付ける範囲 hl
+# ①〜⑥：心筋梗塞の時間の流れ（基準 → 超急性期T → ST上昇 → 墓石型 → 異常Q → 冠性T）
+# ⑦⑧：ST低下　⑨〜⑪：ST上昇に見えるが心筋梗塞とは別のもの　⑫：再灌流のときの不整脈
+_E = {k: _reg(k, RR, 6) for k in 'NHETQIDL'}
+_U = _reg('U', 0.55, 8)                     # 109/分
+_C = _reg('C', 0.56, 8)                     # 107/分
+_B = _reg('B', 1.00, 4)                     # 60/分
+AIVR_RR = 0.78                              # 77/分（洞調律 70/分より少し速い）
+_A = [(0.0, 'N'), (0.86, 'N')] + [(1.64 + k*AIVR_RR, 'V') for k in range(4)]
+PATTERNS = [
+    dict(no='①', name='基準の洞調律', col=C_BASE, hint='いつもの形',
+         one='STは基線（TP）と同じ高さ', tag='base',
+         ev=_E['N'], L=4.8, hl=_each(_E['N'], 0.035, 0.17)),
+    dict(no='②', name='超急性期T波', col=C_ACUTE, hint='Tが大きい',
+         one='Tが高く幅広い。早期のサイン', tag='urgent',
+         ev=_E['H'], L=4.8, hl=_each(_E['H'], 0.04, 0.40)),
+    dict(no='③', name='ST上昇', col=C_ACUTE, hint='STが上がる',
+         one='J点からSTが持ち上がる', tag='urgent',
+         ev=_E['E'][:5], L=4.0, hl=_each(_E['E'][:5], 0.02, 0.36)),
+    dict(no='④', name='墓石型ST上昇', col=C_ACUTE, hint='1つの山',
+         one='R・ST・Tが1つの山に', tag='urgent',
+         ev=_E['T'][:5], L=4.0, hl=_each(_E['T'][:5], -0.03, 0.34)),
+    dict(no='⑤', name='異常Q波', col=C_OLD, hint='深いQ',
+         one='深く幅広いQ。梗塞のあと', tag='check',
+         ev=_E['Q'][:5], L=4.0, hl=_each(_E['Q'][:5], -0.05, 0.035)),
+    dict(no='⑥', name='冠性T波', col=C_OLD, hint='Tが下向き',
+         one='左右対称の深い陰性T', tag='check',
+         ev=_E['I'][:5], L=4.0, hl=_each(_E['I'][:5], 0.10, 0.42)),
+    dict(no='⑦', name='ST低下（水平・下降型）', col=C_DEP, hint='水平・下り坂',
+         one='水平に下がる。虚血のサイン', tag='urgent',
+         ev=_E['D'], L=4.8, hl=_each(_E['D'], 0.025, 0.22)),
+    dict(no='⑧', name='ST低下（上行型）', col=C_DEP, hint='上り坂',
+         one='上り坂。虚血とは限らない', tag='check',
+         ev=_U, L=4.4, hl=_each(_U, 0.022, 0.16)),
+    dict(no='⑨', name='急性心膜炎', col=C_MIM, hint='PRも下がる',
+         one='PR低下＋下に凸のST上昇', tag='check',
+         ev=_C, L=4.48, hl=_each(_C, -0.12, -0.035) + _each(_C, 0.03, 0.30)),
+    dict(no='⑩', name='早期再分極', col=C_MIM, hint='J点ノッチ',
+         one='J点にノッチ。Tが高い', tag='check',
+         ev=_B, L=4.0, hl=_each(_B, 0.025, 0.38)),
+    dict(no='⑪', name='左脚ブロック', col=C_MIM, hint='幅広QRS',
+         one='幅広QRS。STは逆向きが基本', tag='check',
+         ev=_E['L'], L=4.8, hl=ALL),
+    dict(no='⑫', name='AIVR（促進心室固有調律）', col=C_REP, hint='幅広・再灌流',
+         one='再灌流で出やすい幅広リズム', tag='report',
+         ev=_A, L=round(1.64 + 4*AIVR_RR, 2), hl=_each(_A[2:], -0.08, 0.45)),
+]
+
+
+def art_apply(pat, rel, v):
+    """パターンのノイズと倍率をかける：gain(rel)*v + art(rel)（周期 L でくり返す）。この回は使わない（全部 拍だけ）"""
+    L = pat['L']
+    if pat.get('gain'):
+        v = pat['gain'](rel, L) * v
+    if pat.get('art'):
+        v = v + pat['art'](rel, L)
+    return v
+
+
+N_PAT = len(PATTERNS)
+for _p in PATTERNS:
+    _p['beats'] = _p['ev']
+
+# 区間の長さ（秒）。仮の値（録音前）：台本の文の長さの見込み（6字/秒）＋0.75秒以上で、
+# 拍の並びがくずれない位置（周期 L の終わり＝次の拍まで、そのパターンの R-R 間隔）で切る。
+# - ①②⑦⑪ 4.8：75/分の6拍　- ③〜⑥ 4.0：75/分の5拍　- ⑧ 4.4：109/分の8拍　- ⑨ 4.48：107/分の8拍
+# - ⑩ 4.0：60/分の4拍　- ⑫ 4.76：洞調律2拍＋AIVR 4拍（最後の拍から次まで 0.78秒）
+# 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
+SEG_D = {p['no']: p['L'] for p in PATTERNS}
+for _p in PATTERNS:
+    _p['D'] = SEG_D[_p['no']]
+    assert _p['D'] >= 3.44 - 1e-9, _p['no']
+
+
+def beat_wave(tau, r, kind):
+    q, p, pr = KINDS[kind]
+    v = np.zeros_like(tau)
+    if q is not None:
+        v += q(tau)
+    if p is not None:
+        v += p(tau + pr)
+    return v
+
+
+def spike_times(beats):
+    """拍の列 → スパイクの列 [(時刻, 高さ), …]"""
+    out = []
+    for r, k, *_ in beats:
+        for dt, amp in SPIKES.get(k, ()):
+            out.append((r + dt, amp))
+    return out
+
+
+def wave_from(beats, tau):
+    v = np.zeros_like(tau)
+    for r, k, *_ in beats:
+        m = np.abs(tau - r) < 0.75
+        if m.any():
+            v[m] += beat_wave(tau[m] - r, r, k)
+    return v
+
+
+def periodic_beats(pat, t0, t1):
+    out = []
+    L = pat['L']
+    k0 = int(math.floor(t0 / L)) - 1
+    k1 = int(math.ceil(t1 / L)) + 1
+    for k in range(k0, k1):
+        for r, kind in pat['ev']:
+            out.append((k*L + r, kind))
+    return out
+
+
+def hl_mask(pat, rel):
+    """周期の中の色を付ける範囲（rel は区間の始まりからの時刻）。"""
+    L = pat['L']
+    r = np.mod(rel, L)
+    m = np.zeros(len(rel), dtype=bool)
+    for a, b in pat['hl']:
+        for sh in (-L, 0.0, L):
+            m |= (r + sh >= a) & (r + sh <= b)
+    return m
+
+
+# --- 中部の帯：14パターンをつないだ1本の波形 ---------------------------------
+# パターン i は、実際の時刻 [SEGS[i][0], SEGS[i][1]) にそのパターンを rep 回くり返して置く。
+# 紹介の終わり＝区間の終わりが画面の右端に来たとき。このとき画面に見えているのは
+# パターン i だけなので、それをそのまま縮めて枠へ運ぶと、ミニ波形とつながる。
+# 冒頭のフック：流れている波形を T_STOP で止め、その場で5つのパターンに素早く変形し、
+# 元の波形に戻ってから T_GO でまた流す。T_TITLE でパターン①が右端から入ってくる。
+T_STOP, T_GO = 0.6, 2.9
+FREEZE = T_GO - T_STOP
+T_TITLE = 4.9                     # 冒頭の1文（4.9秒）が入り、見出しと枠が出そろう長さ
+END_HOLD = 5.7                    # 12個そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
+HOOK = [1, 2, 3, 4, 5]            # ②超急性期T → ③ST上昇 → ④墓石型 → ⑤異常Q → ⑥冠性T（心筋梗塞の時間の流れ）
+HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
+
+
+def _strip():
+    beats = []        # (R時刻, 種類, パターン番号 or None)
+    segs = []
+    t = 0.0
+    for i, pat in enumerate(PATTERNS):
+        s0 = t
+        for r, kind in periodic_beats(pat, 0.0, pat['D']):
+            if -1e-9 <= r < pat['D'] - 1e-9:
+                beats.append((t + r, kind, i))
+        t += pat['D']
+        segs.append((s0, t))
+    end = t
+    k = -1
+    while k*RR > -12:                     # 前：洞調律
+        beats.append((k*RR, 'N', None)); k -= 1
+    # うしろ：洞調律（間隔は変えない）。尺は「最後の2文が入る長さ」以上で、
+    # うしろの洞調律の位相が冒頭とそろういちばん短い長さにする。こうするとループがつながる
+    need = T_TITLE + end - HANDOFF_EARLY + 0.8 + END_HOLD      # 0.8 = FLY
+    k = math.ceil((need - FREEZE - end) / RR - 1e-9)
+    dur_target = FREEZE + end + k*RR
+    tt = end
+    beats.append((tt, 'N', None))
+    for k in range(1, 60):
+        tt += RR
+        beats.append((tt, 'N', None))
+    beats.sort(key=lambda b: b[0])
+    return beats, segs, end, dur_target
+
+
+HANDOFF_EARLY = 0.35
+STRIP, SEGS, STRIP_END, _DUR_LOOP = _strip()
+STRIP_SPK = spike_times(STRIP)          # 中部の帯のスパイク [(時刻, 高さ)]
+
+# 中部の帯：1mm = 14px、25mm/秒 → 実際の1秒 = 350px
+F_PXMM = 14.0
+F_PXS = 25 * F_PXMM
+F_MV = 10 * F_PXMM
+# 中部のかたまり：名前（54px）→ ひとこと（32px）→ 波形（R頂点 1mV 〜 下 0.6mV）
+_TOP_END = 636 + 110               # ③⑥の下端
+_BOT_TOP = 1188                    # ⑦⑩の上端
+# 見た目の上端（名前の字の上）〜下端（深い陰性T・ST低下の底、約0.4mV）で余白をそろえる
+_MID_H = 22 + 54 + 16 + 30 + 140 + 56
+_GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
+Y_NAME = _TOP_END + _GAP + 22
+Y_ONE = Y_NAME + 54
+F_BASE = Y_ONE + 16 + 30 + 140
+F_Y0, F_Y1 = int(F_BASE - 200), int(_BOT_TOP - 2)
+XC = W / 2
+HALF = XC / F_PXS                 # 画面の半分が実際の何秒か
+
+# t=T_TITLE で、パターン①の区間の始まりが画面の右端に来る（止まっていた時間を引く）
+OFFSET = -HALF - (T_TITLE - FREEZE) / SLOW
+
+
+def te(t):
+    """波形の時計：T_STOP〜T_GO は止まる。"""
+    if t < T_STOP:
+        return t
+    if t < T_GO:
+        return T_STOP
+    return t - FREEZE
+
+
+def tau_c(t):
+    """画面の中央にある実際の時刻。"""
+    return te(t) / SLOW + OFFSET
+
+
+def t_of(tau_center):
+    """その時刻が画面の中央に来る t（止まっているあいだは除く）。"""
+    t = (tau_center - OFFSET) * SLOW
+    return t if t < T_STOP else t + FREEZE
+
+
+WINDOWS = []
+for _i in range(len(PATTERNS)):
+    _a = T_TITLE if _i == 0 else WINDOWS[-1][1]
+    # 区間の終わりが右端の少し先（0.35秒）に来た瞬間。次のパターンの最初のP波・細動波が
+    # 右端に入る前に縮み始めるので、見えているのはパターン i だけになる
+    _b = t_of(SEGS[_i][1] - HALF - HANDOFF_EARLY)
+    WINDOWS.append((_a, _b))
+T_END = WINDOWS[-1][1]
+FLY = 0.8                                  # 中部から枠へ縮んで移る時間
+LOOP_FADE = 0.75                           # 最後に冒頭の画面へ戻す時間
+FPS_LOOP = 60
+DUR_TARGET = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
+
+
+def _loop_dur_search():
+    """14個そろったあと END_HOLD 秒ほど置き、最後のコマの次が t=0 のコマになる長さ。
+    最後に見えている洞調律と、冒頭の洞調律の位相（0.80秒周期）をそろえる。"""
+    base = T_END + FLY + END_HOLD
+    best = None
+    for n in range(int(base*FPS_LOOP), int((base + RR*SLOW + 0.5)*FPS_LOOP)):
+        d = n / FPS_LOOP
+        ph = ((tau_c(d) - STRIP_END) - tau_c(0.0)) % RR
+        err = min(ph, RR - ph)
+        if best is None or err < best[0] - 1e-9:
+            best = (err, d)
+    return best[1]
+
+
+DUR = DUR_TARGET
+
+
+# --- ミニ波形の枠 -----------------------------------------------------------------
+CELL_W, CELL_H = 400, 110
+COL_X = (130, 550)
+TOP_Y = [396, 516, 636]
+BOT_Y = [1188, 1308, 1428]
+CELL_FILL = 225                    # 枠の中の塗りの濃さ（0〜255）。方眼をうっすら残す
+M_PXS = 66.0                      # ミニ波形：実際の1秒 = 66px（約5.8秒ぶんが見える。洞停止・完全房室ブロック用）
+M_MV = 33.0
+
+
+def cell_rect(i):
+    if i < 6:
+        col, row = i // 3, i % 3
+        x, y = COL_X[col], TOP_Y[row]
+    else:
+        j = i - 6
+        col, row = j // 3, j % 3
+        x, y = COL_X[col], BOT_Y[row]
+    return (x, y, x + CELL_W, y + CELL_H)
+
+
+# --- 道具 ---------------------------------------------------------------------
+def cl(x, a=0.0, b=1.0):
+    return max(a, min(b, x))
+
+
+def ease(u):
+    u = cl(u)
+    return u*u*(3-2*u)
+
+
+def ramp(t, t0, d=0.5):
+    return ease((t - t0) / d)
+
+
+def mix(a, b, u):
+    return tuple(int(round(a[i] + (b[i]-a[i])*u)) for i in range(3))
+
+
+_FONTS, _TXT = {}, {}
+
+
+def font(size, weight):
+    k = (size, weight)
+    if k not in _FONTS:
+        f = ImageFont.truetype(FONT, size)
+        try:
+            f.set_variation_by_axes([weight])
+        except Exception:
+            pass
+        _FONTS[k] = f
+    return _FONTS[k]
+
+
+def text_img(s, size, weight, col, max_w=None):
+    k = (s, size, weight, col, max_w)
+    if k in _TXT:
+        return _TXT[k]
+    sz = size
+    while True:
+        f = font(sz, weight)
+        x0, y0, x1, y1 = f.getbbox(s)
+        if max_w is None or (x1 - x0) <= max_w or sz <= 16:
+            break
+        sz -= 1
+    asc, desc = f.getmetrics()
+    im = Image.new('RGBA', (x1 - x0 + 8, asc + desc + 8), (0, 0, 0, 0))
+    ImageDraw.Draw(im).text((4 - x0, 4), s, font=f, fill=col + (255,))
+    _TXT[k] = (im, asc)
+    return _TXT[k]
+
+
+def put(base, s, size, weight, col, cx=None, cy=None, x=None, a=1.0, max_w=None, right=None):
+    if a <= 0.004:
+        return
+    im, asc = text_img(s, size, weight, col, max_w)
+    if a < 0.999:
+        im = im.copy()
+        im.putalpha(im.getchannel('A').point(lambda v: int(v*a)))
+    w, h = im.size
+    if right is not None:
+        px = int(right - w + 4)
+    elif x is not None:
+        px = int(x - 4)
+    else:
+        px = int(cx - w/2)
+    py = int(cy - 4 - asc*0.62)
+    base.alpha_composite(im, (px, py))
+
+
+def grid():
+    im = Image.new('RGBA', (W, H), BG + (255,))
+    d = ImageDraw.Draw(im)
+    pm = 31.5
+    for i in range(int(W/pm) + 2):
+        x = round(i*pm)
+        d.line([(x, 0), (x, H)], fill=(G_MAJOR if i % 5 == 0 else G_MINOR) + (255,),
+               width=2 if i % 5 == 0 else 1)
+    for k in range(int(H/pm) + 2):
+        y = round(k*pm)
+        d.line([(0, y), (W, y)], fill=(G_MAJOR if k % 5 == 0 else G_MINOR) + (255,),
+               width=2 if k % 5 == 0 else 1)
+    return im
+
+
+# --- 中部の波形 --------------------------------------------------------------------
+SS = 2
+
+
+def strip_colors(tau):
+    """パターンの区間のうち、色を付ける範囲だけそのパターンの色。"""
+    cid = np.full(len(tau), -1, dtype=int)
+    for i, (s0, s1) in enumerate(SEGS):
+        inside = (tau >= s0 - 0.35) & (tau < s1 + 0.0)
+        if not inside.any():
+            continue
+        m = inside & hl_mask(PATTERNS[i], tau - s0)
+        if PATTERNS[i]['hl'] is ALL:
+            m = (tau >= s0 - 0.20) & (tau < s1)
+        cid[m] = i
+    return cid
+
+
+ART_EDGE = 0.2                    # 区間の端で、ノイズ・倍率をなめらかに切りかえる長さ（秒）
+
+
+def strip_art(tau, v):
+    """中部の帯：区間ごとに、そのパターンのノイズと倍率をかける（区間の端 ART_EDGE 秒でなめらかに）。"""
+    out = v.copy()
+    for i, (s0, s1) in enumerate(SEGS):
+        pat = PATTERNS[i]
+        if not (pat.get('art') or pat.get('gain')):
+            continue
+        m = (tau > s0 - 1e-9) & (tau < s1)
+        if not m.any():
+            continue
+        tt = tau[m]
+        e = np.minimum(np.clip((tt - s0) / ART_EDGE, 0, 1), np.clip((s1 - tt) / ART_EDGE, 0, 1))
+        e = e*e*(3 - 2*e)
+        rel = tt - s0
+        L = pat['L']
+        g = pat['gain'](rel, L) if pat.get('gain') else 1.0
+        n = pat['art'](rel, L) if pat.get('art') else 0.0
+        out[m] = v[m] * (1 + e*(g - 1)) + e*n
+    return out
+
+
+def glow_line(size, runs, col, width, a, blur=(8, 20)):
+    """runs: 点列のリスト。グロー付きの線を RGBA で返す。"""
+    w, h = size
+    core = Image.new('L', (w*SS, h*SS), 0)
+    dc = ImageDraw.Draw(core)
+    for pts in runs:
+        if len(pts) >= 2:
+            dc.line([(x*SS, y*SS) for x, y in pts], fill=255, width=int(width*SS), joint='curve')
+    core = core.resize((w, h), Image.LANCZOS)
+    out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    if blur:
+        g1 = np.asarray(core.filter(ImageFilter.GaussianBlur(blur[0])), dtype=np.float32)
+        g2 = np.asarray(core.filter(ImageFilter.GaussianBlur(blur[1])), dtype=np.float32)
+        g = np.maximum(g1*0.95, g2*0.5)
+        lay = Image.new('RGBA', (w, h), col + (0,))
+        lay.putalpha(Image.fromarray(np.clip(g*a, 0, 255).astype(np.uint8)))
+        out.alpha_composite(lay)
+    lay2 = Image.new('RGBA', (w, h), mix(col, (255, 255, 255), 0.6) + (0,))
+    lay2.putalpha(core.point(lambda q: int(q*a)))
+    out.alpha_composite(lay2)
+    return out
+
+
+FX = np.arange(0, W + 1, 0.5)
+
+
+def strip_arrays(tau_center):
+    """中部の帯：(波形, 色の番号, スパイク [(x, 高さ, 色の番号)])"""
+    tau = tau_center + (FX - XC) / F_PXS
+    spk = []
+    for ts, amp in STRIP_SPK:
+        x = XC + (ts - tau_center) * F_PXS
+        if -10 <= x <= W + 10:
+            spk.append((x, amp, int(strip_colors(np.array([ts]))[0])))
+    return strip_art(tau, wave_from(STRIP, tau)), strip_colors(tau), spk
+
+
+# スパイクは波形の線より少し太く、明るく描く（SNSで圧縮されても細い線が消えないように。専門医レビュー 2026-10-03）
+SPIKE_W = 1.35                   # 波形の線の太さに対する倍率
+SPIKE_W_MIN = 3.2                # 最小の太さ（px）
+SPIKE_LIGHT = 0.35               # 白に寄せる割合
+
+
+def spike_layer(size, runs, col, lw, a, blur):
+    return glow_line(size, runs, mix(col, (255, 255, 255), SPIKE_LIGHT), max(lw*SPIKE_W, SPIKE_W_MIN), a, blur=blur)
+
+
+def spike_runs(spk, xs, ys, mv, x_off=0.0, y_off=0.0):
+    """スパイクを縦の線（点列）にする。根元は波形の高さ、少し下から上へ。"""
+    out = []
+    for x, amp, *_ in spk:
+        yb = float(np.interp(x, xs, ys))
+        out.append([(x - x_off, yb + 0.12*amp*mv - y_off), (x - x_off, yb - amp*mv - y_off)])
+    return out
+
+
+def hook_arrays(i):
+    """フック用：パターン i の、色の付いた範囲が中央の少し左に来る一場面。"""
+    pat = PATTERNS[i]
+    if pat['hl'] is ALL:
+        c = pat['L'] / 2
+    else:
+        a, b = pat['hl'][-1]
+        c = (a + b) / 2 + 0.25
+    rel = c + (FX - XC) / F_PXS + pat['L']
+    bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
+    v = art_apply(pat, rel, wave_from(bl, rel))
+    cid = np.where(hl_mask(pat, rel) | (pat['hl'] is ALL), i, -1)
+    spk = []
+    for ts, amp in spike_times(bl):
+        if rel[0] <= ts <= rel[-1]:
+            x = XC + (ts - c - pat['L']) * F_PXS
+            on = pat['hl'] is ALL or bool(hl_mask(pat, np.array([ts]))[0])
+            spk.append((x, amp, i if on else -1))
+    return v, cid, spk
+
+
+_HOOK = {}
+
+
+def hook_targets():
+    if not _HOOK:
+        _HOOK['seq'] = [strip_arrays(tau_c(T_STOP))] + [hook_arrays(i) for i in HOOK] \
+            + [strip_arrays(tau_c(T_STOP))]
+    return _HOOK['seq']
+
+
+def hook_state(t):
+    """止まっているあいだの (変形の前, 後, 進み具合, 表示中のパターン)。"""
+    seq = hook_targets()
+    times = [HOOK_T0 + k*HOOK_STEP for k in range(len(HOOK))] + [HOOK_T0 + len(HOOK)*HOOK_STEP]
+    k = -1
+    for n, tk in enumerate(times):
+        if t >= tk:
+            k = n
+    if k < 0:
+        return seq[0], seq[0], 1.0, None
+    u = ease((t - times[k]) / HOOK_MORPH)
+    shown = HOOK[k] if k < len(HOOK) else None
+    return seq[k], seq[k + 1], u, shown
+
+
+def draw_wave(v, cid, base_col, a, spk=()):
+    h = F_Y1 - F_Y0
+    ys = F_BASE - F_Y0 - v*F_MV
+    out = Image.new('RGBA', (W, h), (0, 0, 0, 0))
+    for ci in sorted(set(np.unique(cid).tolist()) | {c for *_, c in spk}):
+        sel = cid == ci
+        sel = sel | np.roll(sel, 1) | np.roll(sel, -1)
+        idx = np.where(sel)[0]
+        runs = [list(zip(FX[r], ys[r])) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
+        col = base_col if ci < 0 else PATTERNS[ci]['col']
+        if runs:
+            out.alpha_composite(glow_line((W, h), runs, col, 4.5, a))
+        sr = spike_runs([q for q in spk if q[2] == ci], FX, ys, F_MV)
+        if sr:
+            out.alpha_composite(spike_layer((W, h), sr, col, 4.5, a, (8, 20)))
+    return out
+
+
+def featured(t, base_col, a):
+    if T_STOP <= t < T_GO:
+        (v0, c0, s0), (v1, c1, s1), u, _ = hook_state(t)
+        return draw_wave(v0 + (v1 - v0)*u, c1 if u >= 0.5 else c0, base_col, a, s1 if u >= 0.5 else s0)
+    v, cid, spk = strip_arrays(tau_c(t))
+    return draw_wave(v, cid, base_col, a, spk)
+
+
+STRIP_W, STRIP_H, STRIP_BASE = CELL_W - 20, 76, 50     # ミニ波形の帯（枠の中）
+
+
+def cell_strip_origin(i):
+    x0, y0, _, _ = cell_rect(i)
+    return x0 + 10, y0 + 30
+
+
+def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=None, a_norm=1.0):
+    """パターン i をくり返した波形を、画面の x_lo〜x_hi に描いた RGBA（全画面サイズの一部）。
+    中央 cx に来る時刻は tau_c(t)（中部の帯と同じ）。区間の始まりからの相対時刻で周期にする。"""
+    pat = PATTERNS[i]
+    s0 = SEGS[i][0]
+    xs = np.arange(x_lo, x_hi + 0.5, 0.5)
+    tau = tau_c(t) + (xs - cx) / pxs
+    rel = tau - s0
+    bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
+    v = art_apply(pat, rel, wave_from(bl, rel))
+    ys = base_y - v*mv
+    ect = np.ones(len(xs), dtype=bool) if pat['hl'] is ALL else hl_mask(pat, rel)
+    y_lo = int(min(ys.min(), base_y - 1.1*mv) - 30)
+    y_hi = int(max(ys.max(), base_y + 0.9*mv) + 30)
+    bx0, by0 = int(x_lo) - 30, y_lo
+    size = (int(x_hi - x_lo) + 60, max(4, y_hi - y_lo))
+    out = Image.new('RGBA', size, (0, 0, 0, 0))
+    spk = []
+    for ts, amp in spike_times(bl):
+        if rel[0] <= ts <= rel[-1]:
+            on = pat['hl'] is ALL or bool(hl_mask(pat, np.array([ts]))[0])
+            spk.append((xs[0] + (ts - rel[0]) * pxs, amp, on))
+    for flag, col in ((False, WAVE_GREEN), (True, pat['col'])):
+        sel = ect == flag
+        sel = sel | np.roll(sel, 1) | np.roll(sel, -1)
+        idx = np.where(sel)[0]
+        runs = [list(zip(xs[r] - bx0, ys[r] - by0)) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
+        w_, a_ = ((lw_e or lw) if flag else lw), (a if flag else a*a_norm)
+        if runs:
+            out.alpha_composite(glow_line(size, runs, col, w_, a_, blur=blur))
+        sr = spike_runs([q for q in spk if q[2] == flag], xs, ys, mv, bx0, by0)
+        if sr:
+            out.alpha_composite(spike_layer(size, sr, col, w_, a_, blur))
+    return out, (bx0, by0)
+
+
+def lerp(a, b, u):
+    return a + (b - a)*u
+
+
+def view_params(i, u):
+    """u=0 で中部の帯、u=1 で枠のミニ波形。"""
+    ox, oy = cell_strip_origin(i)
+    cx = lerp(XC, ox + STRIP_W/2, u)
+    base_y = lerp(F_BASE, oy + STRIP_BASE, u)
+    pxs = F_PXS*(M_PXS/F_PXS)**u
+    mv = F_MV*(M_MV/F_MV)**u
+    half = lerp(XC, STRIP_W/2, u)
+    lw = lerp(4.5, 2.2, u)
+    b1 = lerp(8, 3, u); b2 = lerp(20, 7, u)
+    return cx, base_y, pxs, mv, cx - half, cx + half, lw, (b1, b2)
+
+
+MINI_LW_ECT = 3.8                  # ミニ波形で、色を付けた部分（ST-T など）の線の太さ（ほかは 2.2）
+MINI_A_NORM = 0.72                 # ミニ波形で、ふつうの拍の濃さ
+
+
+def mini(base, i, t, u=1.0, a=1.0):
+    cx, by, pxs, mv, xl, xh, lw, bl = view_params(i, u)
+    im, pos = pattern_view(i, t, cx, by, pxs, mv, xl, xh, lw, bl, a=a,
+                           lw_e=lerp(4.5, MINI_LW_ECT, u), a_norm=lerp(1.0, MINI_A_NORM, u))
+    base.alpha_composite(im, pos)
+
+
+def draw_cell(base, i, t, state, a_all):
+    """state: 'empty'（まだ。番号とヒント）/'now'（紹介中）/'done'（ミニ波形あり）"""
+    x0, y0, x1, y1 = cell_rect(i)
+    pat = PATTERNS[i]
+    lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lay)
+    a_fill = a_all                          # 枠の中の塗り：方眼が透けすぎないよう、薄くする対象から外す
+    if state in ('empty', 'now'):
+        a_all = a_all * 0.5                 # ミニ波形がないものは、枠線と文字だけ薄く
+    if state in ('now', 'landing'):
+        pulse = 0.55 + 0.45*math.sin(t*5.0)**2
+        if state == 'now':
+            pulse = min(1.0, pulse*1.6)
+        d.rounded_rectangle((x0, y0, x1, y1), radius=14, fill=CARD_FILL + (int(CELL_FILL*a_fill),),
+                            outline=pat['col'] + (int(255*pulse*a_all),), width=3)
+    else:
+        d.rounded_rectangle((x0, y0, x1, y1), radius=14, fill=CARD_FILL + (int(CELL_FILL*a_fill),),
+                            outline=CARD_EDGE + (int(255*a_all),), width=2)
+    base.alpha_composite(lay)
+    if state in ('done', 'landing'):
+        put(base, f"{pat['no']} {pat['name']}", 22, 700, pat['col'], x=x0 + 14, cy=y0 + 17,
+            a=a_all, max_w=CELL_W - 30)
+    elif state == 'now':
+        put(base, pat['no'], 30, 700, pat['col'], x=x0 + 16, cy=y0 + CELL_H/2, a=min(1.0, a_all*2))
+    else:
+        put(base, pat['no'], 30, 700, DIM, x=x0 + 16, cy=y0 + CELL_H/2, a=a_all)
+        put(base, f"ヒント：{pat['hint']}", 24, 500, (120, 134, 132), x=x0 + 64, cy=y0 + CELL_H/2,
+            a=a_all, max_w=CELL_W - 80)
+
+
+# --- 画面 ---------------------------------------------------------------------------
+HEADER = [('心筋梗塞とST変化', 1.0, WHITE), ('12', 2.0, (255, 214, 64)), ('パターン', 1.0, WHITE)]
+HEADER_BASE = 372                   # 見出しのベースライン（y）
+NOTE1 = '※II誘導のモニター。ST変化は12誘導で確認'
+NOTE2 = '※数値はこの波形での一例（実際の速さ）'
+WATERMARK = '@nurse_polarbearden'
+END_LINE = 'モニターのST変化は、12誘導で確認'
+
+
+def current(t):
+    for i, (a, b) in enumerate(WINDOWS):
+        if a <= t < b:
+            return i
+    return None
+
+
+def draw_header(base, a):
+    """「心筋梗塞とST変化」＋大きな黄色の「12」＋「パターン」。左右の余白（130px）に収める。"""
+    if a <= 0.004:
+        return
+    size = 46
+    while True:
+        parts = [text_img(sx, int(size*k), 800, col) for sx, k, col in HEADER]
+        widths = [im.size[0] - 8 for im, _ in parts]
+        total = sum(widths) + 6*(len(parts) - 1)
+        if total <= W - 2*130 - 10 or size <= 24:
+            break
+        size -= 1
+    x = (W - total) / 2
+    for (im, asc), w in zip(parts, widths):
+        if a < 0.999:
+            im = im.copy(); im.putalpha(im.getchannel('A').point(lambda q: int(q*a)))
+        base.alpha_composite(im, (int(x - 4), int(HEADER_BASE - 4 - asc)))
+        x += w + 6
+
+
+_GRID = None
+
+
+# ひとことのうしろに、対応を色で。モニター（II誘導）だけでは ST 変化は判断できないので、ST の話は「12誘導」へつなぐ
+ONE_W = 760                         # ひとこと＋色の文字の幅の上限（左右に 160px 以上の余白。端で切れて見えないように）
+TAGS = {
+    'base': ('→ 比べる基準', (130, 232, 172)),           # ① いつもの形（変化はこれと比べる）
+    'urgent': ('→ すぐ報告・12誘導', (255, 96, 96)),     # ②③④⑦ 急性の心筋梗塞・虚血を疑う形
+    'check': ('→ 12誘導で確認', (255, 176, 72)),         # ⑤⑥⑧⑨⑩⑪ モニターでは決められない
+    'report': ('→ 報告して観察', (196, 170, 255)),       # ⑫ AIVR（多くは自然におさまる）
+}
+
+
+def draw_one(im, pat, a):
+    """中部のひとこと。うしろに色の文字（TAGS）を続けて、まとめて中央ぞろえ。"""
+    tag = TAGS.get(pat.get('tag'))
+    if tag is None:
+        put(im, pat['one'], 32, 500, (226, 232, 231), cx=540, cy=Y_ONE, a=a, max_w=820)
+        return
+    sz = 32
+    while True:
+        w1 = text_img(pat['one'], sz, 500, (226, 232, 231))[0].size[0] - 8
+        w2 = text_img(tag[0], sz, 800, tag[1])[0].size[0] - 8
+        if w1 + 14 + w2 <= ONE_W or sz <= 24:
+            break
+        sz -= 1
+    x0 = 540 - (w1 + 14 + w2) / 2
+    put(im, pat['one'], sz, 500, (226, 232, 231), x=x0, cy=Y_ONE, a=a)
+    put(im, tag[0], sz, 800, tag[1], x=x0 + w1 + 14, cy=Y_ONE, a=a)
+
+
+def frame(t):
+    global _GRID
+    if _GRID is None:
+        _GRID = grid()
+    im = _GRID.copy()
+
+    a_loop = ramp(t, DUR - LOOP_FADE - 0.05, LOOP_FADE - 0.05)   # 1 で冒頭と同じ画面
+    keep = 1 - a_loop
+    draw_header(im, ramp(t, 2.5, 0.5)*keep)
+
+    a_cells = ramp(t, T_GO - 0.3, 0.6)*keep
+    cur = current(t)
+    flying = None
+    for i in range(N_PAT):
+        a_i, b_i = WINDOWS[i]
+        if t >= b_i + FLY:
+            st = 'done'
+        elif b_i <= t < b_i + FLY:
+            st = 'landing'
+        elif cur == i:
+            st = 'now'
+        else:
+            st = 'empty'
+        if b_i <= t < b_i + FLY:
+            flying = i
+        draw_cell(im, i, t, st, a_cells)
+        if st == 'done':
+            mini(im, i, t, 1.0, a=keep)
+
+    # 中部：紹介中の名前とひとこと
+    if cur is not None:
+        a_i, b_i = WINDOWS[cur]
+        pat = PATTERNS[cur]
+        al = ramp(t, a_i + 0.1, 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
+        put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=al, max_w=820)
+        draw_one(im, pat, al)
+
+    # 冒頭：タイトルと、変形中のパターン名
+    a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
+    if a_t > 0:
+        put(im, '心電図で気づく', 36, 500, PURPLE, cx=540, cy=560, a=a_t)
+        put(im, '心筋梗塞とST変化', 150, 900, WHITE, cx=540, cy=690, a=a_t, max_w=880)
+        if T_STOP <= t < T_GO:
+            _, _, u, shown = hook_state(t)
+            if shown is not None:
+                pat = PATTERNS[shown]
+                put(im, f"{pat['no']} {pat['name']}", 44, 900, pat['col'], cx=540, cy=Y_ONE - 10,
+                    a=a_t*ramp(u, 0.3, 0.4), max_w=820)
+
+    a_end = ramp(t, T_END + FLY, 0.6)*keep
+    if a_end > 0:
+        put(im, END_LINE, 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end, max_w=820)
+        put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=Y_ONE,
+            a=ramp(t, T_END + FLY + 1.5, 0.6)*keep)
+
+    # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
+    # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
+    a_strip = 1.0
+    for i in range(N_PAT):
+        b_i = WINDOWS[i][1]
+        if b_i <= t < b_i + FLY + 0.35:
+            a_strip = min(a_strip, ramp(t, b_i + FLY - 0.1, 0.45))
+    base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
+    if a_strip > 0.01:
+        im.alpha_composite(featured(t, base_col, a_strip), (0, F_Y0))
+    if flying is not None:
+        uu = ease((t - WINDOWS[flying][1]) / FLY)
+        mini(im, flying, t, uu)
+
+    put(im, NOTE1, 24, 400, GREY, x=135, cy=1567, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE2, 24, 400, GREY, x=135, cy=1594, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
+    return im.convert('RGB')
+
+
+def thumbnail():
+    """サムネイル（透かしなし）。12個そろった一覧に、大きな「心筋梗塞とST変化」と③ST上昇の波形。
+    プロフィールのグリッド（中央 1080×1350、y 285〜1635）に要素が収まる。"""
+    global _GRID
+    if _GRID is None:
+        _GRID = grid()
+    t = T_END + FLY + 2.0
+    im = _GRID.copy()
+    draw_header(im, 1.0)
+    for i in range(N_PAT):
+        draw_cell(im, i, t, 'done', 1.0)
+        mini(im, i, t, 1.0)
+    put(im, 'モニターのST、どう見る？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 28, max_w=820)
+    put(im, '心筋梗塞とST変化', 96, 900, WHITE, cx=540, cy=Y_ONE + 14, max_w=880)
+    v, cid, spk = hook_arrays(2)
+    wl = draw_wave(v, cid, WAVE_GREEN, 1.0, spk)
+    im.alpha_composite(wl, (0, F_Y0 + 50))
+    return im.convert('RGB')
+
+
+# --- 一覧型のサムネイル（第17弾と同じ作り） ---------------------------------------
+# パターンごとに (見せ始めの時刻, 点線の丸で囲む範囲[周期の中の時刻])。丸のないものは全体が特徴
+THUMB_VIEW = {i: (-0.5, []) for i in range(12)}             # 最初の拍が左端から 0.5秒のところ
+THUMB_VIEW[1] = (-0.5, [(0.80 + 0.06, 0.80 + 0.40)])         # 超急性期T：大きなT（2拍目）
+THUMB_VIEW[4] = (-0.5, [(0.80 - 0.06, 0.80 + 0.03)])         # 異常Q波（2拍目）
+THUMB_VIEW[5] = (-0.5, [(0.80 + 0.12, 0.80 + 0.42)])         # 冠性T：下向きのT（2拍目）
+THUMB_VIEW[11] = (1.0, [])                                   # AIVR：洞調律のあと、幅の広い拍が続く（丸なし。上の名前にかかるため）
+THUMB_MAX_MARKS = {1: 1, 4: 1, 5: 1}
+THUMB_DESC = ['基準', 'Tが大きい', 'STが上がる', '1つの山', '深いQ', 'Tが下向き',
+              '', '', 'PRも下がる', 'J点ノッチ', '逆向きのST', '']
+
+
+def dashed_ellipse(d, box, col, dash=6, gap=5, width=2):
+    """点線の楕円。"""
+    x0, y0, x1, y1 = box
+    cx, cy, rx, ry = (x0 + x1)/2, (y0 + y1)/2, (x1 - x0)/2, (y1 - y0)/2
+    th = np.linspace(0, 2*np.pi, 721)
+    pts = np.stack([cx + rx*np.cos(th), cy + ry*np.sin(th)], 1)
+    seg = np.r_[0, np.cumsum(np.hypot(*np.diff(pts, axis=0).T))]
+    idx = np.where((seg % (dash + gap)) < dash)[0]
+    for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1):
+        if len(r) >= 2:
+            d.line([tuple(q) for q in pts[r]], fill=col + (255,), width=width)
+
+
+def thumb_row_wave(i, x0, x1, base_y, mv, span=4.0):
+    """パターン i を1本の色で描き、特徴のところを点線の丸で囲む（サムネイル用）。"""
+    pat = PATTERNS[i]
+    pxs = (x1 - x0) / span
+    t0, marks = THUMB_VIEW[i]
+    xs = np.arange(x0, x1 + 0.5, 0.5)
+    rel = t0 + (xs - x0) / pxs
+    bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
+    v = art_apply(pat, rel, wave_from(bl, rel))
+    v = v * np.clip(np.minimum(xs - x0, x1 - xs) / 6.0, 0, 1)
+    ys = base_y - v*mv
+    pad = 40
+    size = (int(x1 - x0) + 2*pad, int(3.2*mv) + 2*pad)
+    ox, oy = int(x0) - pad, int(base_y - 1.7*mv) - pad
+    spk = [(x0 + (ts - t0)*pxs, amp) for ts, amp in spike_times(bl) if rel[0] + 0.03 <= ts <= rel[-1] - 0.03]
+    lay = glow_line(size, [list(zip(xs - ox, ys - oy))], pat['col'], 2.8, 1.0, blur=(4, 10))
+    sr = spike_runs(spk, xs, ys, mv, ox, oy)
+    if sr:
+        lay.alpha_composite(spike_layer(size, sr, pat['col'], 2.8, 1.0, (4, 10)))
+    d = ImageDraw.Draw(lay)
+    L = pat['L']
+    n_max, n = THUMB_MAX_MARKS.get(i, 2), 0
+    for k in range(-2, 6):
+        for a, b in marks:
+            lo, hi = a + k*L, b + k*L
+            if lo < rel[0] + 0.05 or hi > rel[-1] - 0.05 or n >= n_max:
+                continue
+            n += 1
+            sel = (rel >= lo) & (rel <= hi)
+            bx0, bx1 = x0 + (lo - t0)*pxs - 4, x0 + (hi - t0)*pxs + 4
+            by0 = min(ys[sel].min() - 9, base_y - 0.45*mv)
+            for xs_, amp in spk:                      # 丸の中のスパイクの先まで囲む
+                if bx0 <= xs_ <= bx1:
+                    by0 = min(by0, float(np.interp(xs_, xs, ys)) - amp*mv - 6)
+            by1 = max(ys[sel].max() + 9, base_y + 0.35*mv)
+            dashed_ellipse(d, (bx0 - ox, by0 - oy, bx1 - ox, by1 - oy), pat['col'])
+    return lay, (ox, oy)
+
+
+def thumbnail_list():
+    """サムネイル（透かしなし）。第17弾の一覧型と同じ作り：
+    タイトル → 12パターンを2列×6段（色つきの名前・ひとこと・波形・点線の丸）→ 下の枠。
+    プロフィールのグリッド（中央 1080×1350、y 285〜1635）に要素が収まる。"""
+    im = grid()
+    d = ImageDraw.Draw(im, 'RGBA')
+    RED = (255, 92, 84)
+    YEL = (255, 196, 64)
+    d.line([(510, 300), (570, 300)], fill=RED + (255,), width=4)
+    put(im, '心電図で気づく', 34, 700, (118, 226, 150), cx=540, cy=342)
+    put(im, '心筋梗塞とST変化', 112, 900, WHITE, cx=540, cy=436, max_w=880)
+    put(im, '見分けられる？', 60, 900, YEL, cx=540, cy=546)
+    COLS = [(135, 515), (565, 945)]             # 列のあいだは50px あける（線は引かない）
+    NR = (N_PAT + 1) // 2                       # 1列の段の数
+    Y0, RH = 628, 852 // NR
+    for i, pat in enumerate(PATTERNS):
+        c, r = divmod(i, NR)
+        x0, x1 = COLS[c]
+        y = Y0 + r*RH
+        name = f"{pat['no']} {pat['name']}"
+        im_n, _ = text_img(name, 26, 800, pat['col'], max_w=x1 - x0)
+        put(im, name, 26, 800, pat['col'], x=x0, cy=y + 24, max_w=x1 - x0)
+        nx = x0 + im_n.size[0] + 8
+        if THUMB_DESC[i]:
+            im_h, _ = text_img(THUMB_DESC[i], 18, 500, (176, 186, 186))
+            assert nx + im_h.size[0] - 8 <= x1 + 4, f'{pat["no"]} のひとことが入らない'
+            put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
+        # ST の変化は小さいので、第21弾（30px/mV・4秒）より大きく（40px/mV・3秒）
+        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.58, 40.0, span=3.0)
+        im.alpha_composite(lay, pos)
+        if r < NR - 1:
+            d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
+    by = Y0 + NR*RH + 24
+    d.rounded_rectangle([(230, by), (850, by + 96)], radius=18, fill=(16, 22, 21, 255),
+                        outline=(70, 84, 80, 255), width=2)
+    parts = [('まず覚えたい', 40, WHITE), (str(N_PAT), 72, YEL), ('パターン', 40, WHITE)]
+    ims = [text_img(t, sz, 900, col) for t, sz, col in parts]
+    tw = sum(a.size[0] - 8 for a, _ in ims) + 8
+    x = 540 - tw/2
+    base_line = by + 70                          # 文字の下端（ベースライン）をそろえる
+    for (t, sz, col), (a, asc) in zip(parts, ims):
+        put(im, t, sz, 900, col, x=x, cy=base_line - 0.38*asc)
+        x += a.size[0] - 8
+    return im.convert('RGB')
+
+
+# --- 検算 ------------------------------------------------------------------------
+def _pr_ms(prc):
+    """P頂点→R頂点 prc のときの PR間隔（P波の始まり → QRSの始まり、ms）。"""
+    tt = np.arange(-0.6, 0.2, 0.0005)
+    p = p_sinus(tt + prc); q = qrs_normal(tt)
+    p_on = tt[p > 0.05*p.max()].min()
+    q_on = tt[(np.abs(q) > 0.05) & (tt < 0.1)].min()
+    return (q_on - p_on) * 1000
+
+
+_TT = np.arange(-0.25, 0.60, 0.0005)
+
+
+def _j_time(f):
+    """J点（QRSの終わり）：R頂点のあと、傾きが 12ms 続けて 3mV/秒 未満になる最初の時刻。"""
+    v = f(_TT); dv = np.abs(np.gradient(v, _TT))
+    t_r = _TT[np.argmax(np.where(np.abs(_TT) < 0.05, v, -9))]
+    n = int(0.012 / 0.0005)
+    for k in np.where(_TT > t_r + 0.005)[0]:
+        if dv[k:k+n].max() < 3.0:
+            return float(_TT[k])
+    return float('nan')
+
+
+def _qrs_ms(f):
+    """QRS幅（ms）：始まり（|v| > 0.03mV）〜 J点。"""
+    v = f(_TT)
+    on = _TT[(np.abs(v) > 0.03) & (_TT > -0.12)].min()
+    return (_j_time(f) - on) * 1000
+
+
+def _at(f, t):
+    return float(f(np.array([t]))[0])
+
+
+def measure():
+    """各パターンの ST・T・Q などの値（モデルの波形から計算。画面・依頼文の数値はここから）。"""
+    out = {}
+    for k, (f, _, _) in KINDS.items():
+        j = _j_time(f)
+        v = f(_TT)
+        late = _TT > j + 0.04
+        out[k] = dict(j=j, st_j=_at(f, j), st60=_at(f, j + 0.06), st80=_at(f, j + 0.08),
+                      qrs=_qrs_ms(f), r=float(v[np.abs(_TT) < 0.05].max()),
+                      t_max=float(v[late].max()), t_min=float(v[late].min()))
+    for k in 'QI':                                        # 異常Q波：Q の幅・深さ
+        f = KINDS[k][0]; v = f(_TT)
+        neg = (v < -0.02) & (_TT < 0.005) & (_TT > -0.08)
+        out[k]['q_ms'] = (_TT[neg].max() - _TT[neg].min()) * 1000
+        out[k]['q_mv'] = float(-v[neg].min())
+    out['C']['pr_seg'] = _at(qrs_peri, -0.065)            # PR 部分の高さ（P波の終わりとQRSのあいだ）
+    out['B']['notch'] = _at(qrs_ber, 0.040) - _at(qrs_ber, 0.034)
+    return out
+
+
+def rate(rr):
+    return 60 / rr
+
+
+def check():
+    print('パターンごとの紹介の時間')
+    for i, pat in enumerate(PATTERNS):
+        a, b = WINDOWS[i]
+        print(f"{pat['no']} {pat['name']:<14} 周期{pat['L']:.2f}s 区間{pat['D']:.2f}s  画面 {a:5.1f}–{b:5.1f}s（{b-a:4.1f}s）")
+    print(f'最後のパターンの終わり {T_END:.1f}s → 一覧 {T_END+FLY:.1f}〜{DUR:.1f}s（全体 {DUR:.1f}s）')
+    # 区間のつなぎ目：前のパターンの最後の拍 → 次のパターン（またはうしろの洞調律）の最初の拍
+    for i, (s0, s1) in enumerate(SEGS):
+        inside = sorted(b for b in STRIP if s0 <= b[0] < s1)
+        last = inside[-1]
+        rr_in = sorted(set(round(y[0] - x[0], 3) for x, y in zip(inside, inside[1:])))
+        nxt = min((b for b in STRIP if b[0] >= s1 - 1e-9), key=lambda b: b[0])
+        print(f"  つなぎ目 {PATTERNS[i]['no']}→ : 区間の中のR-R {rr_in} / 最後の拍 {last[1]} {last[0]-s0:.2f}"
+              f" → 次 {nxt[1]} 間隔 {nxt[0]-last[0]:.2f}s")
+    m = measure()
+    print('値（1mm = 0.1mV。ST は TP＝基線からの高さ。J点はモデルから計算）')
+    print(f"① 基準：{rate(RR):.0f}/分、PR {_pr_ms(PR):.0f}ms、QRS {m['N']['qrs']:.0f}ms、J点 {m['N']['st_j']:+.2f}mV、T {m['N']['t_max']:.2f}mV")
+    print(f"② 超急性期T：T {m['H']['t_max']:.2f}mV（R {m['H']['r']:.2f}mV の {m['H']['t_max']/m['H']['r']*100:.0f}%）、J点 {m['H']['st_j']:+.2f}mV")
+    print(f"③ ST上昇：J点 {m['E']['st_j']:+.2f}mV、J+60ms {m['E']['st60']:+.2f}mV、頂点 {m['E']['t_max']:.2f}mV、R {m['E']['r']:.2f}mV")
+    print(f"④ 墓石型：R（山と重なる）{m['T']['r']:.2f}mV、山の頂点 {m['T']['t_max']:.2f}mV、J点 {m['T']['st_j']:+.2f}mV")
+    print(f"⑤ 異常Q：Q 幅 {m['Q']['q_ms']:.0f}ms・深さ {m['Q']['q_mv']:.2f}mV（R {m['Q']['r']:.2f}mV）、"
+          f"J+60ms {m['Q']['st60']:+.2f}mV、Tの終わり {m['Q']['t_min']:+.2f}mV")
+    print(f"⑥ 冠性T：Q 幅 {m['I']['q_ms']:.0f}ms・深さ {m['I']['q_mv']:.2f}mV、陰性T {m['I']['t_min']:+.2f}mV（左右対称）、J点 {m['I']['st_j']:+.2f}mV")
+    print(f"⑦ 水平型ST低下：J点 {m['D']['st_j']:+.2f}mV、J+60ms {m['D']['st60']:+.2f}mV、J+80ms {m['D']['st80']:+.2f}mV、T {m['D']['t_max']:.2f}mV")
+    print(f"⑧ 上行型ST低下：{rate(0.55):.0f}/分、J点 {m['U']['st_j']:+.2f}mV、J+60ms {m['U']['st60']:+.2f}mV、J+80ms {m['U']['st80']:+.2f}mV")
+    print(f"⑨ 心膜炎：{rate(0.56):.0f}/分、PR部分 {m['C']['pr_seg']:+.2f}mV、J点 {m['C']['st_j']:+.2f}mV、"
+          f"J+60ms {m['C']['st60']:+.2f}mV、T {m['C']['t_max']:.2f}mV")
+    print(f"⑩ 早期再分極：{rate(1.0):.0f}/分、J点ノッチ +{m['B']['notch']:.2f}mV、J点 {m['B']['st_j']:+.2f}mV、J+60ms {m['B']['st60']:+.2f}mV、"
+          f"T {m['B']['t_max']:.2f}mV（ST/T：J点 {m['B']['st_j']/m['B']['t_max']:.2f}・J+60ms {m['B']['st60']/m['B']['t_max']:.2f}。LITFL：BER < 0.25）")
+    print(f"   （⑨ 心膜炎の ST/T：J点 {m['C']['st_j']/m['C']['t_max']:.2f}。LITFL：心膜炎 > 0.25）")
+    print(f"⑪ 左脚ブロック：QRS {m['L']['qrs']:.0f}ms、J+60ms {m['L']['st60']:+.2f}mV、T {m['L']['t_min']:+.2f}mV")
+    print(f"⑫ AIVR：洞調律 {rate(0.86):.0f}/分 → 幅の広いQRS（{m['V']['qrs']:.0f}ms）{rate(AIVR_RR):.0f}/分が4拍 → 洞調律")
+    print('ひとこと＋色の文字の幅（上限 ONE_W = %dpx。32px で入らないと字が小さくなる）' % ONE_W)
+    for pat in PATTERNS:
+        tag = TAGS[pat['tag']]
+        w1 = text_img(pat['one'], 32, 500, (226, 232, 231))[0].size[0] - 8
+        w2 = text_img(tag[0], 32, 800, tag[1])[0].size[0] - 8
+        w = w1 + 14 + w2
+        print(f"  {pat['no']} {w:4d}px {'OK' if w <= ONE_W else '← 字が小さくなる'}  {pat['one']} {tag[0]}")
+    tr = [b[0] for b in STRIP if b[0] >= STRIP_END - 1e-9][:8]
+    print('うしろの洞調律の間隔', [round(y - x, 3) for x, y in zip(tr, tr[1:])])
+
+
+# --- 書き出し ---------------------------------------------------------------------
+def ffmpeg_bin():
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return 'ffmpeg'
+
+
+def render_chunk(args):
+    i0, i1, fps, path, crf, preset = args
+    cmd = [ffmpeg_bin(), '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24',
+           '-s', f'{W}x{H}', '-r', str(fps), '-i', '-', '-c:v', 'libx264', '-preset', preset,
+           '-crf', str(crf), '-profile:v', 'high', '-pix_fmt', 'yuv420p', path]
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    for n in range(i0, i1):
+        p.stdin.write(frame(n / fps).tobytes())
+    p.stdin.close()
+    p.wait()
+    return path
+
+
+def beeps(path, sr=44100):
+    """中部の波形の R が画面の中央を通るときに「ピッ」。心室の拍は低い音。"""
+    n = int(DUR*sr)
+    a = np.zeros(n, dtype=np.float32)
+    for r, k, i in STRIP:
+        ts = t_of(r)
+        if i is not None and PATTERNS[i].get('gain') is not None:
+            g = PATTERNS[i]['gain'](np.array([r - SEGS[i][0]]), PATTERNS[i]['L'])[0]
+            if abs(g) < 0.5:                  # 電極外れ・とぎれのあいだは、モニターが拍を数えない
+                continue
+        if not (0.0 <= ts <= DUR - 0.3) or (T_STOP <= ts < T_GO):
+            continue
+        f = 720.0 if k == 'V' else 960.0        # 心室の拍（AIVR）は低い音
+        L = int(0.08*sr)
+        tt = np.arange(L)/sr
+        s = 0.2*np.minimum(1, tt/0.004)*np.exp(-tt/0.045)*np.sin(2*np.pi*f*tt)
+        j = int(ts*sr)
+        a[j:j+L] += s[:max(0, min(L, n-j))]
+    for k in range(len(HOOK)):                # 冒頭の変形のたびに
+        ts = HOOK_T0 + k*HOOK_STEP
+        L = int(0.07*sr); tt = np.arange(L)/sr
+        s = 0.2*np.minimum(1, tt/0.004)*np.exp(-tt/0.04)*np.sin(2*np.pi*720.0*tt)
+        j = int(ts*sr); a[j:j+L] += s
+    pcm = (np.clip(a, -1, 1)*32767).astype(np.int16)
+    with wave.open(path, 'wb') as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+        w.writeframes(pcm.tobytes())
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--fps', type=int, default=60)
+    ap.add_argument('--out', default=os.path.join(HERE, 'out', 'reel28_st.mp4'))
+    ap.add_argument('--still', type=float, nargs='*')
+    ap.add_argument('--check', action='store_true')
+    ap.add_argument('--thumb', action='store_true')
+    ap.add_argument('--jobs', type=int, default=2)             # CPU は4つ。ほかの作業と分けあうので 2
+    ap.add_argument('--hq', action='store_true', help='高画質（CRF 10・slow）。out/reel28_st_hq.mp4')
+    o = ap.parse_args()
+    crf, preset = (10, 'slow') if o.hq else (18, 'medium')
+    if o.hq and o.out == ap.get_default('out'):
+        o.out = os.path.join(HERE, 'out', 'reel28_st_hq.mp4')
+    if o.check:
+        check(); return
+    if o.thumb:
+        os.makedirs(os.path.dirname(o.out), exist_ok=True)
+        p = os.path.join(os.path.dirname(o.out), 'thumb_reel28.png')
+        thumbnail().save(p); print(p)
+        p = os.path.join(os.path.dirname(o.out), 'thumb_reel28_list.png')
+        thumbnail_list().save(p); print(p); return
+    os.makedirs(os.path.dirname(o.out), exist_ok=True)
+    if o.still:
+        for s in o.still:
+            p = os.path.join(os.path.dirname(o.out), f'still_{s:05.1f}.png')
+            frame(s).save(p); print(p)
+        return
+    total = int(round(DUR*o.fps))
+    step = math.ceil(total / o.jobs)
+    tmp = os.path.join(os.path.dirname(o.out), 'parts')
+    os.makedirs(tmp, exist_ok=True)
+    jobs = [(i, min(total, i+step), o.fps, os.path.join(tmp, f'p{j:02d}.mp4'), crf, preset)
+            for j, i in enumerate(range(0, total, step))]
+    with Pool(o.jobs) as pool:
+        parts = pool.map(render_chunk, jobs)
+    lst = os.path.join(tmp, 'list.txt')
+    with open(lst, 'w') as f:
+        for p in parts:
+            f.write(f"file '{p}'\n")
+    wav = os.path.join(tmp, 'beeps.wav')
+    beeps(wav)
+    subprocess.run([ffmpeg_bin(), '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', lst,
+                    '-i', wav, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest',
+                    '-movflags', '+faststart', o.out],
+                   check=True)
+    print(o.out)
+
+
+if __name__ == '__main__':
+    main()
