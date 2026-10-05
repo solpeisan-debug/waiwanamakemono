@@ -59,7 +59,7 @@ MAPS = {
                     L('P波なし・QRS狭い', '接合部補充調律', C_BLUE, 'junc'),
                     L('P波なし・QRS広い', '心室補充調律', C_RED, 'vesc'),
                     L('P波あり・毎回QRS', '洞徐脈', C_BLUE, 'sbrady'),
-                    L('抜ける・PとQRS一定', '2:1・高度房室ブロック', C_RED, 'av21'),
+                    L('PとQRSは一定', '2:1・高度房室ブロック', C_RED, 'av21'),
                     L('PとQRSが別々', '完全房室ブロック', C_RED, 'chb'),
                 ]),
                 Q('60〜100', 'PRは？', [
@@ -112,8 +112,8 @@ CFG = MAPS[MAP]
 X0, X_END = 72, 1000                # 左72px・右80px（右下はリールのボタンがかかるので少し広め）
 Y_FIRST, Y_LAST = 494, 1500       # 1枚目と最後のカードのまん中（見出しとの間を約60px空ける）
 GAP_X = 30                        # 箱の右 → 縦の線 14px → 子 16px
-SZ_Q, SZ_A = 24, 18
-CARD_H = 84
+SZ_Q, SZ_A = 25, 19
+CARD_H = 86
 PAD = 12
 
 
@@ -126,7 +126,7 @@ def node_size(n):
     w = max(tw(s, SZ_Q, 800) for s in lines)
     if n['ans']:
         w = max(w, tw(n['ans'], SZ_A, 800))
-    h = len(lines)*30 + (24 if n['ans'] else 0) + 16
+    h = len(lines)*33 + (26 if n['ans'] else 0) + 16
     return w + 2*PAD, h
 
 
@@ -200,7 +200,7 @@ def extent(key):
 
 def wave_geom(c):
     x0, x1 = c['x'] + 12, c['x'] + c['w'] - 12
-    top, bot = c['y'] - CARD_H/2 + 34, c['y'] + CARD_H/2 - 6
+    top, bot = c['y'] - CARD_H/2 + 37, c['y'] + CARD_H/2 - 6
     up, dn = extent(c['key'])
     s = min(30.0, (bot - top)*0.94/(up + dn))          # 1mV の高さ（px）。カードの中に収まる大きさ
     base = (top + bot)/2 + (up - dn)*s/2
@@ -208,14 +208,16 @@ def wave_geom(c):
 
 
 def fit_line(ans, name, wmax):
-    """答え（小）と名前を1行に。入らなければ少しずつ小さく"""
-    sa, sn = 19, 24
+    """答え（小）と名前を1行に。入らなければ、まず答えの字を小さく（15まで）、それでも入らなければ名前を小さく"""
+    sa, sn = 21, 26
     while True:
         wa, wn = tw(ans, sa, 700), tw(name, sn, 900)
         if wa + 12 + wn <= wmax or sn <= 17:
             return sa, sn, wa
-        sa -= 1 if sa > 15 else 0
-        sn -= 1
+        if sa > 15:
+            sa -= 1
+        else:
+            sn -= 1
 
 
 def draw_card(im, c, t, glow):
@@ -230,8 +232,8 @@ def draw_card(im, c, t, glow):
                         outline=mix(NODE_EDGE, c['col'], max(glow, 0.35)) + (255,), width=2 + int(round(glow)))
     im.alpha_composite(lay, (x - 20, y0 - 20))
     sa, sn, wa = fit_line(c['ans'], c['name'], w - 26)
-    put(im, c['ans'], sa, 700, mix(DIM_ANS, YEL, glow), x=x + 13, cy=y0 + 19)
-    put(im, c['name'], sn, 900, c['col'], x=x + 13 + wa + 12, cy=y0 + 18)
+    put(im, c['ans'], sa, 700, mix(DIM_ANS, YEL, glow), x=x + 13, cy=y0 + 21)
+    put(im, c['name'], sn, 900, c['col'], x=x + 13 + wa + 12, cy=y0 + 20)
     x0, x1, base, s = wave_geom(c)
     xs = np.arange(x0, x1, 0.5)
     v = rhythm_wave(c['key'], t - (x1 - xs)/SPEED)
@@ -256,11 +258,11 @@ def draw_node(im, n, on):
     im.alpha_composite(lay, (int(x) - 20, int(y0) - 20))
     yy = y0 + 8
     if n['ans']:
-        put(im, n['ans'], SZ_A, 800, mix(DIM_ANS, YEL, on), x=x + PAD, cy=yy + 11)
-        yy += 24
+        put(im, n['ans'], SZ_A, 800, mix(DIM_ANS, YEL, on), x=x + PAD, cy=yy + 12)
+        yy += 26
     for s in n['q'].split('\n'):
-        put(im, s, SZ_Q, 800, C_Q, x=x + PAD, cy=yy + 15)
-        yy += 30
+        put(im, s, SZ_Q, 800, C_Q, x=x + PAD, cy=yy + 16)
+        yy += 33
 
 
 # --- 1コマ -------------------------------------------------------------------------------
@@ -288,18 +290,57 @@ def active_at(t):
     return k, (t % DUR) - k*SLOT
 
 
+SUB_CY, SUB_SZ, TITLE_SZ = 296, 32, 60
+
+
+def _ink_rows(draw):
+    """draw(im) で描いた字の、上端と下端の y（透明な画像に描いて測る）"""
+    im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    draw(im)
+    rows = np.where(np.asarray(im.getchannel('A')).max(axis=1) > 40)[0]
+    return int(rows[0]), int(rows[-1])
+
+
+def _title_parts():
+    return [(CFG['title'][0], TITLE_SZ, YEL), (CFG['title'][1], TITLE_SZ, WHITE)]
+
+
+def _draw_title_at(im, cy):
+    parts = _title_parts()
+    ims = [text_img(s_, sz, 900, c_) for s_, sz, c_ in parts]
+    xx = 540 - (sum(a_.size[0] - 8 for a_, _ in ims))/2
+    for (s_, sz, c_), (a_, _) in zip(parts, ims):
+        put(im, s_, sz, 900, c_, x=xx, cy=cy)
+        xx += a_.size[0] - 8
+
+
+def _title_cy():
+    """「モニター心電図」の下 〜 タイトル、タイトル 〜 1枚目のカードの上、の間が同じになる高さ"""
+    _, sub_bot = _ink_rows(lambda im: put(im, 'モニター心電図', SUB_SZ, 700, WHITE, cx=540, cy=SUB_CY))
+    card_top = LEAVES[0]['y'] - CARD_H/2
+    t0, t1 = _ink_rows(lambda im: _draw_title_at(im, 400))
+    h = t1 - t0
+    top = (sub_bot + card_top - h) / 2                 # 上の間 = 下の間
+    return 400 + (top - t0)
+
+
+TITLE_CY = None
+
+
+def draw_title(im):
+    global TITLE_CY
+    if TITLE_CY is None:
+        TITLE_CY = _title_cy()
+    put(im, 'モニター心電図', SUB_SZ, 700, (118, 226, 150), cx=540, cy=SUB_CY)
+    _draw_title_at(im, TITLE_CY)
+
+
 def frame(t, wm=True, highlight=True):
     global _GRID
     if _GRID is None:
         _GRID = b.grid()
     im = _GRID.copy()
-    put(im, 'モニター心電図', 30, 700, (118, 226, 150), cx=540, cy=300)
-    parts = [(CFG['title'][0], 52, YEL), (CFG['title'][1], 52, WHITE)]
-    ims = [text_img(s_, sz, 900, c_) for s_, sz, c_ in parts]
-    xx = 540 - (sum(a_.size[0] - 8 for a_, _ in ims))/2
-    for (s_, sz, c_), (a_, _) in zip(parts, ims):
-        put(im, s_, sz, 900, c_, x=xx, cy=352)
-        xx += a_.size[0] - 8
+    draw_title(im)
     im.alpha_composite(lines_layer())
     # 光る道すじ（前の道から0.25秒で移る）
     glow_leaf = [0.0]*N
