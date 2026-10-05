@@ -10,7 +10,7 @@
 
 ## 録音前の版（区間の長さは仮）
 
-- 各パターンの区間（秒・仮）：①4.16 ②4.46 ③4.60 ④5.08 ⑤3.80 ⑥4.4 ⑦4.29 ⑧5.6 ⑨5.1 ⑩4.5 ⑪4.68 ⑫5.3（映像 67.1秒）
+- 各パターンの区間（秒・仮）：①4.16 ②4.46 ③4.60 ④5.08 ⑤3.80 ⑥4.43 ⑦4.29 ⑧5.6 ⑨5.1 ⑩4.5 ⑪4.68 ⑫5.3（映像 67.1秒）
 - 文の長さの見込み（約8モーラ/秒）＋0.75秒以上になるよう、拍の並びがくずれない位置で切った
 - 1パターンの声の長さの目安（区間の長さ − 0.75秒）：①3.4 ②3.7 ③3.9 ④4.3 ⑤3.1 ⑥3.7 ⑦3.5 ⑧4.9 ⑨4.4 ⑩3.8 ⑪3.9 ⑫4.6 秒
 - 冒頭の一文は 4.9秒まで（`T_TITLE`）。録音が届いたら、長さに合わせて直す
@@ -64,7 +64,7 @@ P波がT波に隠れると、洞頻脈もPSVTに見える。
 - **② PACの連発**：LITFL（PAC）「Abnormal (non-sinus) P wave usually followed by a normal QRS complex」「Triplet — three consecutive PACs」「a PAC may be the trigger for the onset of a re-entry tachyarrhythmia — e.g. Atrial fibrillation, atrial flutter, AVNRT, AVRT」。原因の例：「Anxiety」「Excess caffeine」「Hypokalaemia」「Hypomagnesaemia」
   - 「PACの3連＝上室性のショートラン」とは LITFL に書いていないので、画面・声では「3つ続く」とだけ言う
 - **③ 心房頻拍**：LITFL（Atrial tachycardia）「originating from a single ectopic focus within the atria but outside of the sinus node」「Abnormal P wave morphology and axis (e.g. inverted in inferior leads)」「Unifocal, identical P waves」「Isoelectric baseline (unlike atrial flutter)」
-  - モデルでは、II誘導で上向きの、小さくとがった少し二相性のP'（第17弾のPACと同じ形）で描いた。LITFL の例は「下向き」なので、レビューで確認
+  - モデルでは、II誘導で、小さくとがった上向き → 下向きの二相性のP'（第17弾のPACの形を、二相性がわかるよう強めた）で描いた。LITFL の例は「下向き」なので、レビューで確認
 - **④ 多源性心房頻拍**：LITFL（MAT）「Irregularly irregular rhythm with varying PP, PR and RR intervals」「At least 3 distinct P-wave morphologies in the same lead」「Most commonly seen in patients with severe COPD or congestive heart failure」「Tends to resolve following treatment of the underlying disorder」 → 画面「→ まず患者さん」
 - **⑤ 心房細動（速い）**：LITFL（Atrial fibrillation）「Irregularly irregular rhythm」「No P waves」「Absence of an isoelectric baseline」「AF is often described as having ‘rapid ventricular response’ once the ventricular rate is > 100 bpm」
 - **⑥ 心房粗動（2:1）**：LITFL（Atrial flutter）「“Saw-tooth” pattern of inverted flutter waves in leads II, III, aVF」「The most common AV ratio is 2:1, resulting in a ventricular rate of ~150 bpm」「Narrow complex tachycardia at 150 bpm (range 130-170)? Yes -> Suspect flutter!」

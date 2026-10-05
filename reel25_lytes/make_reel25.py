@@ -618,11 +618,14 @@ def draw_wave(v, cid, base_col, a):
     return out
 
 
-def featured(t, base_col, a):
+def featured(t, base_col, a, cur=None):
+    """中部の帯。色を付けるのは、いま紹介中のパターン cur の拍だけ（前のパターンの色つきの波形が、
+    新しい名前の下に残らないように。ほかはふつうの緑）。冒頭のフックは変形中のパターンの色。"""
     if T_STOP <= t < T_GO:
         (v0, c0), (v1, c1), u, _ = hook_state(t)
         return draw_wave(v0 + (v1 - v0)*u, c1 if u >= 0.5 else c0, base_col, a)
     v, cid = strip_arrays(tau_c(t))
+    cid = np.where(cid == (-2 if cur is None else cur), cid, -1)
     return draw_wave(v, cid, base_col, a)
 
 
@@ -865,7 +868,7 @@ def frame(t):
             a_strip = min(a_strip, ramp(t, b_i + FLY - 0.1, 0.45))
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     if a_strip > 0.01:
-        im.alpha_composite(featured(t, base_col, a_strip), (0, F_Y0))
+        im.alpha_composite(featured(t, base_col, a_strip, cur), (0, F_Y0))
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)

@@ -64,12 +64,16 @@ def p_sinus(t):
     return 0.15*_g(t, 0.0, 0.022)
 
 
-def p_ect(t):                     # P'（心房の別の場所から）：小さく、とがって、少し二相性
-    return 0.13*_g(t, 0.0, 0.015) - 0.04*_g(t, 0.032, 0.013)
+def p_ect(t):                     # P'（心房の別の場所から）：小さく、とがって、二相性（上 → 下）
+    return 0.13*_g(t, 0.0, 0.013) - 0.08*_g(t, 0.030, 0.013)
 
 
 def p_retro(t):                   # 逆行性P：II誘導で下向き
     return -0.13*_g(t, 0.0, 0.020)
+
+
+def p_retro_j(t):                 # 接合部頻拍の逆行性P：QRSの直前で見えるよう、深めに
+    return -0.20*_g(t, 0.0, 0.020)
 
 
 # 多源性心房頻拍の P波（3種類以上の形）
@@ -78,11 +82,11 @@ def p_tall(t):                    # 高くとがった形
 
 
 def p_inv(t):                     # 下向き（心房の下のほうから。PR 0.12秒以上なので接合部ではない）
-    return -0.10*_g(t, 0.0, 0.020)
+    return -0.15*_g(t, 0.0, 0.020)
 
 
 def p_bi(t):                      # 二相性（下 → 上）
-    return -0.07*_g(t, -0.018, 0.014) + 0.09*_g(t, 0.020, 0.015)
+    return -0.105*_g(t, -0.018, 0.014) + 0.135*_g(t, 0.020, 0.015)
 
 
 def qrs_rate(tc, ta=0.27):
@@ -115,7 +119,7 @@ def qrs_avrt(t):                  # 房室回帰性頻拍（順方向性）：QR
 
 
 def qrs_wpw(t):                   # WPW（洞調律）：デルタ波（QRSの立ち上がりがなだらか）で幅がやや広い。STとTはQRSと逆向き
-    return (0.34*_ga(t, -0.014, 0.028, 0.010) + 0.78*_g(t, 0.0, 0.012)
+    return (0.40*_ga(t, -0.014, 0.034, 0.010) + 0.78*_g(t, 0.0, 0.012)
             - 0.12*_g(t, 0.034, 0.011) - 0.10*_ga(t, 0.30, 0.065, 0.048))
 
 
@@ -135,7 +139,7 @@ KINDS = {
     'R': (qrs_avnrt, None, 0.0),            # PSVT（房室結節リエントリー）
     'O': (qrs_avrt, None, 0.0),             # 房室回帰性頻拍（逆行性Pは QRS の形に入れた）
     'X': (qrs_wpw, p_sinus, 0.125),         # WPW（洞調律）：PRが短い
-    'J': (qrs_115, p_retro, 0.075),         # 接合部頻拍：逆向きのP波がQRSのすぐ前（PR 0.12秒未満）
+    'J': (qrs_115, p_retro_j, 0.085),         # 接合部頻拍：逆向きのP波がQRSのすぐ前（PR 0.12秒未満）
 }
 ALL = [(-1e9, 1e9)]                         # 全部をその色で
 
@@ -246,7 +250,7 @@ N_PAT = len(PATTERNS)
 # - ⑤ 3.80：8つめの拍のあと（次の⑥の最初の拍まで 0.35秒。心房細動の短いRRくらい）
 # - ⑧ 5.6：1周期（洞調律 → PAC → PSVT → 止まる → 洞調律に戻ったところ）
 # 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
-SEG_D = {'①': 4.16, '②': 4.46, '③': 4.60, '④': 5.08, '⑤': 3.80, '⑥': 4.4,
+SEG_D = {'①': 4.16, '②': 4.46, '③': 4.60, '④': 5.08, '⑤': 3.80, '⑥': 4.43,
          '⑦': 4.29, '⑧': 5.6, '⑨': 5.1, '⑩': 4.5, '⑪': 4.68, '⑫': 5.3}
 for _p in PATTERNS:
     _p['D'] = SEG_D[_p['no']]
@@ -346,9 +350,9 @@ F_PXS = 25 * F_PXMM
 F_MV = 10 * F_PXMM
 # 中部のかたまり：名前（54px）→ ひとこと（32px）→ 波形（R頂点 1mV 〜 下 0.6mV）
 _TOP_END = 636 + 110               # ③⑥の下端
-_BOT_TOP = 1188                    # ⑦⑩の上端
-# 見た目の上端（名前の字の上）〜下端（S波・粗動波の底、約0.4mV）で余白をそろえる
-_MID_H = 22 + 54 + 16 + 30 + 140 + 56
+_BOT_TOP = 1178                    # ⑦⑩の上端（下の注記と離すため、下の枠を10px上げた）
+# 見た目の上端（名前の字の上）〜下端（S波の底、約0.2mV）で余白をそろえる
+_MID_H = 22 + 54 + 16 + 30 + 140 + 30
 _GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
 Y_NAME = _TOP_END + _GAP + 22
 Y_ONE = Y_NAME + 54
@@ -399,7 +403,7 @@ DUR = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
 CELL_W, CELL_H = 400, 110
 COL_X = (130, 550)
 TOP_Y = [396, 516, 636]
-BOT_Y = [1188, 1308, 1428]
+BOT_Y = [1178, 1298, 1418]
 CELL_FILL = 225                    # 枠の中の塗りの濃さ（0〜255）。方眼をうっすら残す
 M_PXS = 66.0                      # ミニ波形：実際の1秒 = 66px（約5.8秒ぶんが見える）
 M_MV = 33.0
@@ -636,11 +640,13 @@ def draw_wave(v, cid, base_col, a):
     return out
 
 
-def featured(t, base_col, a):
+def featured(t, base_col, a, cur=None):
+    """中部の帯。色を付けるのは、いま紹介中のパターン cur の拍だけ（前のパターンの残りはふつうの緑）。"""
     if T_STOP <= t < T_GO:
         (v0, c0), (v1, c1), u, _ = hook_state(t)
         return draw_wave(v0 + (v1 - v0)*u, c1 if u >= 0.5 else c0, base_col, a)
     v, cid = strip_arrays(tau_c(t))
+    cid = np.where(cid == cur, cid, -1) if cur is not None else np.full_like(cid, -1)
     return draw_wave(v, cid, base_col, a)
 
 
@@ -881,7 +887,7 @@ def frame(t):
             a_strip = min(a_strip, ramp(t, b_i + FLY - 0.1, 0.45))
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     if a_strip > 0.01:
-        im.alpha_composite(featured(t, base_col, a_strip), (0, F_Y0))
+        im.alpha_composite(featured(t, base_col, a_strip, cur), (0, F_Y0))
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
@@ -893,7 +899,7 @@ def frame(t):
 
 
 # 冒頭のタイトル（小さい字・大きい字・その下）の y。ノート2行の y（字の下が 1600 より上）
-TITLE_Y = (548, 672, 790)
+TITLE_Y = (470, 598, 742)
 NOTE_Y = (1557, 1584)
 
 
@@ -903,10 +909,11 @@ THUMB_VIEW = {i: (0.0, []) for i in range(12)}
 THUMB_VIEW[1] = (0.4, [(1.02, 2.42)])                       # PACの連発
 THUMB_VIEW[7] = (1.0, [(ON_PAC - 0.30, ON_PAC + 0.40)])    # PSVTの始まり（PACから）
 THUMB_VIEW[9] = (0.1, [(1.20 - 0.17, 1.20 + 0.04)])        # WPW：短いPRとデルタ波
-THUMB_VIEW[11] = (0.05, [(0.50 + 0.07, 0.50 + 0.35)])      # P波がT波に重なる（T波の下り坂のこぶ）
+THUMB_VIEW[11] = (0.05, [(0.50 + 0.04, 0.50 + 0.38)])      # P波がT波に重なる（T波の下り坂のこぶ）
 THUMB_MAX_MARKS = {1: 1, 7: 1, 9: 1, 11: 1}
+THUMB_NAME = {6: 'PSVT（AVNRT）', 8: '房室回帰性頻拍', 9: 'WPW（洞調律）'}   # サムネイルだけ短い名前
 THUMB_DESC = ['Pがそろう', '3つ続く', '形のちがうP', '3種類以上', 'バラバラ', 'のこぎり状',
-              '', '突然', '', '', '直前に逆向きP', 'Pが重なる']
+              'Pが見えない', '突然', 'QRSの後にP', 'デルタ波', '直前に逆向きP', 'Pが重なる']
 
 
 def dashed_ellipse(d, box, col, dash=6, gap=5, width=2):
@@ -963,7 +970,7 @@ def thumbnail_list():
     RED = (255, 92, 84)
     d.line([(510, 300), (570, 300)], fill=RED + (255,), width=4)
     put(im, '心電図で気づく', 34, 700, (118, 226, 150), cx=540, cy=342)
-    put(im, '頻脈（幅の狭いQRS）', 96, 900, WHITE, cx=540, cy=436, max_w=880)
+    put(im, '頻脈（幅の狭いQRS）', 96, 900, WHITE, cx=568, cy=436, max_w=880)   # 「頻脈」の左の余白と「）」の右の余白をそろえる
     put(im, '見分けられる？', 60, 900, (255, 196, 64), cx=540, cy=546)
     COLS = [(135, 515), (565, 945)]             # 列のあいだは50px あける（線は引かない）
     NR = (N_PAT + 1) // 2                       # 1列の段の数
@@ -972,7 +979,7 @@ def thumbnail_list():
         c, r = divmod(i, NR)
         x0, x1 = COLS[c]
         y = Y0 + r*RH
-        name = f"{pat['no']} {pat['name']}"
+        name = f"{pat['no']} {THUMB_NAME.get(i, pat['name'])}"
         im_n, _ = text_img(name, 26, 800, pat['col'], max_w=x1 - x0)
         put(im, name, 26, 800, pat['col'], x=x0, cy=y + 24, max_w=x1 - x0)
         nx = x0 + im_n.size[0] + 8
@@ -980,7 +987,7 @@ def thumbnail_list():
             im_h, _ = text_img(THUMB_DESC[i], 18, 500, (176, 186, 186))
             assert nx + im_h.size[0] - 8 <= x1 + 4, f'{pat["no"]} のひとことが入らない'
             put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
-        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.55, 30.0)
+        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.66, 36.0)
         im.alpha_composite(lay, pos)
         if r < NR - 1:
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
