@@ -246,7 +246,7 @@ PATTERNS = [
          one='のこぎり状のF波（約300/分）', tag='new',
          ev=[(0.0, 'F')], L=4*FF, art=art_flutter(), hl=ALL),
     dict(no='⑩', name='心房粗動（2:1）', col=C_FL, hint='150で規則的',
-         one='150/分で規則的。F波が隠れる', tag='vital',
+         one='150/分で規則的なら粗動を疑う', tag='vital',
          ev=[(0.0, 'F')], L=2*FF, art=art_flutter(), hl=ALL),
     dict(no='⑪', name='心房粗動（伝導比が変わる）', col=C_FL, hint='不規則な粗動',
          one='R-Rが不規則。心房細動と似る', tag='ecg12',
@@ -377,7 +377,7 @@ F_MV = 10 * F_PXMM
 _TOP_END = 636 + 110               # ③⑥の下端
 _BOT_TOP = 1188                    # ⑦⑩の上端
 # 見た目の上端（名前の字の上）〜下端（S波・F波の底、約0.4mV）で余白をそろえる
-_MID_H = 22 + 54 + 16 + 30 + 140 + 56
+_MID_H = 22 + 54 + 16 + 30 + 140 + 44
 _GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
 Y_NAME = _TOP_END + _GAP + 22
 Y_ONE = Y_NAME + 54
@@ -654,11 +654,13 @@ def draw_wave(v, cid, base_col, a):
     return out
 
 
-def featured(t, base_col, a):
+def featured(t, base_col, a, cur=None):
+    """中部の帯。色を付けるのは、いま紹介中のパターン cur の拍だけ（前のパターンの残りはふつうの緑。第28弾と同じ）。"""
     if T_STOP <= t < T_GO:
         (v0, c0), (v1, c1), u, _ = hook_state(t)
         return draw_wave(v0 + (v1 - v0)*u, c1 if u >= 0.5 else c0, base_col, a)
     v, cid = strip_arrays(tau_c(t))
+    cid = np.where(cid == (-2 if cur is None else cur), cid, -1)
     return draw_wave(v, cid, base_col, a)
 
 
@@ -897,13 +899,13 @@ def frame(t):
             a_strip = min(a_strip, ramp(t, b_i + FLY - 0.1, 0.45))
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     if a_strip > 0.01:
-        im.alpha_composite(featured(t, base_col, a_strip), (0, F_Y0))
+        im.alpha_composite(featured(t, base_col, a_strip, cur), (0, F_Y0))
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
 
-    put(im, NOTE1, 24, 400, GREY, x=135, cy=1561, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, NOTE2, 24, 400, GREY, x=135, cy=1588, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE1, 22, 400, GREY, x=135, cy=1564, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE2, 22, 400, GREY, x=135, cy=1588, a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
     return im.convert('RGB')
 
@@ -922,11 +924,11 @@ def thumbnail():
     for i in range(N_PAT):
         draw_cell(im, i, t, 'done', 1.0)
         mini(im, i, t, 1.0)
-    put(im, 'バラバラ？ のこぎり？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 28, max_w=820)
-    put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_ONE + 14, max_w=880)
+    put(im, 'バラバラ？ のこぎり？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 34, max_w=820)
+    put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_ONE + 8, max_w=880)
     v, cid = hook_arrays(THUMB_HERO)
     wl = draw_wave(v, cid, WAVE_GREEN, 1.0)
-    im.alpha_composite(wl, (0, F_Y0 + 40))         # 上の題字と下の枠のまん中
+    im.alpha_composite(wl, (0, F_Y0 + 34))         # 上の題字と下の枠のまん中
     return im.convert('RGB')
 
 
@@ -1011,7 +1013,7 @@ def thumbnail_list():
             im_h, _ = text_img(THUMB_DESC[i], 18, 500, (176, 186, 186))
             assert nx + im_h.size[0] - 8 <= x1 + 4, f'{pat["no"]} のひとことが入らない'
             put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
-        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.55, 30.0)
+        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.68, 38.0)
         im.alpha_composite(lay, pos)
         if r < NR - 1:
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)

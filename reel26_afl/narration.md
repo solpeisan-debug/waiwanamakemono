@@ -1,6 +1,6 @@
 # 第26弾 心房細動・心房粗動 まず覚えたい12パターン — ナレーション
 
-第21弾と同じ作り（1パターン1文・声で3〜4秒）。数字は画面に出ているので、声では読み上げない（伝導比の「4対1」などは名前なので読む）。
+第21弾と同じ作り（1パターン1文・声で3〜4秒）。数字は画面に出ているので、声では読み上げない（伝導比の「4対1」などは名前なので読む。⑩の「150」は見分けの目安なので例外として読む）。
 「すぐ報告」は声では言わない（画面の赤い「→ すぐ報告」とキャプションで伝える）。危ないもの（⑧⑫）は声では「危険」とだけ言う。
 録音したら `align_vo.py` で文に切り分け、紹介の時間に置き直す。各パターンの長さは、声に合わせて詰める。
 声は Ren – Smooth & Soothing（第21弾と同じ）。
@@ -22,14 +22,14 @@ f波なのに規則正しく遅い。完全房室ブロックを疑う。
 幅広く速くバラバラ。WPWの心房細動は危険。
 
 のこぎり状のF波。4対1の心房粗動。
-F波がTに隠れやすい、2対1の心房粗動。
+150で規則正しければ、2対1の粗動を疑う。
 伝導比が変わる心房粗動は、細動に似る。
 F波が全部伝わる1対1は、とても危険。
 
 R-Rがバラバラなら細動、のこぎりなら粗動。
 保存して、見返してね
 
-- 読み方：「R-R」は「アールアール」、「f波」「F波」は「エフ波」、「WPW」は「ダブリューピーダブリュー」、「4対1」は「よんたいいち」、「1対1」は「いったいいち」
+- 読み方：「150」は「ひゃくごじゅう」、「R-R」は「アールアール」、「f波」「F波」は「エフ波」、「WPW」は「ダブリューピーダブリュー」、「4対1」は「よんたいいち」、「1対1」は「いったいいち」
 - 2026-10-05：録音前の版（区間の長さは仮）。録音が届いたら `align_vo.py` の `LINES`（声のかたまり番号）を Whisper の書き起こしで直す
 
 ## 区間の長さ（仮）と、声の長さの目安
@@ -62,7 +62,8 @@ R-Rがバラバラなら細動、のこぎりなら粗動。
 - **⑧ WPW**：LITFL（Atrial fibrillation/flutter in pre-excitation）「Rate > 200 bpm」「Irregular rhythm, with extremely high rates in some places — up to 300 bpm」「Wide QRS complexes」「Subtle beat-to-beat variation in QRS morphology」「Axis remains stable, unlike Polymorphic VT」
   「Ensuing rapid ventricular rates may result in degeneration to ventricular tachycardia (VT) or ventricular fibrillation (VF)」「The administration of AV nodal blocking drugs … may precipitate ventricular arrhythmias and cardiac arrest」
 - **⑨〜⑫ 心房粗動**：LITFL（Atrial Flutter）「Regular atrial activity at ~300 bpm」「'Saw-tooth' pattern of inverted flutter waves in leads II, III, aVF」「2:1 block = 150 bpm」「4:1 block = 75 bpm」
-  - ⑩：「Flutter waves are often very difficult to see when 2:1 block is present」「Suspect atrial flutter with 2:1 block whenever there is a regular narrow-complex tachycardia at 150 bpm」
+  - ⑩：「Suspect atrial flutter with 2:1 block whenever there is a regular narrow-complex tachycardia at 150 bpm」「Flutter waves are often very difficult to see when 2:1 block is present」。
+    画面の波形ではF波が見えているので、ひとことは「F波が隠れる」ではなく「150/分で規則的なら粗動を疑う」にした（2026-10-05 検査役の指摘）。⑩は区間 4.4秒に対して声がぎりぎり（目安 3.6秒）。録音が長ければ区間を 4.8秒（0.4秒の倍数）に延ばす
   - ⑪：「Variable AV conduction ratio — The ventricular response is irregular and may mimic atrial fibrillation (AF)」「the R-R intervals will be multiples of the P-P interval」
   - ⑫：「Atrial flutter with 1:1 conduction is associated with severe haemodynamic instability and progression to ventricular fibrillation」（例は 250〜300/分の幅の狭い頻拍）
 - **まとめ**：LITFL（Atrial Flutter）「In contrast, atrial fibrillation will be completely irregular, with no patterns to be discerned within the R-R intervals」
