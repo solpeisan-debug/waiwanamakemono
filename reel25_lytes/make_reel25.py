@@ -139,7 +139,7 @@ KINDS = {
     'SW': Beat(qrs=qrs_sine, wide=True),
     # ⑦ 低K：T波が低く平たい、わずかなST低下、T波のうしろにU波
     'L1': Beat(p=(-0.160, 0.17, 0.022), st=lambda t: st_sag(t, 0.035, 0.17, 0.06, 0.08),
-               t=lambda t: 0.10*_ga(t, 0.270, 0.060, 0.045), u=lambda t: 0.075*_g(t, 0.470, 0.045)),
+               t=lambda t: 0.13*_ga(t, 0.270, 0.060, 0.045), u=lambda t: 0.11*_g(t, 0.470, 0.045)),
     # ⑧ 低K（高度）：P波が高く、PRが少し延び、ST低下、T波は平坦、U波がT波より大きい（T-U がつながる）
     'L2': Beat(p=(-0.185, 0.20, 0.022), st=lambda t: st_sag(t, 0.12, 0.20, 0.09, 0.07),
                t=lambda t: 0.035*_g(t, 0.280, 0.040), u=lambda t: 0.22*_ga(t, 0.460, 0.065, 0.050),
@@ -245,7 +245,7 @@ PATTERNS = [
     _pat('⑥', '高K：サイン波', C_K3, 'なめらかな波',
          'QRSとTが溶け合い、波打つ', 'arrest', RR_SW, 5, 'SW', ALL),
     _pat('⑦', '低K：T波平低・U波', C_LOWK, 'U波が出る',
-         'T波が低く、うしろにU波', 'lab', RR, 5, 'L1', (0.10, 0.60)),
+         'T波が低く、うしろにU波', 'lab', RR, 5, 'L1', (0.36, 0.60)),
     _pat('⑧', '低K（高度）', C_LOWK, 'ST低下・大きなU',
          'STが下がり、U波がTより大きい', 'report', RR, 4, 'L2', (0.05, 0.62)),
     _pat('⑨', '低Ca：ST延長', C_LONG, 'STが長い',
@@ -359,7 +359,7 @@ F_MV = 10 * F_PXMM
 _TOP_END = 636 + 110               # ③⑥の下端
 _BOT_TOP = 1188                    # ⑦⑩の上端
 # 見た目の上端（名前の字の上）〜下端（約0.4mV 下）で余白をそろえる
-_MID_H = 22 + 54 + 16 + 30 + 140 + 56
+_MID_H = 22 + 54 + 16 + 30 + 140 + 36
 _GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
 Y_NAME = _TOP_END + _GAP + 22
 Y_ONE = Y_NAME + 54
@@ -631,7 +631,7 @@ STRIP_W, STRIP_H, STRIP_BASE = CELL_W - 20, 76, 50     # ミニ波形の帯（�
 
 def cell_strip_origin(i):
     x0, y0, _, _ = cell_rect(i)
-    return x0 + 10, y0 + 30
+    return x0 + 10, y0 + 30 + {4: -4, 5: -9}.get(i, 0)     # ⑤⑥は下に深い波なので、枠のまん中に来るよう少し上げる
 
 
 def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=None, a_norm=1.0):
@@ -832,7 +832,9 @@ def frame(t):
     if cur is not None:
         a_i, b_i = WINDOWS[cur]
         pat = PATTERNS[cur]
-        al = ramp(t, a_i + 0.1, 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
+        # 名前とひとことは、前のパターンの波形が縮んで枠へ移り、字の上を通りすぎてから出す（0.5秒）。
+        # ①は前に縮む波形がなく、声もすぐ始まるので 0.1秒
+        al = ramp(t, a_i + (0.1 if cur == 0 else 0.5), 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
         put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=al, max_w=820)
         draw_one(im, pat, al)
 
@@ -868,14 +870,15 @@ def frame(t):
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
 
-    put(im, NOTE1, 24, 400, GREY, x=135, cy=1567, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, NOTE2, 24, 400, GREY, x=135, cy=1594, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE1, 24, 400, GREY, x=135, cy=1561, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE2, 24, 400, GREY, x=135, cy=1588, a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
     return im.convert('RGB')
 
 
 def thumbnail():
-    """サムネイル（透かしなし）。12個そろった一覧に、大きなタイトルと⑥サイン波の手前（⑤）の波形。
+    """サムネイル（透かしなし）。12個そろった一覧（上下の枠）のあいだに、問いかけの一文・大きなタイトルと、
+    ②テント状T波の波形（中部の帯の大きさ、T波を色で）。
     プロフィールのグリッド（中央 1080×1350、y 285〜1635）に要素が収まる。"""
     global _GRID
     if _GRID is None:
@@ -980,7 +983,7 @@ def thumbnail_list():
             im_h, _ = text_img(THUMB_DESC[i], 18, 500, (176, 186, 186))
             assert nx + im_h.size[0] - 8 <= x1 + 4, f'{pat["no"]} のひとことが入らない'
             put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
-        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.56, 38.0)   # 低い波（U波・平たいP波）も見えるよう、第21弾（30）より大きく
+        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.64, 38.0)   # 低い波（U波・平たいP波）も見えるよう、第21弾（30）より大きく
         im.alpha_composite(lay, pos)
         if r < NR - 1:
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
