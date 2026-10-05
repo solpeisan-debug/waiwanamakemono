@@ -72,10 +72,10 @@ P波がT波に隠れると、洞頻脈もPSVTに見える。
 - **⑧ 始まりと終わり**：LITFL（SVT）「Paroxysmal SVT (pSVT) describes an SVT with abrupt onset and offset」「if a premature atrial contraction (PAC) arrives while the fast pathway is still refractory, the electrical impulse will be directed solely down the slow pathway」（きっかけのPACは遅い道を通るので PR が長い）。LITFL（AVRT）「Wolff-Parkinson-White (WPW) pattern is now evident on the baseline ECG; this confirms that the initial rhythm was orthodromic AVRT」 → 止まったあとの12誘導
 - **⑨ 房室回帰性頻拍（順方向性）**：LITFL（AVRT）「In orthodromic AVRT, anterograde conduction is via the AV node, producing a regular narrow complex rhythm」「Retrograde P waves are usually visible, with a long RP interval」「In AVRT, retrograde P waves occur later, with a long RP interval > 70 msec」「Rate usually 200-300 bpm」
 - **⑩ WPW（洞調律）**：LITFL（Pre-excitation syndromes）「PR interval < 120ms」「Delta wave: slurring slow rise of initial portion of the QRS」「QRS prolongation > 110ms」「Discordant ST-segment and T-wave changes」
-  - 「WPW症候群」は副伝導路＋頻脈発作がそろったときの名前（LITFL「WPW Syndrome refers to the presence of a congenital accessory pathway and episodes of tachyarrhythmias」）。画面は「WPW（洞調律のとき）」とし、「症候群」とは言わない
+  - 「WPW症候群」は副伝導路＋頻脈発作がそろったときの名前（LITFL「WPW Syndrome refers to the presence of a congenital accessory pathway (AP) and episodes of tachyarrhythmias」）。画面は「WPW（洞調律のとき）」とし、「症候群」とは言わない
 - **⑪ 接合部頻拍**：LITFL（Accelerated junctional rhythm）「Junctional Tachycardia: > 100 bpm」「Retrograde P waves may be present and can appear before, during or after the QRS complex. They are usually inverted in inferior leads」「Short PR interval (< 120 ms) indicates a junctional rather than atrial focus」。原因の例「Digoxin toxicity (= the classic cause of AJR)」
 - **⑫ P波が隠れた洞頻脈**：LITFL（Sinus tachycardia）「With very fast heart rates the P waves may be hidden in the preceding T wave, producing a ‘camel hump’ appearance」。LITFL（SVT）の SVT の分類に「Sinus tachycardia」が入っている（「Regular Atrial」）
-- **まとめ**：LITFL（SVT）「SVTs can be classified based on: Site of origin (atria or AV node) or; Regularity (regular or irregular)」→「規則正しいか、P波はどこか」
+- **まとめ**：LITFL（SVT）「SVTs can be classified based on: Site of origin (atria or AV node) or; Regularity (regular or irregular)」（箇条書きをつないだ）→「規則正しいか、P波はどこか」
 - **キャプションの「急変として対応」**：LITFL（SVT）の症状「Presyncope or syncope due to a transient fall in blood pressure」「Chest pain」「Dyspnoea」、LITFL（AVRT）「patients that are unstable due to this rhythm require urgent DC cardioversion」
 
 ## 声の指定
