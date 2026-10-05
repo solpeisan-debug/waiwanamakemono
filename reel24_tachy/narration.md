@@ -1,113 +1,85 @@
-# 第21弾 致死性不整脈と心停止 まず覚えたい12パターン — ナレーション
+# 第24弾 頻脈（幅の狭いQRS） まず覚えたい12パターン — ナレーション
 
-第17〜20弾と同じ作り。数字は画面に出ているので、声では読み上げない。「すぐ報告」は声では言わない（画面とキャプションで伝える）。
-電気ショックの適応は、画面（ひとことのうしろの色の文字）とキャプションで伝え、声ではまとめで1回だけ言う。
+第21弾と同じ作り（1パターン1文・声で3〜4秒）。数字は画面に出ているので、声では読み上げない。
+**「すぐ報告」は声では言わない**（画面の色の文字「→ すぐ報告」とキャプションで伝える）。
+「→ まず患者さん」「→ 12誘導で確認」も画面とキャプションにまかせる。声は波形の見分け方だけを言う。
 録音したら `align_vo.py` で文に切り分け、紹介の時間に置き直す。各パターンの長さは、声に合わせて詰める。
-声は Ren – Smooth & Soothing（第19弾の録り直しと同じ）。
+声は Ren – Smooth & Soothing（第19・21弾と同じ）。
 
 ---
 
-## 秒数つき（録音 2026-10-04 ElevenLabs Ren – Smooth & Soothing を置いた位置）
+## 録音前の版（区間の長さは仮）
 
-`align_vo.py` で、無音（0.25秒以上）を手がかりに文へ切り分け、下の秒数に置いた。継ぎ目はすべて無音の中。
-文の中の息継ぎは 0.45秒まで詰めた。モニター音は声の下で最大 8dB 下げている。映像は 65.3秒。
-Whisper（small）の書き起こしで、15文の順番と中身を確認した。
-
-| 秒 | 文 |
-|---|---|
-| 0.10–4.98 | 致死性不整脈と心停止。まず覚えたいのは、この12パターン。 |
-| 5.20–7.95 | T波に乗るPVC、R on T。 |
-| 9.10–11.42 | 3つ以上続けば、ショートラン。 |
-| 13.10–17.16 | 速く、幅広く、規則正しい。単形性VT。 |
-| 17.90–20.71 | 形が毎回変わる、多形性VT。 |
-| 21.50–25.55 | ねじれる、トルサード。持続して脈がなければ、ショック。 |
-| 27.10–29.52 | 大きくバラバラ、粗いVF。 |
-| 30.60–35.38 | 小さな揺れは、細かいVF。心静止と迷ったら、CPR。 |
-| 36.20–39.22 | 突然QRSが抜ける、モビッツII型。 |
-| 40.20–44.11 | PとQRSが別々に動く、完全房室ブロック。 |
-| 44.90–49.76 | ほぼまっすぐ、心静止。すぐCPR、並行して電極も確認。 |
-| 50.60–53.77 | ふつうに見えても、脈がない。PEA。 |
-| 55.10–58.38 | 遅く幅広くても、脈がなければPEA。 |
-| 58.90–62.05 | ショックするのは、VFと、脈のないVT。 |
-| 62.35–63.92 | 保存して、見返してね |
-
-- 各パターンの長さ（秒）：①4.0 ②4.0 ③4.8 ④3.6 ⑤5.6 ⑥3.5 ⑦5.6 ⑧4.0 ⑨4.7 ⑩5.7 ⑪4.5 ⑫4.2（声の長さ＋0.75秒以上で、拍の並びがくずれない位置）
-- 冒頭の1文が 4.9秒なので、①が入るまでを 4.0 → 4.9秒にした
-- ⑤は、トルサードが自然に止まって洞調律に戻るところまで見せる（声のあと約1秒あく）
+- 各パターンの区間（秒・仮）：①4.16 ②4.46 ③4.60 ④5.08 ⑤3.80 ⑥4.4 ⑦4.29 ⑧5.6 ⑨5.1 ⑩4.5 ⑪4.68 ⑫5.3（映像 67.1秒）
+- 文の長さの見込み（約8モーラ/秒）＋0.75秒以上になるよう、拍の並びがくずれない位置で切った
+- 1パターンの声の長さの目安（区間の長さ − 0.75秒）：①3.4 ②3.7 ③3.9 ④4.3 ⑤3.1 ⑥3.7 ⑦3.5 ⑧4.9 ⑨4.4 ⑩3.8 ⑪3.9 ⑫4.6 秒
+- 冒頭の一文は 4.9秒まで（`T_TITLE`）。録音が届いたら、長さに合わせて直す
 
 ---
 
 ## 読み上げ用（ElevenLabs に貼る）
 
-致死性不整脈と心停止。まず覚えたいのは、この12パターン。
+幅の狭いQRSの頻脈。まず覚えたいのは、この12パターン。
 
-T波に乗るPVC、R on T。
-3つ以上続けば、ショートラン。
-速く、幅広く、規則正しい。単形性VT。
-形が毎回変わる、多形性VT。
-ねじれる、トルサード。持続して脈がなければ、ショック。
-大きくバラバラ、粗いVF。
-小さな揺れは、細かいVF。心静止と迷ったら、CPR。
+どの拍にもP波がある、洞頻脈。
+形のちがうP波が3つ続く、PACの連発。
+形のちがうP波が、規則正しく。心房頻拍。
+P波の形が3種類以上、多源性心房頻拍。
+P波がなく、バラバラ。速い心房細動。
+のこぎりの波が隠れる、心房粗動の2対1。
 
-突然QRSが抜ける、モビッツII型。
-PとQRSが別々に動く、完全房室ブロック。
-ほぼまっすぐ、心静止。すぐCPR、並行して電極も確認。
+規則正しく速く、P波が見えない。PSVT。
+PACをきっかけに突然始まり、突然止まる。
+QRSのすぐあとに逆向きのP波。房室回帰性頻拍。
+PRが短く、デルタ波がある。WPW。
+QRSの直前に逆向きのP。接合部頻拍。
 
-ふつうに見えても、脈がない。PEA。
-遅く幅広くても、脈がなければPEA。
+P波がT波に隠れると、洞頻脈もPSVTに見える。
 
-ショックするのは、VFと、脈のないVT。
+規則正しいか、P波はどこか。まずこの2つ。
 保存して、見返してね
 
-- 2026-10-04：「長い」ので、1パターン1文（声で3〜4秒）に詰めた。102秒 → 約62秒（仮。録音に合わせて切り直す）
-- 詳しい説明（VFのきっかけ・完全房室ブロックに進む・心静止になる など）は、画面のひとことと、キャプションにまかせる
-- 前回のレビューで直したところは、短くしても意味を残した：⑤「持続して脈がなければ、ショック」、⑩「すぐCPR、並行して電極も確認」（CPRが先）
-- 1パターンの声の長さの目安（区間の長さ − 0.75秒）：①3.2 ②3.2 ③3.4 ④2.8 ⑤4.8 ⑥2.8 ⑦4.2 ⑧3.2 ⑨3.6 ⑩4.6 ⑪3.0 ⑫2.9 秒
+- 読み方：PAC＝ピーエーシー、PSVT＝ピーエスブイティー、WPW＝ダブリューピーダブリュー、2対1＝にたいいち
+- 「房室回帰性頻拍」は ElevenLabs で読みがゆれたら「ぼうしつかいきせいひんぱく」とかなで入れる
 
 ---
 
 ## 並び（画面の色）
 
-- 速くなる道（①〜⑦）：R on T → PVCの連発 → 単形性VT → 多形性VT → トルサード → 粗いVF → 細かいVF
-- 遅くなる道（⑧〜⑩）：モビッツII型 → 完全房室ブロック → 心静止
-- 脈がない（⑪⑫）：PEA（ふつうに見える）・PEA（遅く幅広い）
-- 心停止の波形（ERC 2021・JRC 2020）は VF・無脈性VT・心静止・PEA の4つ。①②⑧⑨は心停止につながるサイン（画面は黄色の「→ すぐ報告」）
+- 洞結節から（水色）：① 洞頻脈、⑫ P波が隠れた洞頻脈
+- 心房から（オレンジ）：② PACの連発 → ③ 心房頻拍 → ④ 多源性心房頻拍 → ⑤ 心房細動（速い）→ ⑥ 心房粗動（2:1）
+- 房室結節・副伝導路のあたり（ピンク）：⑦ PSVT（房室結節リエントリー）→ ⑧ 始まりと終わり → ⑨ 房室回帰性頻拍（順方向性）→ ⑩ WPW（洞調律のとき）→ ⑪ 接合部頻拍
+- 心房細動・心房粗動のくわしいバリエーション（f波の粗い・細かい、伝導比、変行伝導）は第26弾。ここでは代表の1つずつ
+- 幅の広いQRSの頻拍（VT、逆方向性の房室回帰性頻拍、変行伝導など）は第27弾（見分けマップ③）
 
-## 言い回しの注意（LITFL本文で確認。LITFL以外は出典を書いた）
+## 画面の色の文字（ひとことのうしろ）
 
-- **① R on T**（声は名前だけ。画面「VFのきっかけに」）：LITFL（PVC）「in the context of an prolonged QTc … may predispose to malignant ventricular arrhythmias such as Torsades de Pointes by causing "R on T" phenomenon」。LITFL（PVT and TdP）「initiated when a PVC occurs during the preceding T wave (R on T)」。
-- **② PVCの連発**：LITFL（PVC）「3-30 consecutive PVCs with a rate >100bpm described as non-sustained VT」。声は「ショートラン」、キャプションで「＝非持続性の心室頻拍」
-- **③〜⑤ VT・トルサード**：LITFL（PVT and TdP）「QRS complexes twist around the isoelectric line」「often short lived and self terminating … may degenerate into VF」。③〜⑤は画面で「→ 脈なしならショック」（脈があるVTは別の治療）
-- **⑥⑦ VF**：LITFL（VF）「Chaotic irregular deflections of varying amplitude」「Rate 150 to 500 per minute」「Amplitude decreases with duration (coarse VF → fine VF)」
-- **⑦ 迷ったら**：ERC 2021「If there is doubt about whether the rhythm is asystole or very fine VF … continue CPR」
-- **⑧ モビッツII型**：LITFL（Mobitz II）「The PR interval in the conducted beats remains constant」「much more likely than Mobitz I to be associated with haemodynamic compromise, severe bradycardia and progression to 3rd degree heart block」「The risk of asystole is around 35% per year」
-- **⑨ 完全房室ブロック**：LITFL（3rd degree AV block）「complete AV dissociation, with independent atrial and ventricular rates」「at high risk of ventricular standstill and sudden cardiac death」。画面は幅の広い心室補充調律 35/分（LITFL：15〜40/分・幅広）
-- **⑩ 心静止**：CPRを遅らせず、並行して電極・誘導・感度を確かめる（ERC ALS の考え方。第20弾の電極外れとつながる）。P波だけの心静止（心室静止）はキャプションでだけふれる
-- **⑪⑫ PEA**：LITFL CCC（Pulseless Electrical Activity）「organised or semi-organised electrical activity … not sufficient to produce a clinically detectable pulse」
-- **まとめ**：ERC Guidelines 2021（Adult ALS）「shockable rhythms (VF/pVT) and non-shockable rhythms (asystole and PEA)」
+- **→ まず患者さん**（緑）：①②④。波形そのものより、原因と患者さんの状態を見る
+- **→ すぐ報告**（黄）：⑤⑥⑦⑨⑪。持続する上室性の頻拍。医師に知らせる（声では言わない）
+- **→ 12誘導で確認**（青）：③⑧⑩⑫。P波の形・向き、PR、デルタ波は12誘導で確かめる
+
+## 言い回しの注意（LITFL本文で確認）
+
+- **① 洞頻脈**：LITFL（Sinus tachycardia）「Sinus rhythm with resting heart rate (HR) > 100 bpm in adults」「Sinus tachycardia is usually a secondary condition」。原因の例：「Pain」「Hypovolaemia」「Hypoxia」「Sepsis, pyrexia」「Anaemia」など → 画面「→ まず患者さん」
+- **② PACの連発**：LITFL（PAC）「Abnormal (non-sinus) P wave usually followed by a normal QRS complex」「Triplet — three consecutive PACs」「a PAC may be the trigger for the onset of a re-entry tachyarrhythmia — e.g. Atrial fibrillation, atrial flutter, AVNRT, AVRT」。原因の例：「Anxiety」「Excess caffeine」「Hypokalaemia」「Hypomagnesaemia」
+  - 「PACの3連＝上室性のショートラン」とは LITFL に書いていないので、画面・声では「3つ続く」とだけ言う
+- **③ 心房頻拍**：LITFL（Atrial tachycardia）「originating from a single ectopic focus within the atria but outside of the sinus node」「Abnormal P wave morphology and axis (e.g. inverted in inferior leads)」「Unifocal, identical P waves」「Isoelectric baseline (unlike atrial flutter)」
+  - モデルでは、II誘導で上向きの、小さくとがった少し二相性のP'（第17弾のPACと同じ形）で描いた。LITFL の例は「下向き」なので、レビューで確認
+- **④ 多源性心房頻拍**：LITFL（MAT）「Irregularly irregular rhythm with varying PP, PR and RR intervals」「At least 3 distinct P-wave morphologies in the same lead」「Most commonly seen in patients with severe COPD or congestive heart failure」「Tends to resolve following treatment of the underlying disorder」 → 画面「→ まず患者さん」
+- **⑤ 心房細動（速い）**：LITFL（Atrial fibrillation）「Irregularly irregular rhythm」「No P waves」「Absence of an isoelectric baseline」「AF is often described as having ‘rapid ventricular response’ once the ventricular rate is > 100 bpm」
+- **⑥ 心房粗動（2:1）**：LITFL（Atrial flutter）「“Saw-tooth” pattern of inverted flutter waves in leads II, III, aVF」「The most common AV ratio is 2:1, resulting in a ventricular rate of ~150 bpm」「Narrow complex tachycardia at 150 bpm (range 130-170)? Yes -> Suspect flutter!」
+- **⑦ PSVT（房室結節リエントリー）**：LITFL（SVT）「Regular tachycardia ~140-280 bpm」「P waves are often hidden – being embedded in the QRS complexes」「Pseudo S waves may be seen in leads II, III or aVF」
+- **⑧ 始まりと終わり**：LITFL（SVT）「Paroxysmal SVT (pSVT) describes an SVT with abrupt onset and offset」「if a premature atrial contraction (PAC) arrives while the fast pathway is still refractory, the electrical impulse will be directed solely down the slow pathway」（きっかけのPACは遅い道を通るので PR が長い）。LITFL（AVRT）「Wolff-Parkinson-White (WPW) pattern is now evident on the baseline ECG; this confirms that the initial rhythm was orthodromic AVRT」 → 止まったあとの12誘導
+- **⑨ 房室回帰性頻拍（順方向性）**：LITFL（AVRT）「In orthodromic AVRT, anterograde conduction is via the AV node, producing a regular narrow complex rhythm」「Retrograde P waves are usually visible, with a long RP interval」「In AVRT, retrograde P waves occur later, with a long RP interval > 70 msec」「Rate usually 200-300 bpm」
+- **⑩ WPW（洞調律）**：LITFL（Pre-excitation syndromes）「PR interval < 120ms」「Delta wave: slurring slow rise of initial portion of the QRS」「QRS prolongation > 110ms」「Discordant ST-segment and T-wave changes」
+  - 「WPW症候群」は副伝導路＋頻脈発作がそろったときの名前（LITFL「WPW Syndrome refers to the presence of a congenital accessory pathway and episodes of tachyarrhythmias」）。画面は「WPW（洞調律のとき）」とし、「症候群」とは言わない
+- **⑪ 接合部頻拍**：LITFL（Accelerated junctional rhythm）「Junctional Tachycardia: > 100 bpm」「Retrograde P waves may be present and can appear before, during or after the QRS complex. They are usually inverted in inferior leads」「Short PR interval (< 120 ms) indicates a junctional rather than atrial focus」。原因の例「Digoxin toxicity (= the classic cause of AJR)」
+- **⑫ P波が隠れた洞頻脈**：LITFL（Sinus tachycardia）「With very fast heart rates the P waves may be hidden in the preceding T wave, producing a ‘camel hump’ appearance」。LITFL（SVT）の SVT の分類に「Sinus tachycardia」が入っている（「Regular Atrial」）
+- **まとめ**：LITFL（SVT）「SVTs can be classified based on: Site of origin (atria or AV node) or; Regularity (regular or irregular)」→「規則正しいか、P波はどこか」
+- **キャプションの「急変として対応」**：LITFL（SVT）の症状「Presyncope or syncope due to a transient fall in blood pressure」「Chest pain」「Dyspnoea」、LITFL（AVRT）「patients that are unstable due to this rhythm require urgent DC cardioversion」
 
 ## 声の指定
 
 - 全体に落ち着いて、はっきり
-- まとめの「電気ショックをするのは…」は、ゆっくり
+- まとめの「規則正しいか、P波はどこか」は、ゆっくり
 - 最後の「保存して、見返してね」は明るく
-
----
-
-## 専門医レビュー（2026-10-04、10パターン版）
-
-- 「脈なしならショック」、「迷ったらCPR」、PEA は OK
-- 【要修正→直した】トルサード：台本に「止まらずに持続して脈がなければ、電気ショックです。」（自然に止まる描写との混乱を防ぐ）
-- 【要修正→直した】心静止：台本「すぐにCPRを始め、並行して電極と感度も確かめて。」、画面のひとこと「まっすぐの線。CPRと並行して電極も確認」（CPRを遅らせない）
-- 【要修正→直した】キャプションの初動：反応確認 → なければ人を呼ぶ → 呼吸と脈の確認 → CPR（医療従事者のBLS）。出典に JRC蘇生ガイドライン2020 を追加
-
-- 2026-10-04：タイトルを「心停止の波形」→「致死性不整脈と心停止」に変更。冒頭の一文は「致死性不整脈と心停止。まず覚えたいのは、この12パターン。」
-- 2026-10-04：10 → 12パターンに組み替え。胸骨圧迫中（ノイズの話で、致死性不整脈ではない）と P波だけの心静止（キャプションでふれる）を外し、R on T・PVCの連発・モビッツII型・完全房室ブロックを足した。12パターン版はもう一度、専門医レビューに出す
-
-## 専門医レビュー（2026-10-04、12パターン・ぎゅっと版）
-
-- タイトル・冒頭、12パターンの選び方、短くした台本（⑤⑦⑩・まとめ）、①②⑧⑨の描き方と「すぐ報告」は OK
-- 【要修正→直した】⑫：画面の色の文字「→ ショックしない・CPR」が切れて見える、という指摘。書き出しのコマでは切れていなかった（右端 935px、安全域の内側）が、端に近かったので、ひとこと＋色の文字の幅の上限を 820 → 760px にした（左右に 160px 以上の余白）。長いひとことは短くした（③⑤⑦⑩⑪⑫）
-- 【推奨→直した】⑨：台本「PとQRSがバラバラ」→「PとQRSが別々に動く」（それぞれは規則正しい。房室解離）
-- 【推奨→直した】キャプション：「※脈のあるVTは、ショックとは別の治療です」→「※脈のあるVTは、除細動の対象ではありません（状態により薬や同期した電気ショック）」
-  - 提案は「除細動（急変時のショック）とは別の治療」だったが、不安定なら同期電気ショック（カルディオバージョン）も電気ショックなので、そこがわかる言い方にした（ERC 2021 頻拍のアルゴリズム：不安定なら synchronised DC shock）
