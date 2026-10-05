@@ -640,11 +640,17 @@ def draw_wave(v, cid, base_col, a, spk=()):
     return out
 
 
-def featured(t, base_col, a):
+def featured(t, base_col, a, cur=None):
+    """中部の帯。色を付けるのは「いま紹介中のパターン（cur）」だけ。区間の始まりのあいだ、
+    左に残っている前のパターンの拍は緑に戻す（となりどうしが同じ色のとき、新しい名前の下に
+    前のパターンの色が残って見えないように。検査役の指摘 2026-10-06）。"""
     if T_STOP <= t < T_GO:
         (v0, c0, s0), (v1, c1, s1), u, _ = hook_state(t)
         return draw_wave(v0 + (v1 - v0)*u, c1 if u >= 0.5 else c0, base_col, a, s1 if u >= 0.5 else s0)
     v, cid, spk = strip_arrays(tau_c(t))
+    c = -1 if cur is None else cur
+    cid = np.where(cid == c, cid, -1)
+    spk = [(x, amp, ci if ci == c else -1) for x, amp, ci in spk]
     return draw_wave(v, cid, base_col, a, spk)
 
 
@@ -696,11 +702,16 @@ def lerp(a, b, u):
     return a + (b - a)*u
 
 
+# ミニ波形の基線の上下のずらし（px）。⑤⑥は R が低く下向きの Q・T が深いので、枠の中で下に寄って見える。
+# 約9px 上げて、波形の上下のすき間をそろえる（検査役の推奨 2026-10-06）
+MINI_DY = {4: -9, 5: -9}
+
+
 def view_params(i, u):
     """u=0 で中部の帯、u=1 で枠のミニ波形。"""
     ox, oy = cell_strip_origin(i)
     cx = lerp(XC, ox + STRIP_W/2, u)
-    base_y = lerp(F_BASE, oy + STRIP_BASE, u)
+    base_y = lerp(F_BASE, oy + STRIP_BASE + MINI_DY.get(i, 0), u)
     pxs = F_PXS*(M_PXS/F_PXS)**u
     mv = F_MV*(M_MV/F_MV)**u
     half = lerp(XC, STRIP_W/2, u)
@@ -753,8 +764,8 @@ def draw_cell(base, i, t, state, a_all):
 # --- 画面 ---------------------------------------------------------------------------
 HEADER = [('心筋梗塞とST変化', 1.0, WHITE), ('12', 2.0, (255, 214, 64)), ('パターン', 1.0, WHITE)]
 HEADER_BASE = 372                   # 見出しのベースライン（y）
-NOTE1 = '※II誘導のモニター。ST変化は12誘導で確認'
-NOTE2 = '※数値はこの波形での一例（実際の速さ）'
+NOTE1 = '※II誘導のモニター（実際の速さ）'           # 「12誘導で確認」は色の文字・最後の文・キャプションで
+NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
 END_LINE = 'モニターのST変化は、12誘導で確認'
 
@@ -881,14 +892,14 @@ def frame(t):
             a_strip = min(a_strip, ramp(t, b_i + FLY - 0.1, 0.45))
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     if a_strip > 0.01:
-        im.alpha_composite(featured(t, base_col, a_strip), (0, F_Y0))
+        im.alpha_composite(featured(t, base_col, a_strip, cur), (0, F_Y0))
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
 
-    put(im, NOTE1, 24, 400, GREY, x=135, cy=1567, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, NOTE2, 24, 400, GREY, x=135, cy=1594, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
+    put(im, NOTE1, 24, 400, GREY, x=135, cy=1560, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE2, 24, 400, GREY, x=135, cy=1587, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1570, a=0.42)   # 下の字が 1600px より上に入るよう 1576→1570
     return im.convert('RGB')
 
 
@@ -918,9 +929,13 @@ THUMB_VIEW = {i: (-0.5, []) for i in range(12)}             # 最初の拍が左
 THUMB_VIEW[1] = (-0.5, [(0.80 + 0.06, 0.80 + 0.40)])         # 超急性期T：大きなT（2拍目）
 THUMB_VIEW[4] = (-0.5, [(0.80 - 0.06, 0.80 + 0.03)])         # 異常Q波（2拍目）
 THUMB_VIEW[5] = (-0.5, [(0.80 + 0.12, 0.80 + 0.42)])         # 冠性T：下向きのT（2拍目）
+THUMB_VIEW[6] = (-0.5, [(0.80 + 0.02, 0.80 + 0.22)])         # 水平型ST低下：J点からの水平な低下（2拍目）
+THUMB_VIEW[7] = (-0.5, [(0.55 + 0.015, 0.55 + 0.17)])        # 上行型ST低下：上り坂（2拍目）
+THUMB_VIEW[8] = (-0.5, [(0.56 - 0.14, 0.56 - 0.02)])         # 心膜炎：PR低下（2拍目の前。少し広め）
+THUMB_VIEW[9] = (-0.5, [(1.00 + 0.022, 1.00 + 0.09)])        # 早期再分極：J点のノッチ（2拍目。R の頂点は入れず、少し広め）
 THUMB_VIEW[11] = (1.0, [])                                   # AIVR：洞調律のあと、幅の広い拍が続く（丸なし。上の名前にかかるため）
-THUMB_MAX_MARKS = {1: 1, 4: 1, 5: 1}
-THUMB_DESC = ['基準', 'Tが大きい', 'STが上がる', '1つの山', '深いQ', 'Tが下向き',
+THUMB_MAX_MARKS = {1: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1}
+THUMB_DESC = ['STは基線', 'Tが大きい', 'STが上がる', '1つの山', '深いQ', 'Tが下向き',
               '', '', 'PRも下がる', 'J点ノッチ', '逆向きのST', '']
 
 
@@ -1003,8 +1018,8 @@ def thumbnail_list():
             im_h, _ = text_img(THUMB_DESC[i], 18, 500, (176, 186, 186))
             assert nx + im_h.size[0] - 8 <= x1 + 4, f'{pat["no"]} のひとことが入らない'
             put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
-        # ST の変化は小さいので、第21弾（30px/mV・4秒）より大きく（40px/mV・3秒）
-        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.58, 40.0, span=3.0)
+        # ST の変化は小さいので、第21弾（30px/mV・4秒）より大きく（52px/mV・3秒。検査役の試作）
+        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.66, 52.0, span=3.0)
         im.alpha_composite(lay, pos)
         if r < NR - 1:
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
