@@ -92,7 +92,7 @@ def _qrs(t, r=1.00, q=0.08, s=0.20):
 
 
 def _q_deep(t, r):
-    """異常Q波：幅 40ms 以上・深さ 0.3mV（R より深い＝QRS の 25% 以上）。"""
+    """異常Q波：幅 40ms 以上・深さ 0.32mV（2mm 以上。R 0.42〜0.45mV に対して QRS の 25% 以上）。"""
     return -0.32*_ga(t, -0.016, 0.013, 0.010) + r*_g(t, 0.016, 0.009) - 0.05*_g(t, 0.038, 0.008)
 
 
@@ -178,7 +178,7 @@ def _reg(kind, rr, n):
     return [(k*rr, kind) for k in range(n)]
 
 
-# 12パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、色を付ける範囲 hl
+# 12パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、色を付ける範囲 hl（この回は連続した波形・ノイズなし。拍だけ）
 # ①〜⑥：心筋梗塞の時間の流れ（基準 → 超急性期T → ST上昇 → 墓石型 → 異常Q → 冠性T）
 # ⑦⑧：ST低下　⑨〜⑪：ST上昇に見えるが心筋梗塞とは別のもの　⑫：再灌流のときの不整脈
 _E = {k: _reg(k, RR, 6) for k in 'NHETQIDL'}
@@ -225,16 +225,6 @@ PATTERNS = [
          one='再灌流で出やすい幅広リズム', tag='report',
          ev=_A, L=round(1.64 + 4*AIVR_RR, 2), hl=_each(_A[2:], -0.08, 0.45)),
 ]
-
-
-def art_apply(pat, rel, v):
-    """パターンのノイズと倍率をかける：gain(rel)*v + art(rel)（周期 L でくり返す）。この回は使わない（全部 拍だけ）"""
-    L = pat['L']
-    if pat.get('gain'):
-        v = pat['gain'](rel, L) * v
-    if pat.get('art'):
-        v = v + pat['art'](rel, L)
-    return v
 
 
 N_PAT = len(PATTERNS)
@@ -302,7 +292,7 @@ def hl_mask(pat, rel):
     return m
 
 
-# --- 中部の帯：14パターンをつないだ1本の波形 ---------------------------------
+# --- 中部の帯：12パターンをつないだ1本の波形 ---------------------------------
 # パターン i は、実際の時刻 [SEGS[i][0], SEGS[i][1]) にそのパターンを rep 回くり返して置く。
 # 紹介の終わり＝区間の終わりが画面の右端に来たとき。このとき画面に見えているのは
 # パターン i だけなので、それをそのまま縮めて枠へ運ぶと、ミニ波形とつながる。
@@ -402,20 +392,6 @@ FLY = 0.8                                  # 中部から枠へ縮んで移る�
 LOOP_FADE = 0.75                           # 最後に冒頭の画面へ戻す時間
 FPS_LOOP = 60
 DUR_TARGET = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
-
-
-def _loop_dur_search():
-    """14個そろったあと END_HOLD 秒ほど置き、最後のコマの次が t=0 のコマになる長さ。
-    最後に見えている洞調律と、冒頭の洞調律の位相（0.80秒周期）をそろえる。"""
-    base = T_END + FLY + END_HOLD
-    best = None
-    for n in range(int(base*FPS_LOOP), int((base + RR*SLOW + 0.5)*FPS_LOOP)):
-        d = n / FPS_LOOP
-        ph = ((tau_c(d) - STRIP_END) - tau_c(0.0)) % RR
-        err = min(ph, RR - ph)
-        if best is None or err < best[0] - 1e-9:
-            best = (err, d)
-    return best[1]
 
 
 DUR = DUR_TARGET
@@ -544,30 +520,6 @@ def strip_colors(tau):
     return cid
 
 
-ART_EDGE = 0.2                    # 区間の端で、ノイズ・倍率をなめらかに切りかえる長さ（秒）
-
-
-def strip_art(tau, v):
-    """中部の帯：区間ごとに、そのパターンのノイズと倍率をかける（区間の端 ART_EDGE 秒でなめらかに）。"""
-    out = v.copy()
-    for i, (s0, s1) in enumerate(SEGS):
-        pat = PATTERNS[i]
-        if not (pat.get('art') or pat.get('gain')):
-            continue
-        m = (tau > s0 - 1e-9) & (tau < s1)
-        if not m.any():
-            continue
-        tt = tau[m]
-        e = np.minimum(np.clip((tt - s0) / ART_EDGE, 0, 1), np.clip((s1 - tt) / ART_EDGE, 0, 1))
-        e = e*e*(3 - 2*e)
-        rel = tt - s0
-        L = pat['L']
-        g = pat['gain'](rel, L) if pat.get('gain') else 1.0
-        n = pat['art'](rel, L) if pat.get('art') else 0.0
-        out[m] = v[m] * (1 + e*(g - 1)) + e*n
-    return out
-
-
 def glow_line(size, runs, col, width, a, blur=(8, 20)):
     """runs: 点列のリスト。グロー付きの線を RGBA で返す。"""
     w, h = size
@@ -602,7 +554,7 @@ def strip_arrays(tau_center):
         x = XC + (ts - tau_center) * F_PXS
         if -10 <= x <= W + 10:
             spk.append((x, amp, int(strip_colors(np.array([ts]))[0])))
-    return strip_art(tau, wave_from(STRIP, tau)), strip_colors(tau), spk
+    return wave_from(STRIP, tau), strip_colors(tau), spk
 
 
 # スパイクは波形の線より少し太く、明るく描く（SNSで圧縮されても細い線が消えないように。専門医レビュー 2026-10-03）
@@ -634,7 +586,7 @@ def hook_arrays(i):
         c = (a + b) / 2 + 0.25
     rel = c + (FX - XC) / F_PXS + pat['L']
     bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
-    v = art_apply(pat, rel, wave_from(bl, rel))
+    v = wave_from(bl, rel)
     cid = np.where(hl_mask(pat, rel) | (pat['hl'] is ALL), i, -1)
     spk = []
     for ts, amp in spike_times(bl):
@@ -713,7 +665,7 @@ def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=No
     tau = tau_c(t) + (xs - cx) / pxs
     rel = tau - s0
     bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
-    v = art_apply(pat, rel, wave_from(bl, rel))
+    v = wave_from(bl, rel)
     ys = base_y - v*mv
     ect = np.ones(len(xs), dtype=bool) if pat['hl'] is ALL else hl_mask(pat, rel)
     y_lo = int(min(ys.min(), base_y - 1.1*mv) - 30)
@@ -993,7 +945,7 @@ def thumb_row_wave(i, x0, x1, base_y, mv, span=4.0):
     xs = np.arange(x0, x1 + 0.5, 0.5)
     rel = t0 + (xs - x0) / pxs
     bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
-    v = art_apply(pat, rel, wave_from(bl, rel))
+    v = wave_from(bl, rel)
     v = v * np.clip(np.minimum(xs - x0, x1 - xs) / 6.0, 0, 1)
     ys = base_y - v*mv
     pad = 40
@@ -1149,7 +1101,7 @@ def check():
     print(f"② 超急性期T：T {m['H']['t_max']:.2f}mV（R {m['H']['r']:.2f}mV の {m['H']['t_max']/m['H']['r']*100:.0f}%）、J点 {m['H']['st_j']:+.2f}mV")
     print(f"③ ST上昇：J点 {m['E']['st_j']:+.2f}mV、J+60ms {m['E']['st60']:+.2f}mV、頂点 {m['E']['t_max']:.2f}mV、R {m['E']['r']:.2f}mV")
     print(f"④ 墓石型：R（山と重なる）{m['T']['r']:.2f}mV、山の頂点 {m['T']['t_max']:.2f}mV、J点 {m['T']['st_j']:+.2f}mV")
-    print(f"⑤ 異常Q：Q 幅 {m['Q']['q_ms']:.0f}ms・深さ {m['Q']['q_mv']:.2f}mV（R {m['Q']['r']:.2f}mV）、"
+    print(f"⑤ 異常Q：Q 幅 {m['Q']['q_ms']:.0f}ms・深さ {m['Q']['q_mv']:.2f}mV（R {m['Q']['r']:.2f}mV、QRS の {m['Q']['q_mv']/(m['Q']['q_mv']+m['Q']['r'])*100:.0f}%）、"
           f"J+60ms {m['Q']['st60']:+.2f}mV、Tの終わり {m['Q']['t_min']:+.2f}mV")
     print(f"⑥ 冠性T：Q 幅 {m['I']['q_ms']:.0f}ms・深さ {m['I']['q_mv']:.2f}mV、陰性T {m['I']['t_min']:+.2f}mV（左右対称）、J点 {m['I']['st_j']:+.2f}mV")
     print(f"⑦ 水平型ST低下：J点 {m['D']['st_j']:+.2f}mV、J+60ms {m['D']['st60']:+.2f}mV、J+80ms {m['D']['st80']:+.2f}mV、T {m['D']['t_max']:.2f}mV")
@@ -1200,10 +1152,6 @@ def beeps(path, sr=44100):
     a = np.zeros(n, dtype=np.float32)
     for r, k, i in STRIP:
         ts = t_of(r)
-        if i is not None and PATTERNS[i].get('gain') is not None:
-            g = PATTERNS[i]['gain'](np.array([r - SEGS[i][0]]), PATTERNS[i]['L'])[0]
-            if abs(g) < 0.5:                  # 電極外れ・とぎれのあいだは、モニターが拍を数えない
-                continue
         if not (0.0 <= ts <= DUR - 0.3) or (T_STOP <= ts < T_GO):
             continue
         f = 720.0 if k == 'V' else 960.0        # 心室の拍（AIVR）は低い音

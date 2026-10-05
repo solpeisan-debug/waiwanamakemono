@@ -886,7 +886,7 @@ def thumbnail():
     for i in range(N_PAT):
         draw_cell(im, i, t, 'done', 1.0)
         mini(im, i, t, 1.0)
-    put(im, '採血の前に、心電図で気づける？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 28, max_w=820)
+    put(im, 'その波形の変化、電解質かも？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 28, max_w=820)
     put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_ONE + 14, max_w=880)
     v, cid = hook_arrays(1)
     wl = draw_wave(v, cid, WAVE_GREEN, 1.0)

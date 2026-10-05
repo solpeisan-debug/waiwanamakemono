@@ -231,7 +231,7 @@ PATTERNS = [
          one='バラバラで遅い（60/分未満）', tag='vital',
          ev=EV_SLOW, L=L_SLOW, art=art_f(F_MID, 34), hl=ALL),
     dict(no='⑤', name='アシュマン現象', col=C_AFQ, hint='1拍だけ幅広い',
-         one='長いR-Rの直後の1拍だけ幅広い', tag='ecg12',
+         one='長いR-Rのあと、早い1拍が幅広い', tag='ecg12',
          ev=EV_ASH, L=L_ASH, art=art_f(F_MID, 35), hl=[(T_ASH - 0.10, T_ASH + 0.40)]),
     dict(no='⑥', name='心房細動＋脚ブロック', col=C_AFQ, hint='全部幅広い',
          one='全部の拍が幅広く、同じ形', tag='ecg12',
@@ -902,8 +902,8 @@ def frame(t):
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
 
-    put(im, NOTE1, 24, 400, GREY, x=135, cy=1567, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, NOTE2, 24, 400, GREY, x=135, cy=1594, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE1, 24, 400, GREY, x=135, cy=1561, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE2, 24, 400, GREY, x=135, cy=1588, a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
     return im.convert('RGB')
 

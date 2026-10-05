@@ -16,7 +16,7 @@ P波がなく、R-Rがバラバラ。f波の粗い心房細動。
 速くてバラバラ、頻脈性の心房細動。
 遅くてバラバラ、徐脈性の心房細動。
 
-長い間隔の直後の1拍だけ幅広い、アシュマン現象。
+長い間隔のあと、早く来た拍が幅広い。アシュマン現象。
 全部の拍が幅広い。脚ブロックを伴う心房細動。
 f波なのに規則正しく遅い。完全房室ブロックを疑う。
 幅広く速くバラバラ。WPWの心房細動は危険。
@@ -55,7 +55,7 @@ R-Rがバラバラなら細動、のこぎりなら粗動。
 - **③ 頻脈性**：LITFL（Atrial Fibrillation）「AF is often described as having 'rapid ventricular response' once the ventricular rate is > 100 bpm」「AF is most commonly associated with a ventricular rate ~ 110 – 160」
 - **④ 徐脈性**：LITFL（Atrial Fibrillation）「'Slow' AF is a term often used to describe AF with a ventricular rate < 60 bpm」「Causes of 'slow' AF include hypothermia, digoxin toxicity, and medications」
 - **⑤ アシュマン現象**：LITFL（Ashman Phenomenon）「aberrant ventricular conduction, usually of RBBB morphology, which follows a short R-R interval and preceding relatively prolonged R-R interval」「Clinically on its own is asymptomatic and does not require any specific treatment」。
-  声は「長い間隔の直後の1拍だけ幅広い」（長い R-R のあと、短い R-R で来た拍）
+  声は「長い間隔のあと、早く来た拍が幅広い」（長い R-R のあと、短い R-R で来た拍）
 - **⑥ 脚ブロック**：LITFL（Atrial Fibrillation）「QRS complexes usually < 120ms, unless pre-existing bundle branch block, accessory pathway, or rate-related aberrant conduction」。形は LITFL（RBBB）「QRS duration > 120ms」「Wide, slurred S wave in lateral leads」をもとに、II誘導で幅の広いS波として描いた
 - **⑦ 完全房室ブロック**：LITFL（Digoxin Toxicity）「Regularised AF = AF with complete heart block and a junctional or ventricular escape rhythm」「Coarse atrial fibrillation with 3rd degree AV block and a junctional escape rhythm」。
   LITFL（3rd degree AV block）「at high risk of ventricular standstill and sudden cardiac death」。声は「疑う」までにした（モニターだけでは確定しない）

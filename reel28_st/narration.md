@@ -1,113 +1,96 @@
-# 第21弾 致死性不整脈と心停止 まず覚えたい12パターン — ナレーション
+# 第28弾 心筋梗塞とST変化 まず覚えたい12パターン — ナレーション
 
-第17〜20弾と同じ作り。数字は画面に出ているので、声では読み上げない。「すぐ報告」は声では言わない（画面とキャプションで伝える）。
-電気ショックの適応は、画面（ひとことのうしろの色の文字）とキャプションで伝え、声ではまとめで1回だけ言う。
+第17〜21弾と同じ作り（1パターン1文、声で3〜4秒の「ぎゅっと版」）。数字は画面に出ているので、声では読み上げない。
+**「すぐ報告」は声では言わない**（画面の赤い「→ すぐ報告・12誘導」とキャプションで伝える）。
+「モニターのST変化は12誘導で確かめる」は、まとめの1文で声に出す（画面の色の文字・左下の注記・キャプションにもある）。
 録音したら `align_vo.py` で文に切り分け、紹介の時間に置き直す。各パターンの長さは、声に合わせて詰める。
-声は Ren – Smooth & Soothing（第19弾の録り直しと同じ）。
+声は Ren – Smooth & Soothing（第19弾の録り直し・第21弾と同じ）。
 
 ---
 
-## 秒数つき（録音 2026-10-04 ElevenLabs Ren – Smooth & Soothing を置いた位置）
+## 秒数（録音前の仮の版）
 
-`align_vo.py` で、無音（0.25秒以上）を手がかりに文へ切り分け、下の秒数に置いた。継ぎ目はすべて無音の中。
-文の中の息継ぎは 0.45秒まで詰めた。モニター音は声の下で最大 8dB 下げている。映像は 65.3秒。
-Whisper（small）の書き起こしで、15文の順番と中身を確認した。
+いまは録音前。区間の長さは「文の字数 ÷ 6字/秒 ＋ 0.75秒」以上で、拍の並びがくずれない位置にした（`make_reel28.py` の `SEG_D`）。
+映像は仮で 63.9秒（冒頭 4.9秒＋12パターン 52.4秒＋一覧とまとめ 6.5秒）。録音が届いたら、声の長さに合わせて切り直す。
 
-| 秒 | 文 |
-|---|---|
-| 0.10–4.98 | 致死性不整脈と心停止。まず覚えたいのは、この12パターン。 |
-| 5.20–7.95 | T波に乗るPVC、R on T。 |
-| 9.10–11.42 | 3つ以上続けば、ショートラン。 |
-| 13.10–17.16 | 速く、幅広く、規則正しい。単形性VT。 |
-| 17.90–20.71 | 形が毎回変わる、多形性VT。 |
-| 21.50–25.55 | ねじれる、トルサード。持続して脈がなければ、ショック。 |
-| 27.10–29.52 | 大きくバラバラ、粗いVF。 |
-| 30.60–35.38 | 小さな揺れは、細かいVF。心静止と迷ったら、CPR。 |
-| 36.20–39.22 | 突然QRSが抜ける、モビッツII型。 |
-| 40.20–44.11 | PとQRSが別々に動く、完全房室ブロック。 |
-| 44.90–49.76 | ほぼまっすぐ、心静止。すぐCPR、並行して電極も確認。 |
-| 50.60–53.77 | ふつうに見えても、脈がない。PEA。 |
-| 55.10–58.38 | 遅く幅広くても、脈がなければPEA。 |
-| 58.90–62.05 | ショックするのは、VFと、脈のないVT。 |
-| 62.35–63.92 | 保存して、見返してね |
-
-- 各パターンの長さ（秒）：①4.0 ②4.0 ③4.8 ④3.6 ⑤5.6 ⑥3.5 ⑦5.6 ⑧4.0 ⑨4.7 ⑩5.7 ⑪4.5 ⑫4.2（声の長さ＋0.75秒以上で、拍の並びがくずれない位置）
-- 冒頭の1文が 4.9秒なので、①が入るまでを 4.0 → 4.9秒にした
-- ⑤は、トルサードが自然に止まって洞調律に戻るところまで見せる（声のあと約1秒あく）
+| パターン | 区間（秒） | 声の長さの見込み（秒） | 文 |
+|---|---|---|---|
+| 冒頭 | 4.9 | 4.7 | 心筋梗塞とST変化。まず覚えたいのは、この12パターン。 |
+| ① | 4.8 | 3.0 | STは、基線と同じ高さ。これが基準。 |
+| ② | 4.8 | 3.7 | 早い時期に、Tが高く幅広くなる。超急性期T波。 |
+| ③ | 4.0 | 2.3 | STが持ち上がる、ST上昇。 |
+| ④ | 4.0 | 2.7 | さらに大きいと、墓石のような形。 |
+| ⑤ | 4.0 | 2.0 | 深く幅広いQ、異常Q波。 |
+| ⑥ | 4.0 | 2.3 | Tが下向きになる、冠性T波。 |
+| ⑦ | 4.8 | 3.3 | 水平や下り坂のST低下は、虚血のサイン。 |
+| ⑧ | 4.4 | 3.2 | 上り坂のST低下は、虚血とは限らない。 |
+| ⑨ | 4.48 | 3.5 | PRが下がり、STは広い範囲で上がる。心膜炎。 |
+| ⑩ | 4.0 | 2.2 | 若い人に多い、早期再分極。 |
+| ⑪ | 4.8 | 3.5 | 左脚ブロックでは、STの判定がむずかしい。 |
+| ⑫ | 4.76 | 2.8 | 再灌流のときに出やすい、AIVR。 |
+| まとめ | — | 3.5 | モニターのST変化は、12誘導で確かめる。 |
+| 保存 | — | 1.7 | 保存して、見返してね |
 
 ---
 
 ## 読み上げ用（ElevenLabs に貼る）
 
-致死性不整脈と心停止。まず覚えたいのは、この12パターン。
+心筋梗塞とST変化。まず覚えたいのは、この12パターン。
 
-T波に乗るPVC、R on T。
-3つ以上続けば、ショートラン。
-速く、幅広く、規則正しい。単形性VT。
-形が毎回変わる、多形性VT。
-ねじれる、トルサード。持続して脈がなければ、ショック。
-大きくバラバラ、粗いVF。
-小さな揺れは、細かいVF。心静止と迷ったら、CPR。
+STは、基線と同じ高さ。これが基準。
+早い時期に、Tが高く幅広くなる。超急性期T波。
+STが持ち上がる、ST上昇。
+さらに大きいと、墓石のような形。
+深く幅広いQ、異常Q波。
+Tが下向きになる、冠性T波。
 
-突然QRSが抜ける、モビッツII型。
-PとQRSが別々に動く、完全房室ブロック。
-ほぼまっすぐ、心静止。すぐCPR、並行して電極も確認。
+水平や下り坂のST低下は、虚血のサイン。
+上り坂のST低下は、虚血とは限らない。
 
-ふつうに見えても、脈がない。PEA。
-遅く幅広くても、脈がなければPEA。
+PRが下がり、STは広い範囲で上がる。心膜炎。
+若い人に多い、早期再分極。
+左脚ブロックでは、STの判定がむずかしい。
 
-ショックするのは、VFと、脈のないVT。
+再灌流のときに出やすい、AIVR。
+
+モニターのST変化は、12誘導で確かめる。
 保存して、見返してね
 
-- 2026-10-04：「長い」ので、1パターン1文（声で3〜4秒）に詰めた。102秒 → 約62秒（仮。録音に合わせて切り直す）
-- 詳しい説明（VFのきっかけ・完全房室ブロックに進む・心静止になる など）は、画面のひとことと、キャプションにまかせる
-- 前回のレビューで直したところは、短くしても意味を残した：⑤「持続して脈がなければ、ショック」、⑩「すぐCPR、並行して電極も確認」（CPRが先）
-- 1パターンの声の長さの目安（区間の長さ − 0.75秒）：①3.2 ②3.2 ③3.4 ④2.8 ⑤4.8 ⑥2.8 ⑦4.2 ⑧3.2 ⑨3.6 ⑩4.6 ⑪3.0 ⑫2.9 秒
+- 読み：ST＝エスティー、PR＝ピーアール、AIVR＝エーアイブイアール、冠性T波＝かんせいティーは、異常Q波＝いじょうキューは、再灌流＝さいかんりゅう
+- くわしい説明（12誘導での見え方・鏡像変化・ST/T比・Sgarbossa など）は、画面のひとこととキャプション（とレビュー）にまかせる
 
 ---
 
 ## 並び（画面の色）
 
-- 速くなる道（①〜⑦）：R on T → PVCの連発 → 単形性VT → 多形性VT → トルサード → 粗いVF → 細かいVF
-- 遅くなる道（⑧〜⑩）：モビッツII型 → 完全房室ブロック → 心静止
-- 脈がない（⑪⑫）：PEA（ふつうに見える）・PEA（遅く幅広い）
-- 心停止の波形（ERC 2021・JRC 2020）は VF・無脈性VT・心静止・PEA の4つ。①②⑧⑨は心停止につながるサイン（画面は黄色の「→ すぐ報告」）
+- 心筋梗塞の時間の流れ（①〜⑥）：①基準 → ②超急性期T波 → ③ST上昇 → ④墓石型ST上昇 → ⑤異常Q波 → ⑥冠性T波
+  - ①は緑の「→ 比べる基準」。②③④は赤（すぐ報告・12誘導）、⑤⑥は橙（12誘導で確認）
+  - ④墓石型は時間の段階ではなく「ST上昇がさらに大きい形」。声は「さらに大きいと」で、段階と取り違えないようにした
+- ST低下（⑦⑧）：⑦水平・下降型（赤「すぐ報告・12誘導」）、⑧上行型（橙「12誘導で確認」）
+- 心筋梗塞とまぎらわしいST上昇（⑨〜⑪）：心膜炎・早期再分極・左脚ブロック（橙「12誘導で確認」）
+- 再灌流のときの不整脈（⑫）：AIVR（紫「→ 報告して観察」）
+- 冒頭のフックは ②〜⑥（心筋梗塞の時間の流れ）を順に見せる
 
-## 言い回しの注意（LITFL本文で確認。LITFL以外は出典を書いた）
+## 言い回しの注意（LITFL本文で確認。LITFL以外は使っていない）
 
-- **① R on T**（声は名前だけ。画面「VFのきっかけに」）：LITFL（PVC）「in the context of an prolonged QTc … may predispose to malignant ventricular arrhythmias such as Torsades de Pointes by causing "R on T" phenomenon」。LITFL（PVT and TdP）「initiated when a PVC occurs during the preceding T wave (R on T)」。
-- **② PVCの連発**：LITFL（PVC）「3-30 consecutive PVCs with a rate >100bpm described as non-sustained VT」。声は「ショートラン」、キャプションで「＝非持続性の心室頻拍」
-- **③〜⑤ VT・トルサード**：LITFL（PVT and TdP）「QRS complexes twist around the isoelectric line」「often short lived and self terminating … may degenerate into VF」。③〜⑤は画面で「→ 脈なしならショック」（脈があるVTは別の治療）
-- **⑥⑦ VF**：LITFL（VF）「Chaotic irregular deflections of varying amplitude」「Rate 150 to 500 per minute」「Amplitude decreases with duration (coarse VF → fine VF)」
-- **⑦ 迷ったら**：ERC 2021「If there is doubt about whether the rhythm is asystole or very fine VF … continue CPR」
-- **⑧ モビッツII型**：LITFL（Mobitz II）「The PR interval in the conducted beats remains constant」「much more likely than Mobitz I to be associated with haemodynamic compromise, severe bradycardia and progression to 3rd degree heart block」「The risk of asystole is around 35% per year」
-- **⑨ 完全房室ブロック**：LITFL（3rd degree AV block）「complete AV dissociation, with independent atrial and ventricular rates」「at high risk of ventricular standstill and sudden cardiac death」。画面は幅の広い心室補充調律 35/分（LITFL：15〜40/分・幅広）
-- **⑩ 心静止**：CPRを遅らせず、並行して電極・誘導・感度を確かめる（ERC ALS の考え方。第20弾の電極外れとつながる）。P波だけの心静止（心室静止）はキャプションでだけふれる
-- **⑪⑫ PEA**：LITFL CCC（Pulseless Electrical Activity）「organised or semi-organised electrical activity … not sufficient to produce a clinically detectable pulse」
-- **まとめ**：ERC Guidelines 2021（Adult ALS）「shockable rhythms (VF/pVT) and non-shockable rhythms (asystole and PEA)」
+- **大前提（12誘導で確認）**：LITFL（ST Segment）「ST segment elevation and Q-wave formation in contiguous leads」「There is usually reciprocal ST depression in the electrically opposite leads」。STEMI は「隣り合う誘導」と「鏡像変化」で判断するので、II誘導1本のモニターでは決められない。LITFL（Inferior STEMI）「ST elevation in leads II, III, aVF」：II誘導は下壁を見る誘導で、前壁の変化はモニターに出にくい（キャプション「モニターの1つの誘導だけでは判断できません」）
+- **① 基準**：LITFL（ST Segment）「The ST segment is the flat, isoelectric section of the ECG between the end of the S wave (the J point) and the beginning of the T wave.」「ST- and PR-segment changes are relative to the baseline formed by the T-P segment」（Pericarditis）。画面「STは基線（TP）と同じ高さ」
+- **② 超急性期T波**：LITFL（T wave）「Broad, asymmetrically peaked or 'hyperacute' T-waves (HATW) are seen in the early stages of ST-elevation MI (STEMI), and often precede the appearance of ST elevation and Q waves.」「Particular attention should be paid to their size in relation to the preceding QRS complex」。LITFL（Anterior MI）「These changes are often preceded by hyperacute T waves」。声は「最初は」ではなく「早い時期に」（often precede であって、必ず最初とは限らない）
+- **③ ST上昇**：LITFL（ST Segment）「Acute STEMI may produce ST elevation with either concave, convex or obliquely straight morphology.」→ 画面は上に凸で描いたが、ひとことは形を言い切らず「J点からSTが持ち上がる」。キャプションで「下に凸やまっすぐのことも」
+- **④ 墓石型**：LITFL（Anterior MI, Example 6）「Massive ST elevation with "tombstone" morphology … indicates a large territory infarction with a poor LV ejection fraction and high likelihood of cardiogenic shock and death」。LITFL（Inferior STEMI, Example 6）「Marked ST elevation in II, III and aVF with a "tombstone" morphology」
+- **⑤ 異常Q波**：LITFL（Q Wave）「Q waves are considered pathological if: > 40 ms (1 mm) wide; > 2 mm deep; > 25% of depth of QRS complex」「Pathological Q waves usually indicate current or prior myocardial infarction.」→ 画面「深く幅広いQ。梗塞のあと」（Q 幅46ms・深さ3.2mm で描いた）
+- **⑥ 冠性T波**：LITFL（T wave）「Pathological T wave inversion is usually symmetrical and deep (>3mm).」「Fixed T-wave inversions are seen following infarction, usually in association with pathological Q waves」→ 画面「左右対称の深い陰性T」（Q を残して描いた）
+- **⑦ 水平・下降型 ST 低下**：LITFL（Myocardial Ischaemia）「Horizontal or downsloping ST depression ≥ 0.5 mm at the J-point in ≥ 2 contiguous leads indicates myocardial ischaemia」→ 声「虚血のサイン」
+- **⑧ 上行型 ST 低下**：LITFL（Myocardial Ischaemia）「Upsloping ST depression is non-specific for myocardial ischaemia.」→ 声「虚血とは限らない」。ただし LITFL（ST Segment）「Upsloping ST depression in the precordial leads with prominent De Winter T waves is highly specific for occlusion of the LAD」なので、「否定できる」とは言わない（キャプション「胸痛があれば12誘導で確認」）
+- **⑨ 心膜炎**：LITFL（Pericarditis）「Widespread concave ST elevation and PR depression throughout most of the limb leads … and precordial leads」「The degree of ST elevation is typically modest (0.5 – 1mm).」「Sinus tachycardia is also common」→ ST 約1mm・PR -0.7mm・107/分で描いた。「広い範囲で」は12誘導での話（画面のひとことには入れていない）
+- **⑩ 早期再分極**：LITFL（BER）「a usually benign ECG pattern producing widespread ST segment elevation that is commonly seen in young, healthy patients < 50 years of age」「Notching or slurring at the J point」「ST elevation : T wave height ratio in V6 < 0.25」「Avoid diagnosing BER in patients over the age of 50」→ 声「若い人に多い」
+- **⑪ 左脚ブロック**：LITFL（LBBB）「Appropriate discordance … Lateral leads with tall, broad R waves will often have associated ST-segment depression and T-wave inversion」「Any concordant ST segment change is concerning for ischaemia」。LITFL（Sgarbossa）「In patients with left bundle branch block (LBBB) or ventricular paced rhythm, infarct diagnosis based on the ECG can be difficult」→ 声「STの判定がむずかしい」
+- **⑫ AIVR**：LITFL（AIVR）「Rate typically 50-120 bpm」「QRS duration > 120ms」「AIVR is classically seen in the reperfusion phase of an acute STEMI」「Usually a well-tolerated, benign, self-limiting arrhythmia」「Administration of anti-arrhythmics may cause precipitous haemodynamic deterioration and should be avoided」→ 声「再灌流のときに出やすい」、画面「→ 報告して観察」
+- **まとめ**：上の「大前提」と同じ。「確かめる」と言い、「すぐ報告」とは言わない
 
 ## 声の指定
 
 - 全体に落ち着いて、はっきり
-- まとめの「電気ショックをするのは…」は、ゆっくり
+- ②③④（急性期）は少し引きしめて。⑨⑩⑪（まぎらわしいもの）は少しやわらかく
+- まとめの「モニターのST変化は、12誘導で確かめる。」は、ゆっくり
 - 最後の「保存して、見返してね」は明るく
-
----
-
-## 専門医レビュー（2026-10-04、10パターン版）
-
-- 「脈なしならショック」、「迷ったらCPR」、PEA は OK
-- 【要修正→直した】トルサード：台本に「止まらずに持続して脈がなければ、電気ショックです。」（自然に止まる描写との混乱を防ぐ）
-- 【要修正→直した】心静止：台本「すぐにCPRを始め、並行して電極と感度も確かめて。」、画面のひとこと「まっすぐの線。CPRと並行して電極も確認」（CPRを遅らせない）
-- 【要修正→直した】キャプションの初動：反応確認 → なければ人を呼ぶ → 呼吸と脈の確認 → CPR（医療従事者のBLS）。出典に JRC蘇生ガイドライン2020 を追加
-
-- 2026-10-04：タイトルを「心停止の波形」→「致死性不整脈と心停止」に変更。冒頭の一文は「致死性不整脈と心停止。まず覚えたいのは、この12パターン。」
-- 2026-10-04：10 → 12パターンに組み替え。胸骨圧迫中（ノイズの話で、致死性不整脈ではない）と P波だけの心静止（キャプションでふれる）を外し、R on T・PVCの連発・モビッツII型・完全房室ブロックを足した。12パターン版はもう一度、専門医レビューに出す
-
-## 専門医レビュー（2026-10-04、12パターン・ぎゅっと版）
-
-- タイトル・冒頭、12パターンの選び方、短くした台本（⑤⑦⑩・まとめ）、①②⑧⑨の描き方と「すぐ報告」は OK
-- 【要修正→直した】⑫：画面の色の文字「→ ショックしない・CPR」が切れて見える、という指摘。書き出しのコマでは切れていなかった（右端 935px、安全域の内側）が、端に近かったので、ひとこと＋色の文字の幅の上限を 820 → 760px にした（左右に 160px 以上の余白）。長いひとことは短くした（③⑤⑦⑩⑪⑫）
-- 【推奨→直した】⑨：台本「PとQRSがバラバラ」→「PとQRSが別々に動く」（それぞれは規則正しい。房室解離）
-- 【推奨→直した】キャプション：「※脈のあるVTは、ショックとは別の治療です」→「※脈のあるVTは、除細動の対象ではありません（状態により薬や同期した電気ショック）」
-  - 提案は「除細動（急変時のショック）とは別の治療」だったが、不安定なら同期電気ショック（カルディオバージョン）も電気ショックなので、そこがわかる言い方にした（ERC 2021 頻拍のアルゴリズム：不安定なら synchronised DC shock）
