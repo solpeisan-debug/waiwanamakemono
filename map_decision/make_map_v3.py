@@ -293,14 +293,13 @@ def frame(t, wm=True, highlight=True):
     if _GRID is None:
         _GRID = b.grid()
     im = _GRID.copy()
-    put(im, 'モニター心電図', 30, 700, (118, 226, 150), cx=540, cy=270)
+    put(im, 'モニター心電図', 30, 700, (118, 226, 150), cx=540, cy=300)
     parts = [(CFG['title'][0], 52, YEL), (CFG['title'][1], 52, WHITE)]
     ims = [text_img(s_, sz, 900, c_) for s_, sz, c_ in parts]
     xx = 540 - (sum(a_.size[0] - 8 for a_, _ in ims))/2
     for (s_, sz, c_), (a_, _) in zip(parts, ims):
-        put(im, s_, sz, 900, c_, x=xx, cy=322)
+        put(im, s_, sz, 900, c_, x=xx, cy=352)
         xx += a_.size[0] - 8
-    put(im, '左の質問から、線をたどるだけ。保存して、迷ったら見返してね', 23, 700, GREEN_SAVE, cx=540, cy=374)
     im.alpha_composite(lines_layer())
     # 光る道すじ（前の道から0.25秒で移る）
     glow_leaf = [0.0]*N
