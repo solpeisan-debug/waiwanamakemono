@@ -6,10 +6,11 @@
 `--check` で、元の回のモデルと同じ波形になることを1周期ずつ確かめる。視聴者に「第◯弾」は見せない。
 
 1問の流れ（WINDOWS[i] = (a, b)）：
-- a        ：前の問題の波形が枠へ縮んで移る（FLY 0.8秒）
-- a+0.62   ：「Q◯ これは？」が出る（前の波形が移り終わるころ。帯とほぼ同時）
+- a        ：前の問題の波形が枠へ縮んで移る（FLY 0.8秒）。そのあいだ帯は消す
+- a+SW     ：この問題の波形が、右から 0.3秒ですべり込む（帯の時計をここで跳ばす。前の問題の波形は見せない）
+             Q1 だけは帯を消さず、冒頭から流れている洞調律を a+0.4〜a+0.8 で Q1 の波形へ変形する
+- a+0.62   ：「Q◯ これは？」が出る（前の波形が移り終わるころ）
 - a+0.8 = t0：波形がはっきり見え始める。時間のリング（「これは？」の右）が減りはじめ、7秒（THINK）で空になる
-- a+SW     ：中部の帯が、この問題の波形の頭から出てくる。前の問題の波形は見せない（帯の時計をここで跳ばす）
 - t0+1.5   ：ヒント。「ヒント：〇〇」と、波形の特徴のところ（hint_hl）だけ紫に。名前・答えの色は出さない（枠は「Q◯ ？」）
 - t0+4.0   ：最後の3秒だけ、リングの中に数字 3・2・1（1秒ごと、音は木の「コッ」。モニター音は -6dB）
 - t0+7.0   ：答え（a+7.8。名前・ひとこと・「→ くわしくは〇〇の回」）。特徴の紫がその問題の色に変わる。音「ポーン」。声「答えは、…」
@@ -473,23 +474,31 @@ def tau_pat(i, t):
     return SEGS[i][0] + pre_of(i) + HALF + (t - T_SW[i])
 
 
+# 冒頭 → Q1：帯は消さない。冒頭から流れている洞調律を、Q1 の波形へ 0.4秒でなめらかに変形する（a+0.4〜a+0.8）
+Q1_MORPH0 = WINDOWS[0][0] + T0_OFF - 0.4
+Q1_MORPH1 = WINDOWS[0][0] + T0_OFF
+# Q2 以降：前の波形が枠へ縮むあいだ（0.5秒）帯を消し、次の波形を右から 0.3秒ですべり込ませる（a+0.5〜a+0.8）
+SLIDE = 0.3
+STARTS = [Q1_MORPH1] + T_SW[1:]       # 帯の時計が、その問題の波形に切りかわる時刻
+
+
 def tau_c(t):
-    """画面の中央にある実際の時刻（帯の時計）。冒頭は止まる・問題ごとに跳ぶ。"""
+    """画面の中央にある実際の時刻（帯の時計）。冒頭は止まる・問題ごとに跳ぶ（Q1 は変形のあと）。"""
     if t < T_STOP:
         return OFFSET + t
     if t < T_GO:
         return OFFSET + T_STOP
-    if t < T_SW[0]:
+    if t < STARTS[0]:
         return OFFSET + t - FREEZE
     if t >= T_SW_END:
         return STRIP_END + PRE_END + HALF + (t - T_SW_END)
-    i = max(k for k in range(N_PAT) if T_SW[k] <= t)
+    i = max(k for k in range(N_PAT) if STARTS[k] <= t)
     return tau_pat(i, t)
 
 
 def pieces():
     """帯の時計の直線の区切り [(t0, t1)]（モニター音の計算用。止まっているあいだは除く）。"""
-    edges = [0.0, T_STOP, T_GO] + T_SW + [T_SW_END, 1e9]
+    edges = [0.0, T_STOP, T_GO] + STARTS + [T_SW_END, 1e9]
     out = []
     for a, b in zip(edges, edges[1:]):
         if a == T_STOP:
@@ -499,17 +508,19 @@ def pieces():
 
 
 def strip_alpha(t):
-    """中部の帯の濃さ。Q1 の前で消える／問題が変わるときは、前の波形が枠へ移るあいだ消して、跳ばしたあと出す。"""
-    if T_TITLE - 0.3 <= t < T_SW[0]:
-        return 1 - ramp(t, T_TITLE - 0.3, 0.3)
-    starts = [T_SW[0]] + T_SW[1:] + [T_SW_END]
-    hides = [T_TITLE] + [b for _, b in WINDOWS]
-    for h0, s in zip(hides, starts):
+    """中部の帯の濃さ。冒頭からQ1へは消さない（変形）。Q2 以降は、前の波形が枠へ移るあいだだけ消す。"""
+    for h0, s in zip([b for _, b in WINDOWS], T_SW[1:] + [T_SW_END]):
         if h0 <= t < s:
             return 0.0
-        if s <= t < s + 0.3:
-            return ramp(t, s, 0.3)
     return 1.0
+
+
+def strip_dx(t):
+    """次の波形が右からすべり込むときの、帯の横のずれ（px）。0 でふつうの位置。"""
+    for s in T_SW[1:] + [T_SW_END]:
+        if s <= t < s + SLIDE:
+            return int(round((1 - ease((t - s) / SLIDE)) * W))
+    return 0
 
 
 def current(t):
@@ -837,6 +848,11 @@ def featured(t, base_col, a, cur=None):
     if T_STOP <= t < T_GO:
         (v0, c0, s0), (v1, c1, s1), u = hook_state(t)
         return draw_wave(v0 + (v1 - v0)*u, np.full(len(v0), -1, dtype=int), base_col, a, s1 if u >= 0.5 else s0)
+    if Q1_MORPH0 <= t < Q1_MORPH1:                  # 冒頭の洞調律 → Q1 の波形（色はみどりのまま）
+        v0, _, _ = strip_arrays(OFFSET + t - FREEZE)
+        v1, _, _ = strip_arrays(tau_pat(0, t))
+        u = ease((t - Q1_MORPH0) / (Q1_MORPH1 - Q1_MORPH0))
+        return draw_wave(v0 + (v1 - v0)*u, np.full(len(v0), -1, dtype=int), base_col, a)
     v, cid, spk = strip_arrays(tau_c(t))
     c = cur if (cur is not None and t >= T_HINT[cur]) else -999
     cid = np.where(cid == c, cid, -1)
@@ -1110,7 +1126,10 @@ def frame(t):
     a_strip = strip_alpha(t)
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     if a_strip > 0.01:
-        im.alpha_composite(featured(t, base_col, a_strip, cur), (0, F_Y0))
+        lay = featured(t, base_col, a_strip, cur)
+        dx = strip_dx(t)
+        if dx < W:
+            im.alpha_composite(lay.crop((0, 0, W - dx, lay.size[1])), (dx, F_Y0))
 
     put(im, NOTE1, 24, 400, GREY, x=135, cy=1554, a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, NOTE2, 24, 400, GREY, x=135, cy=1580, a=0.85*ramp(t, T_GO, 0.5)*keep)
