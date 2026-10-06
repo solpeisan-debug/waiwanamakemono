@@ -357,7 +357,7 @@ F_PXS = 25 * F_PXMM
 F_MV = 10 * F_PXMM
 # 中部のかたまり：名前（54px）→ ひとこと（32px）→ 波形（R頂点 1mV 〜 下 0.4mV）
 _TOP_END = 636 + 110               # ③⑥の下端
-_BOT_TOP = 1188                    # ⑦⑩の上端
+_BOT_TOP = 1182                    # ⑦⑨の上端（注記と⑪の枠のあいだを空ける）
 # 見た目の上端（名前の字の上）〜下端（約0.4mV 下）で余白をそろえる
 _MID_H = 22 + 54 + 16 + 30 + 140 + 36
 _GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
@@ -410,7 +410,7 @@ DUR = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
 CELL_W, CELL_H = 400, 110
 COL_X = (130, 550)
 TOP_Y = [396, 516, 636]
-BOT_Y = [1188, 1308, 1428]
+BOT_Y = [1182, 1302, 1422]
 CELL_FILL = 225                    # 枠の中の塗りの濃さ（0〜255）。方眼をうっすら残す
 M_PXS = 66.0                      # ミニ波形：実際の1秒 = 66px（約5.8秒ぶんが見える）
 M_MV = 33.0
@@ -620,9 +620,17 @@ def draw_wave(v, cid, base_col, a):
     return out
 
 
+SINE_I = 5                         # ⑥サイン波：ゴーストのとがったQRSがサイン波を突き抜けて誤解を招くので、出さない
 GHOST_COL = (226, 236, 236)        # 基準のゴースト：白っぽく、うすく、細く（主役の波形より目立たない）
 GHOST_A = 0.40
 GHOST_W = 2.6
+
+
+def ghost_alpha(t):
+    """ゴーストを出す濃さ（0〜1）：②から最後のパターンまで。⑥のあいだは 0。"""
+    a = ramp(t, WINDOWS[1][0], 0.4) * (1 - ramp(t, T_END + FLY - 0.4, 0.4))
+    a6, b6 = WINDOWS[SINE_I]
+    return a * (1 - ramp(t, a6, 0.3) * (1 - ramp(t, b6, 0.3)))
 
 
 def ghost_arrays(tau_center, cur):
@@ -650,7 +658,7 @@ def featured(t, base_col, a, cur=None):
     v, cid = strip_arrays(tau_c(t))
     cid = np.where(cid == (-2 if cur is None else cur), cid, -1)
     out = draw_wave(v, cid, base_col, a)
-    if cur is not None and cur >= 1:          # ②〜⑪：①基準をうすく下に重ねる
+    if cur is not None and cur >= 1 and cur != SINE_I:   # ②〜⑪（⑥サイン波は除く）：①基準をうすく下に重ねる
         lay = draw_ghost(*ghost_arrays(tau_c(t), cur), a)
         lay.alpha_composite(out)
         out = lay
@@ -686,7 +694,9 @@ def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=No
         sel = ect == flag
         sel = sel | np.roll(sel, 1) | np.roll(sel, -1)
         idx = np.where(sel)[0]
-        runs = [list(zip(xs[r] - bx0, ys[r] - by0)) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
+        runs = [list(zip(xs[r] - bx0, ys[r] - by0)) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)
+                if not (flag and len(r) <= 12 and (r[0] <= 1 or r[-1] >= len(xs) - 2))] if len(idx) else []
+        # ↑ 色を付けた部分が帯の端で 6px 以下（0.5px きざみで 12点）しか見えないときは描かない（端に色の点が残らないように）
         w_, a_ = ((lw_e or lw) if flag else lw), (a if flag else a*a_norm)
         if runs:
             out.alpha_composite(glow_line(size, runs, col, w_, a_, blur=blur))
@@ -744,9 +754,9 @@ def draw_cell(base, i, t, state, a_all):
         name = f"{pat['no']} {pat['name']}"
         put(base, name, 22, 700, pat['col'], x=x0 + 14, cy=y0 + 17, a=a_all, max_w=CELL_W - 30)
         if i == 0:                           # ゴーストを出しているあいだ、①の名前のうしろに「＝うすい線」
-            a_g = ramp(t, WINDOWS[1][0], 0.4) * (1 - ramp(t, T_END + FLY - 0.4, 0.4))
+            a_g = ghost_alpha(t)
             nw = text_img(name, 22, 700, pat['col'], max_w=CELL_W - 30)[0].size[0] - 8
-            put(base, '＝うすい線', 22, 700, GHOST_COL, x=x0 + 14 + nw + 4, cy=y0 + 17, a=a_all*a_g*0.85)
+            put(base, '＝下のうすい線', 22, 700, GHOST_COL, x=x0 + 14 + nw + 4, cy=y0 + 17, a=a_all*a_g*0.85)
     elif state == 'now':
         put(base, pat['no'], 30, 700, pat['col'], x=x0 + 16, cy=y0 + CELL_H/2, a=min(1.0, a_all*2))
     else:
@@ -766,6 +776,10 @@ END_LINE = '高カリウムは、軽く見えても急変しうる'
 SAVE_LINE = '保存して見返してね'
 COMMENT_LINE = '何個わかった？コメントで教えてね'
 HOOK_Q = 'この変化、気づける？'
+HOOK_Q_Y, HOOK_NAME_Y = 436, 845       # 冒頭：問いかけ・変形中のパターン名（上から下まで間隔をそろえる）
+END_Y = (Y_NAME - 40, Y_NAME + 6, Y_NAME + 48)   # 最後の3行（上の枠・下の波形との余白をそろえる）
+GHOST_LEGEND = 'うすい線＝①基準'
+LEGEND_Y = 1150
 
 
 def current(t):
@@ -836,7 +850,7 @@ def one_size(pat):
 
 
 # 高Kの進み具合ゲージ（②〜⑥）。左の余白（ミニ波形の枠の左、x 72〜128）に縦に。Kの数値は書かない
-GAUGE_X, GAUGE_W = 101, 16
+GAUGE_X, GAUGE_W = 96, 16
 GAUGE_Y0, GAUGE_Y1 = 420, 722          # 上（重い）〜 下（軽い）
 K_STAGES = [1, 2, 3, 4, 5]             # ②〜⑥ のパターン番号（0始まり）
 
@@ -871,8 +885,9 @@ def draw_gauge(im, t, a):
         glow = lay.filter(ImageFilter.GaussianBlur(6))
         im.alpha_composite(glow)
     im.alpha_composite(lay)
-    put(im, '重い', 22, 700, C_K3 if lev > 0.999 else GREY, cx=GAUGE_X, cy=GAUGE_Y0 - 22, a=a)
-    put(im, '軽い', 22, 700, GREY, cx=GAUGE_X, cy=GAUGE_Y1 + 24, a=a)
+    put(im, '高K', 21, 800, C_K1, cx=GAUGE_X, cy=GAUGE_Y0 - 54, a=a)
+    put(im, '重い', 20, 700, C_K3 if lev > 0.999 else GREY, cx=GAUGE_X, cy=GAUGE_Y0 - 22, a=a)
+    put(im, '軽い', 20, 700, GREY, cx=GAUGE_X, cy=GAUGE_Y1 + 24, a=a)
 
 
 def frame(t):
@@ -914,28 +929,32 @@ def frame(t):
         put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=al, max_w=820)
         draw_one(im, pat, al)
 
+    # ②③のあいだ、帯の下に「うすい線＝①基準」
+    a_leg = ramp(t, WINDOWS[1][0] + 0.5, 0.3) * (1 - ramp(t, WINDOWS[2][1] - 0.25, 0.25)) * keep
+    put(im, GHOST_LEGEND, 24, 700, GHOST_COL, x=135, cy=LEGEND_Y, a=a_leg*0.9)
+
     # 高Kの進み具合ゲージ：②の名前が出るころから、⑥が縮んで枠に入るまで
     draw_gauge(im, t, ramp(t, WINDOWS[1][0] + 0.3, 0.4) * (1 - ramp(t, WINDOWS[5][1] + 0.3, 0.5)) * keep)
 
     # 冒頭：問いかけ・タイトルと、変形中のパターン名
     a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
     if a_t > 0:
-        put(im, HOOK_Q, 66, 900, (255, 214, 64), cx=540, cy=420, a=a_t, max_w=880)
+        put(im, HOOK_Q, 76, 900, (255, 214, 64), cx=540, cy=HOOK_Q_Y, a=a_t, max_w=880)
         put(im, '心電図で気づく電解質', 36, 500, PURPLE, cx=540, cy=560, a=a_t)
         put(im, TITLE, 150, 900, WHITE, cx=540, cy=690, a=a_t, max_w=880)
         if T_STOP <= t < T_GO:
             _, _, u, shown = hook_state(t)
             if shown is not None:
                 pat = PATTERNS[shown]
-                put(im, f"{pat['no']} {pat['name']}", 44, 900, pat['col'], cx=540, cy=Y_ONE - 10,
+                put(im, f"{pat['no']} {pat['name']}", 44, 900, pat['col'], cx=540, cy=HOOK_NAME_Y,
                     a=a_t*ramp(u, 0.3, 0.4), max_w=820)
 
     a_end = ramp(t, T_END + FLY, 0.6)*keep
     if a_end > 0:
-        put(im, END_LINE, 42, 800, WHITE, cx=540, cy=Y_NAME - 36, a=a_end, max_w=820)
-        put(im, SAVE_LINE, 34, 700, GREEN, cx=540, cy=Y_NAME + 16,
+        put(im, END_LINE, 38, 800, WHITE, cx=540, cy=END_Y[0], a=a_end, max_w=820)
+        put(im, SAVE_LINE, 30, 700, GREEN, cx=540, cy=END_Y[1],
             a=ramp(t, T_END + FLY + 1.8, 0.6)*keep)
-        put(im, COMMENT_LINE, 32, 700, (255, 214, 64), cx=540, cy=Y_NAME + 62,
+        put(im, COMMENT_LINE, 30, 700, (255, 214, 64), cx=540, cy=END_Y[2],
             a=ramp(t, T_END + FLY + 2.4, 0.6)*keep)
 
     # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
@@ -971,11 +990,11 @@ def thumbnail():
     for i in range(N_PAT):
         draw_cell(im, i, t, 'done', 1.0)
         mini(im, i, t, 1.0)
-    put(im, 'その波形の変化、電解質かも？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 28, max_w=820)
-    put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_ONE + 14, max_w=880)
+    put(im, 'その波形の変化、電解質かも？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 38, max_w=820)
+    put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_ONE + 4, max_w=880)
     v, cid = hook_arrays(1)
     wl = draw_wave(v, cid, WAVE_GREEN, 1.0)
-    im.alpha_composite(wl, (0, F_Y0 + 50))
+    im.alpha_composite(wl, (0, F_Y0 + 62))
     return im.convert('RGB')
 
 

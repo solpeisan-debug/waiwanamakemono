@@ -167,8 +167,9 @@ def _reg(kind, rr, n):
 # 10パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、色を付ける範囲 hl（この回は連続した波形・ノイズなし。拍だけ）
 # ①〜⑤：心筋梗塞の時間の流れ（基準 → 超急性期T → ST上昇（大きいと墓石型）→ 異常Q → 冠性T）
 # ⑥：ST低下（虚血）　⑦⑧：ST上昇・ST変化がまぎらわしいもの　⑨⑩：心筋梗塞のときの不整脈
-# mag：STの虫眼鏡（中部の帯の上の窓）。ref＝周期の中の、拡大する拍の R の時刻。t0〜t1 は ref からの秒。
-#      mv＝1mV の高さ（px）、base＝窓の描画域の上から基線までの px。
+# mag：STの虫眼鏡（中部の帯の上の窓）。ref＝周期の中の、拡大する拍の R の時刻。c＝窓のまん中の時刻（ref からの秒）。
+#      mm＝1mm の大きさ（px。たて 0.1mV・よこ 0.04秒が同じ大きさの正方形＝「1マス＝1mm」。中部の帯は 14px）、
+#      base＝窓の描画域の上から基線までの px。
 #      marks：('v', 名前, 時刻) 基線からその時刻の波形までの矢印と「名前 ↑2mm」。時刻は数値（ref からの秒）か
 #             'J'（J点）'J60'（J点+60ms）'Tmax' 'Tmin' 'Qmin'（モデルから計算）
 #             ('w', 名前) QRS の幅のかっこ（始まり〜J点）と「名前 0.15秒」
@@ -185,45 +186,45 @@ PATTERNS = [
     dict(no='①', name='基準の洞調律', col=C_BASE, hint='いつもの形',
          one='STは基線（TP）と同じ高さ', tag='base',
          ev=_E['N'], L=4.8, hl=_each(_E['N'], 0.035, 0.17),
-         mag=dict(subj='ST', ref=0.8, t0=-0.22, t1=0.45, mv=260, base=88, marks=[('v', 'ST', 'J60')])),
+         mag=dict(subj='ST', ref=0.8, c=0.12, mm=24, base=76, marks=[('v', 'ST', 'J60')])),
     dict(no='②', name='超急性期T波', col=C_ACUTE, hint='Tが大きい',
          one='Tが高く幅広い。早期のサイン', tag='urgent',
          ev=_E['H'], L=4.8, hl=_each(_E['H'], 0.04, 0.40),
-         mag=dict(subj='T', ref=0.8, t0=-0.22, t1=0.48, mv=140, base=108, marks=[('v', 'T', 'Tmax')])),
+         mag=dict(subj='T', ref=0.8, c=0.12, mm=16, base=112, marks=[('v', 'T', 'Tmax')])),
     dict(no='③', name='ST上昇', col=C_ACUTE, hint='STが上がる',
          one='STが上がる。大きいと墓石型', tag='urgent',
          ev=_E['E'], L=4.8, hl=_each(_E['E'], 0.02, 0.36),
-         mag=dict(subj='ST', ref=0.8, t0=-0.22, t1=0.45, mv=200, base=104, marks=[('v', 'ST', 'J')])),
+         mag=dict(subj='ST', ref=0.8, c=0.12, mm=22, base=112, marks=[('v', 'ST', 'J')])),
     dict(no='④', name='異常Q波', col=C_OLD, hint='深いQ',
          one='深く幅広いQ。梗塞のあと', tag='check',
          ev=_E['Q'][:5], L=4.0, hl=_each(_E['Q'][:5], -0.05, 0.035),
-         mag=dict(subj='Q', ref=0.8, t0=-0.22, t1=0.45, mv=200, base=52, marks=[('v', 'Q', 'Qmin')])),
+         mag=dict(subj='Q', ref=0.8, c=0.08, mm=24, base=44, marks=[('v', 'Q', 'Qmin')])),
     dict(no='⑤', name='冠性T波', col=C_OLD, hint='Tが下向き',
          one='左右対称の深い陰性T', tag='check',
          ev=_E['I'][:5], L=4.0, hl=_each(_E['I'][:5], 0.10, 0.42),
-         mag=dict(subj='T', ref=0.8, t0=-0.22, t1=0.45, mv=200, base=38, marks=[('v', 'T', 'Tmin')])),
+         mag=dict(subj='T', ref=0.8, c=0.12, mm=22, base=36, marks=[('v', 'T', 'Tmin')])),
     dict(no='⑥', name='ST低下（水平・下降型）', col=C_DEP, hint='水平・下り坂',
          one='水平に下がる。虚血のサイン', tag='urgent',
          ev=_E['D'], L=4.8, hl=_each(_E['D'], 0.025, 0.22),
-         mag=dict(subj='ST', ref=0.8, t0=-0.22, t1=0.45, mv=300, base=72, marks=[('v', 'ST', 'J60')])),
+         mag=dict(subj='ST', ref=0.8, c=0.10, mm=28, base=66, marks=[('v', 'ST', 'J60')])),
     dict(no='⑦', name='急性心膜炎', col=C_MIM, hint='PRも下がる',
          one='PR低下＋下に凸のST上昇', tag='check',
          ev=_C, L=4.48, hl=_each(_C, -0.12, -0.035) + _each(_C, 0.03, 0.30),
-         mag=dict(subj='PRとST', ref=0.56, t0=-0.25, t1=0.38, mv=300, base=76,
+         mag=dict(subj='PRとST', ref=0.56, c=0.02, mm=30, base=76,
                   marks=[('v', 'PR', -0.07), ('v', 'ST', 'J')])),
     dict(no='⑧', name='左脚ブロック', col=C_MIM, hint='幅広QRS',
          one='幅広QRS。STは逆向きが基本', tag='check',
          ev=_E['L'], L=4.8, hl=ALL,
-         mag=dict(subj='ST', ref=0.8, t0=-0.22, t1=0.45, mv=180, base=50,
+         mag=dict(subj='ST', ref=0.8, c=0.12, mm=18, base=54,
                   marks=[('v', 'ST', 'J60'), ('t', 'QRSと逆向き')])),
     dict(no='⑨', name='AIVR（促進心室固有調律）', col=C_REP, hint='幅広・再灌流',
          one='再灌流で出やすい幅広リズム', tag='report',
          ev=_A, L=round(1.64 + 4*AIVR_RR, 2), hl=_each(_A[2:], -0.08, 0.45),
-         mag=dict(subj='QRS', ref=1.64 + AIVR_RR, t0=-0.25, t1=0.45, mv=100, base=80, marks=[('w', 'QRS')])),
+         mag=dict(subj='QRS', ref=1.64 + AIVR_RR, c=0.10, mm=16, base=36, marks=[('w', 'QRS')])),
     dict(no='⑩', name='完全房室ブロック', col=C_REP, hint='PとQRSが別々',
          one='PとQRSが別々。下壁梗塞で', tag='now',
          ev=_H, L=round(9*CHB_PP, 2), D=4.36, hl=ALL,
-         mag=dict(subj='PとQRS', ref=_CHB_REF, t0=-0.66, t1=0.86, mv=110, base=96,
+         mag=dict(subj='PとQRS', title='PとQRSを見る　1マス＝1mm', ref=_CHB_REF, c=0.10, mm=15, base=96,
                   marks=[('p', [r - _CHB_REF for r, k in _H if k == 'P' and -0.62 < r - _CHB_REF < 0.82]),
                          ('t', f'P {60/CHB_PP:.0f}/分・QRS {60/CHB_RR:.0f}/分')])),
 ]
@@ -867,11 +868,14 @@ def _mag_value(pat, t_rel):
 def _mm(v):
     """mV → mm。1mm 以上は 0.5mm きざみ、1mm 未満は 0.1mm きざみ（心膜炎の PR 低下・ST 上昇は 1mm 未満）。"""
     x = abs(v)*10
+    if x < 0.25:                                          # 0.25mm 未満は「0mm（基線と同じ）」
+        return 0
     return round(x*2)/2 if x >= 0.95 else round(x, 1)
 
 
 def mag_title(i):
-    return f"{PATTERNS[i]['mag']['subj']}を拡大　1マス＝1mm"
+    m = PATTERNS[i]['mag']
+    return m.get('title', f"{m['subj']}を拡大　1マス＝1mm")
 
 
 def mag_marks(i):
@@ -935,24 +939,26 @@ def _mag_layer(i):
     pw, ph = px1 - px0, py1 - py0
     plot = Image.new('RGBA', (pw, ph), (0, 0, 0, 0))
     dp = ImageDraw.Draw(plot)
-    span = m['t1'] - m['t0']
-    pxs = pw / span
+    mvpx = m['mm']*10                                     # 1mV の高さ（px）
+    pxs = m['mm']/0.04                                    # 1秒の長さ（px）
+    span = pw / pxs
+    t0 = m['c'] - span/2
     yb = m['base']
     # 1mm の方眼（0.1mV・0.04秒）
-    k0 = -int(yb / (0.1*m['mv'])) - 1
-    for k in range(k0, int((ph - yb) / (0.1*m['mv'])) + 2):
-        y = yb + k*0.1*m['mv']
+    k0 = -int(yb / (0.1*mvpx)) - 1
+    for k in range(k0, int((ph - yb) / (0.1*mvpx)) + 2):
+        y = yb + k*0.1*mvpx
         dp.line([(0, y), (pw, y)], fill=(40, 66, 56, 255) if k % 5 else (58, 90, 76, 255), width=1)
-    n0 = int(math.floor(m['t0'] / 0.04))
+    n0 = int(math.floor(t0 / 0.04))
     for n in range(n0, n0 + int(span / 0.04) + 2):
-        x = (n*0.04 - m['t0']) * pxs
+        x = (n*0.04 - t0) * pxs
         dp.line([(x, 0), (x, ph)], fill=(40, 66, 56, 255) if n % 5 else (58, 90, 76, 255), width=1)
     # 波形（特徴の部分はパターンの色）
     xs = np.arange(0, pw + 0.5, 0.5)
-    rel = m['ref'] + m['t0'] + xs / pxs
+    rel = m['ref'] + t0 + xs / pxs
     bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
     v = wave_from(bl, rel)
-    ys = yb - v*m['mv']
+    ys = yb - v*mvpx
     on = np.ones(len(xs), dtype=bool) if pat['hl'] is ALL else hl_mask(pat, rel)
     # 基線（TP）の点線と「基線」
     _dashed_hline(dp, 0, pw, yb, (214, 222, 222, 230))
@@ -971,23 +977,23 @@ def _mag_layer(i):
     n_v = sum(1 for mk in marks if mk[0] == 'v' and _mm(mk[3]) > 0)
     for mk in marks:
         if mk[0] == 'v' and _mm(mk[3]) > 0:
-            x = (mk[2] - m['t0']) * pxs
-            yv = yb - mk[3]*m['mv']
+            x = (mk[2] - t0) * pxs
+            yv = yb - mk[3]*mvpx
             sgn = 1 if yv > yb else -1                       # 下向き 1、上向き -1
             dp.line([(x, yb), (x, yv - sgn*9)], fill=arrow_col + (255,), width=4)
             dp.polygon([(x, yv), (x - 8, yv - sgn*12), (x + 8, yv - sgn*12)], fill=arrow_col + (255,))
             if n_v > 1:                                      # 矢印が2つあるときは、どちらが何かを小さく
                 put(plot, mk[1], 20, 800, arrow_col, cx=x + 18, cy=yv + sgn*16)
         elif mk[0] == 'w':
-            x0 = (mk[2] - m['t0']) * pxs; x1 = (mk[3] - m['t0']) * pxs
+            x0 = (mk[2] - t0) * pxs; x1 = (mk[3] - t0) * pxs
             y = 12
             dp.line([(x0, y), (x1, y)], fill=arrow_col + (255,), width=3)
             for x in (x0, x1):
                 dp.line([(x, y - 7), (x, y + 9)], fill=arrow_col + (255,), width=3)
         elif mk[0] == 'p':
             for tp in mk[1]:
-                x = (tp - m['t0']) * pxs
-                put(plot, 'P', 20, 800, arrow_col, cx=x, cy=yb - 0.15*m['mv'] - 16)
+                x = (tp - t0) * pxs
+                put(plot, 'P', 20, 800, arrow_col, cx=x, cy=yb - 0.15*mvpx - 16)
     lay.alpha_composite(plot, (px0, py0))
     _MAG[i] = lay
     return lay
