@@ -1,5 +1,5 @@
-"""第28弾 心筋梗塞とST変化：ナレーション（ElevenLabs の通し読み）を文に切り分けて、映像の秒数に置き直す。
-第17弾の align_vo_v2.py・第21弾の align_vo.py と同じ作り。
+"""第28弾 波形クイズ「この波形、なに？」：ナレーション（ElevenLabs の通し読み）を文に切り分けて、映像の秒数に置き直す。
+第17弾の align_vo_v2.py・第21弾の align_vo.py と同じ作り。声は答えのところだけ（カウントダウン中は声なし・モニター音だけ）。
 
 決めごと（README）：
 - 無音を手がかりに文へ切り分ける。継ぎ目は必ず無音の中で切る
@@ -8,8 +8,8 @@
 使い方:
     cp 録音.mp3 out/vo/narration_raw.mp3
     python3 align_vo.py out/vo/narration_raw.mp3            # out/vo/mix.wav と配置表を作る
-    python3 align_vo.py out/vo/narration_raw.mp3 --mux      # 映像（out/reel28_st.mp4）に入れる
-    python3 align_vo.py out/vo/narration_raw.mp3 --mux --hq # 高画質版（out/reel28_st_hq.mp4）に入れる
+    python3 align_vo.py out/vo/narration_raw.mp3 --mux      # 映像（out/reel28_quiz.mp4）に入れる
+    python3 align_vo.py out/vo/narration_raw.mp3 --mux --hq # 高画質版（out/reel28_quiz_hq.mp4）に入れる
     python3 align_vo.py out/vo/narration_raw.mp3 --fix out/vo/narration_fix.mp3 --mux
         # 録り直した文（FIX_LINES）だけ、--fix のファイルから差し替える
 """
@@ -21,41 +21,26 @@ import wave
 
 import numpy as np
 
-import make_reel28 as m
+import make_reel28_quiz as m
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SR = 44100
 
 # 通し読みの「声のかたまり」（無音 0.25秒以上で区切ったもの）を、台本の文にまとめる。
-# 番号は 1 から。いまは仮で1文1つ（録音前）。録音が届いたら、Whisper の書き起こしで順番と中身を確かめて直す
+# 番号は 1 から。録音が届いたら、Whisper の書き起こしで順番と中身を確かめて直す
 # （読点で 0.25秒以上の間があると、1つの文が2つ以上のかたまりになる）。
-LINES = [
-    ('冒頭', [1]),             # 心筋梗塞とST変化。まず覚えたいのは、この10パターン。
-    ('①', [2]), ('②', [3]), ('③', [4]), ('④', [5]), ('⑤', [6]),
-    ('⑥', [7]), ('⑦', [8]), ('⑧', [9]), ('⑨', [10]), ('⑩', [11]),
-    ('まとめ', [12]),          # モニターのST変化は、12誘導で確かめる。
-    ('保存', [13]),            # 保存して、見返してね
+LINES = [('冒頭', [1])] + [(p['no'], [k + 2]) for k, p in enumerate(m.PATTERNS)] + [
+    ('まとめ', [len(m.PATTERNS) + 2]),         # 何問わかったか、コメントで教えてね。
+    ('保存', [len(m.PATTERNS) + 3]),           # 保存して、見返してね
 ]
 # 録り直した文（--fix のファイルの声のかたまり番号。0.05秒未満のかたまり＝雑音は数えない）
 FIX_LINES = {}
 # 文の中の息継ぎ（無音）を、この長さまで縮める（離脱を防ぐ）。録音が届いたら間の長さを見て決める
 GAP_CAP = {n: 0.45 for n, _ in LINES}
-# 「すぐ報告」は声では言わない（画面の色の文字とキャプションで伝える）
-TEXT = {
-    '冒頭': '心筋梗塞とST変化。まず覚えたいのは、この10パターン。',
-    '①': 'STは、基線と同じ高さ。これが基準。',
-    '②': '早い時期に、Tが高く幅広くなる。超急性期T波。',
-    '③': 'STが持ち上がる、ST上昇。大きいと、墓石のような形に。',
-    '④': '深く幅広いQ、異常Q波。',
-    '⑤': 'Tが下向きになる、冠性T波。',
-    '⑥': '水平や下り坂のST低下は、虚血のサイン。',
-    '⑦': 'PRが下がり、STは広い範囲で上がる。心膜炎。',
-    '⑧': '左脚ブロックでは、STの判定がむずかしい。',
-    '⑨': '再灌流のときに出やすい、AIVR。',
-    '⑩': '下壁の梗塞で起きやすい、完全房室ブロック。',
-    'まとめ': 'モニターのST変化は、12誘導で確かめる。',
-    '保存': '保存して、見返してね',
-}
+# 「すぐ報告」は声では言わない（画面の色の文字とキャプションで伝える）。答えの文は make_reel28_quiz.py の say
+TEXT = {'冒頭': '心電図クイズ。この10問、全部わかる？'}
+TEXT.update({p['no']: p['say'] for p in m.PATTERNS})
+TEXT.update({'まとめ': '何問わかったか、コメントで教えてね。', '保存': '保存して、見返してね'})
 PAD_IN, PAD_OUT = 0.06, 0.15          # 声の前後に残す無音（無音の中で切る）
 LEAD = 0.55                           # パターンの名前が出てから話し始めるまで
 GAP_MIN = 0.20                        # 文と文のあいだの最小の間
@@ -109,13 +94,11 @@ def cut(audio, blocks, ix, gap_cap=None):
 
 
 def plan(lines_len):
-    """各文を置く時刻。"""
+    """各文を置く時刻。答えの文は、答えが出てから SAY_LEAD 秒後（カウントダウン中は声を入れない）。"""
     starts = {'冒頭': 0.10}
     for i, pat in enumerate(m.PATTERNS):
-        starts[pat['no']] = m.WINDOWS[i][0] + LEAD
-    # ①は冒頭のあと。①の区間は縮み始めが 0.35秒早いぶん短いので、名前が出たらすぐ（0.3秒）話し始める
-    starts['①'] = max(m.WINDOWS[0][0] + 0.30, starts['冒頭'] + lines_len['冒頭'] + GAP_MIN)
-    starts['まとめ'] = m.T_END + 0.15
+        starts[pat['no']] = m.T_REV[i] + m.SAY_LEAD
+    starts['まとめ'] = m.T_END + m.FLY + 0.1
     starts['保存'] = starts['まとめ'] + lines_len['まとめ'] + 0.30
     return starts
 
@@ -125,7 +108,7 @@ def main():
     ap.add_argument('src')
     ap.add_argument('--fix', help='録り直した文のファイル（FIX_LINES の文を差し替える）')
     ap.add_argument('--mux', action='store_true')
-    ap.add_argument('--hq', action='store_true', help='高画質版（out/reel28_st_hq.mp4）に入れる。音声 320k')
+    ap.add_argument('--hq', action='store_true', help='高画質版（out/reel28_quiz_hq.mp4）に入れる。音声 320k')
     o = ap.parse_args()
 
     blocks = speech_blocks(o.src)
@@ -150,14 +133,16 @@ def main():
     order = [n for n, _ in LINES]
     rows, ok = [], True
     win = {p['no']: w for p, w in zip(m.PATTERNS, m.WINDOWS)}
+    if lens['冒頭'] + 0.10 > m.T_TITLE:
+        print(f"冒頭の文 {lens['冒頭']:.2f}秒 が T_TITLE {m.T_TITLE} に入らない ← T_TITLE を延ばす"); ok = False
     for k, n in enumerate(order):
         s0 = starts[n]; s1 = s0 + lens[n]
         nxt = starts[order[k+1]] if k + 1 < len(order) else m.DUR - m.LOOP_FADE
         note = ''
         if s1 + 0.05 > nxt:
             note = '← 次の文と重なる'; ok = False
-        if n in win and s1 > win[n][1] + m.FLY:
-            note += ' ← 次のパターンまで食いこむ'; ok = False
+        if n in win and s1 > win[n][1] - 0.15:
+            note += ' ← 縮み始めまでに言い終わらない（SAY_CPS か区間を直す）'; ok = False
         rows.append((n, s0, s1, note))
     print(f'映像 {m.DUR:.1f}秒')
     for n, s0, s1, note in rows:
@@ -172,7 +157,7 @@ def main():
         seg = segs[n][:max(0, n_all - i0)]
         vo[i0:i0+len(seg)] += seg
 
-    # 声の大きさをそろえる。声のいちばん大きいところを VO_PEAK に（録音が届いたら、第21弾の声と大きさを聞きくらべる）
+    # 声の大きさをそろえる（この録音は第17弾より約4dB小さい）。声のいちばん大きいところを VO_PEAK に
     vo *= VO_PEAK / (np.abs(vo).max() + 1e-9)
 
     # 効果音（モニター音）
@@ -217,8 +202,8 @@ def main():
 
     if o.mux:
         tag = '_hq' if o.hq else ''
-        video = os.path.join(HERE, 'out', f'reel28_st{tag}.mp4')
-        dst = os.path.join(HERE, 'out', f'reel28_st{tag}_vo.mp4')
+        video = os.path.join(HERE, 'out', f'reel28_quiz{tag}.mp4')
+        dst = os.path.join(HERE, 'out', f'reel28_quiz{tag}_vo.mp4')
         subprocess.run([ffmpeg(), '-v', 'error', '-y', '-i', video, '-i', out, '-map', '0:v', '-map', '1:a',
                         '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k' if o.hq else '192k', '-ar', '48000',
                         '-shortest', '-movflags', '+faststart', dst], check=True)

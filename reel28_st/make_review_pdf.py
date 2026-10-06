@@ -1,10 +1,11 @@
-"""第28弾 心筋梗塞とST変化 ― 専門医レビュー用の資料。
+"""第28弾 波形クイズ「この波形、なに？」 ― 専門医レビュー用の資料。
 
-- out/review_reel28_frames.pdf：映像のコマを等倍（1080×1920）・無圧縮で1ページずつ（冒頭・10パターン・一覧・サムネイル）
-- review_request.md：依頼文（作品の概要・ページ一覧・描き方の数値・ナレーション・キャプション・見てほしい点）
-- out/screen_text_reel28.txt：画面の文字の書き出し
+- out/review_reel28_quiz_frames.pdf：映像のコマを等倍（1080×1920）・無圧縮で1ページずつ
+  （冒頭・各問の「出題中」と「答え」・最後・サムネイル）
+- review_request.md：依頼文（概要・元の回との対応表・ナレーション・キャプション・とくに見てほしい点）
+- out/screen_text_reel28_quiz.txt：画面の文字の書き出し
 
-画面に出す数値・依頼文の数値は、モデルの波形から計算した値を使う（手打ちしない）。
+数値は元の回のモデル（そのまま移植した make_reel28_quiz.py）から計算する（手打ちしない）。
 
 使い方:
     python3 make_review_pdf.py
@@ -15,88 +16,74 @@ import numpy as np
 from PIL import Image
 
 import align_vo as vo
-import make_reel28 as m
+import make_reel28_quiz as m
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'out')
 
 L = 'https://litfl.com/'
+# 出典：元の回の出典を引き継ぐ（その問題に関係するものだけ）
 SRC = {
-    'LITFL The ST Segment（ST上昇・ST低下の原因と形）': L + 'st-segment-ecg-library/',
-    'LITFL T wave（Hyperacute T waves・Inverted T waves）': L + 't-wave-ecg-library/',
-    'LITFL Q Wave（Pathological Q waves）': L + 'q-wave-ecg-library/',
-    'LITFL Anterior Myocardial Infarction（hyperacute T → ST上昇 → Q波、tombstoning）': L + 'anterior-myocardial-infarction-ecg-library/',
-    'LITFL Inferior STEMI（II・III・aVF、tombstone、経過）': L + 'inferior-stemi-ecg-library/',
-    'LITFL Myocardial Ischaemia（ST低下の形・T波の陰転）': L + 'myocardial-ischaemia-ecg-library/',
-    'LITFL Pericarditis': L + 'pericarditis-ecg-library/',
-    'LITFL Benign Early Repolarisation（キャプションの「12誘導で見分ける」）': L + 'benign-early-repolarisation-ecg-library/',
-    'LITFL Left Bundle Branch Block (LBBB)': L + 'left-bundle-branch-block-lbbb-ecg-library/',
-    'LITFL Sgarbossa Criteria': L + 'sgarbossa-criteria-ecg-library/',
-    'LITFL Accelerated Idioventricular Rhythm (AIVR)': L + 'accelerated-idioventricular-rhythm-aivr/',
-    'LITFL AV block: 3rd degree (complete heart block)': L + 'av-block-3rd-degree-complete-heart-block/',
-    'LITFL OMI: Replacing the STEMI misnomer（hyperacute T・連続した心電図）': L + 'omi-replacing-the-stemi-misnomer/',
+    'LITFL Atrial Fibrillation（Q1。第26弾・第24弾）': L + 'atrial-fibrillation-ecg-library/',
+    'LITFL Sinus tachycardia（Q2。第24弾）': L + 'sinus-tachycardia-ecg-library/',
+    'LITFL Premature Ventricular Complex（Q3。第17弾）': L + 'premature-ventricular-complex-pvc-ecg-library/',
+    'LITFL Ventricular Fibrillation (VF)（Q4。第21弾）': L + 'ventricular-fibrillation-vf-ecg-library/',
+    'LITFL AV Block: 3rd degree (Complete Heart Block)（Q5。第18弾）': L + 'av-block-3rd-degree-complete-heart-block/',
+    'LITFL AV Block: 2nd degree, Mobitz I (Wenckebach Phenomenon)（Q6。第18弾）': L + 'av-block-2nd-degree-mobitz-i-wenckebach-phenomenon/',
+    'LITFL Hyperkalaemia（Q7。第25弾）': L + 'hyperkalaemia-ecg-library/',
+    'LITFL ECG Motion Artefacts（Q8。第20弾）': L + 'ecg-motion-artefacts-ecg-library/',
+    '（LITFL以外）Knight BP, et al. Clinical consequences of electrocardiographic artifact mimicking ventricular tachycardia. '
+    'N Engl J Med 1999;341:1270-4（Q8。第20弾）': 'https://www.nejm.org/doi/full/10.1056/NEJM199910213411704',
+    'LITFL Pacemaker Malfunction（Q9。第19弾）': L + 'pacemaker-malfunction-ecg-library/',
+    'LITFL Polymorphic VT and Torsades de Pointes（Q10。第21弾）': L + 'polymorphic-vt-and-torsades-de-pointes-tdp/',
 }
-
-
-KEY_REL = {8: 1.64 + 0.45,           # ⑨ AIVR：洞調律の2拍と、幅の広い拍に変わるところが同じコマに入るように
-           9: m.CHB_Q0 + m.CHB_RR + 0.6}   # ⑩ 完全房室ブロック：QRS 2つと、そのあいだの P 波
-
-
-def key_time(i):
-    """パターン i の見どころが、中部の帯の中央を少し過ぎたあたりに来る t。"""
-    pat = m.PATTERNS[i]
-    if i in KEY_REL:
-        c = KEY_REL[i]
-    elif pat['hl'] is m.ALL:
-        c = min(pat['L'], 2.0) / 2 + pat['L']
-    else:
-        a, b = pat['hl'][-1]
-        c = (a + b) / 2
-    t = m.t_of(m.SEGS[i][0] + c + 0.25)
-    a, b = m.WINDOWS[i]
-    return min(max(t, a + 0.6), b - 0.2)
-
-
-def ms(x):
-    return f'{x*1000:.0f}ms'
+# 元の回の名前（依頼文の対応表用。視聴者には見せない）
+EP = {'reel17_ectopy': '第17弾 期外収縮', 'reel18_brady': '第18弾 徐脈', 'reel19_pacing': '第19弾 ペースメーカー',
+      'reel20_artifact': '第20弾 ノイズ', 'reel21_arrest': '第21弾 致死性不整脈と心停止', 'reel24_tachy': '第24弾 頻脈',
+      'reel25_lytes': '第25弾 高カリウム血症とQT', 'reel26_afl': '第26弾 心房細動・心房粗動'}
+# 元の回で、ひとことのうしろに出していた色の文字（案内の色を決めた根拠）
+SRC_TAG = ['緑「→ 初めてなら報告」', '緑「→ まず患者さん」', 'なし', '赤「→ 電気ショック」', '赤「→ すぐ報告」',
+           'なし（名前の色は「多くは良性」の黄）', '黄「→ すぐ報告」', 'なし（⑪本物のVTだけ赤「→ すぐ報告」）',
+           '赤「→ すぐ報告」', '赤「→ 脈なしならショック」']
+LEVEL_JA = {'red': '赤', 'yellow': '黄', 'green': '緑'}
 
 
 def describe():
-    """各パターンの描き方（モデルの値から。1mm = 0.1mV、ST は TP＝基線からの高さ）。"""
-    q = m.measure()
-    mm = lambda v: f'{v*10:+.1f}mm'
+    """各問の描き方（元の回のモデルの値）。"""
     return [
-        f"洞調律 {m.rate(m.RR):.0f}/分、PR {m._pr_ms(m.PR):.0f}ms、QRS {q['N']['qrs']:.0f}ms。J点 {mm(q['N']['st_j'])}（基線と同じ）、T {q['N']['t_max']*10:.1f}mm。ST部分だけ白に近い色",
-        f"T {q['H']['t_max']*10:.1f}mm（R {q['H']['r']*10:.1f}mm の {q['H']['t_max']/q['H']['r']*100:.0f}%）、幅広く左右非対称。R は少し低い。J点 {mm(q['H']['st_j'])}（ST上昇はまだ小さい）",
-        f"J点 {mm(q['E']['st_j'])}、J+60ms {mm(q['E']['st60'])}。上に凸の ST がそのまま T（頂点 {q['E']['t_max']*10:.1f}mm）につながる。R {q['E']['r']*10:.1f}mm。墓石型は波形では描かず、ひとことと台本でふれる",
-        f"Q 幅 {q['Q']['q_ms']:.0f}ms・深さ {q['Q']['q_mv']*10:.1f}mm（R {q['Q']['r']*10:.1f}mm。Q は QRS の高さの {q['Q']['q_mv']/(q['Q']['q_mv']+q['Q']['r'])*100:.0f}%）。ST は J+60ms {mm(q['Q']['st60'])} とまだ少し高く、T の終わりが下向き（{mm(q['Q']['t_min'])}）",
-        f"Q 幅 {q['I']['q_ms']:.0f}ms・深さ {q['I']['q_mv']*10:.1f}mm が残り、ST は基線（J点 {mm(q['I']['st_j'])}）。左右対称の深い陰性T（{mm(q['I']['t_min'])}）",
-        f"{m.rate(m.RR):.0f}/分。J点 {mm(q['D']['st_j'])}、J+80ms {mm(q['D']['st80'])} で水平に低下、そのあと T（{q['D']['t_max']*10:.1f}mm）",
-        f"{m.rate(0.56):.0f}/分（洞頻脈）。PR部分 {mm(q['C']['pr_seg'])}、ST は下に凸で J点 {mm(q['C']['st_j'])}・J+60ms {mm(q['C']['st60'])}。T {q['C']['t_max']*10:.1f}mm（ST/T {q['C']['st_j']/q['C']['t_max']:.2f}）",
-        f"{m.rate(m.RR):.0f}/分、P波あり。幅の広い（{q['L']['qrs']:.0f}ms）ノッチのある R、ST（J+60ms {mm(q['L']['st60'])}）と T（{mm(q['L']['t_min'])}）は QRS と逆向き",
-        f"洞調律 {m.rate(0.86):.0f}/分の2拍のあと、幅の広いQRS（{q['V']['qrs']:.0f}ms・P波なし）が {m.rate(m.AIVR_RR):.0f}/分で4拍 → 洞調律に戻る（1周期 {m.PATTERNS[8]['L']:.2f}秒）",
-        f"P波 {m.rate(m.CHB_PP):.0f}/分と、幅の狭い接合部補充調律 {m.rate(m.CHB_RR):.0f}/分（QRS {q['J']['qrs']:.0f}ms、下壁のST上昇 J点 {mm(q['J']['st_j'])}）が別々に出る。"
-        f"P が QRS の直前・ST の上・QRS のあいだに来る（PR がばらばら）。LITFL の例（心房 ~85/分・心室 ~38/分・接合部補充調律・下壁のST上昇）に合わせた",
+        f"P波なし、R-R {min(m.AF_RR)}〜{max(m.AF_RR)}秒でバラバラ（平均 {60/np.mean(m.AF_RR):.0f}/分）、粗い f波（5〜8Hz、RMS {m.F_COARSE}mV）",
+        f"{60/0.52:.0f}/分、どの拍にもふつうのP波（P頂点→R頂点 0.15秒）、T波は少し早い",
+        f"洞調律 {60/0.8:.0f}/分の1拍おきに PVC（直前のRから 0.48秒、QRS {m.qrs_ms(m.qrs_pvc):.0f}ms、逆向きのST-T）。休みは2拍ぶん",
+        '3〜9Hz（180〜540/分）の不規則で大きな揺れ（約±0.4mV）。P・QRS・Tは見えない',
+        f"P波 {60/m.CAVB_PP:.0f}/分と、幅の狭いQRS（接合部）{60/m.CAVB_RR:.0f}/分が、関係なく別々に出る（比が整数にならない）",
+        'P波 75/分、PR 0.18 → 0.28 → 0.33秒と伸びて、4つめのP波のあとQRSが抜ける（4:3）',
+        '60/分。T波が高く（0.82mV）、細く（幅 0.23秒）、左右対称でとがる。P波・QRSは基準と同じ',
+        '洞調律 75/分の上に、4.5Hz の大きな揺れ（周期4秒のうち 0.45〜3.55秒）。揺れの中に、ふつうのQRSが同じ間隔で見える',
+        f"心室ペーシング 60/分（スパイク → 幅の広い下向きのQRS {m.qrs_ms(m.qrs_paced):.0f}ms）。3拍目はスパイクのあとにQRSがない",
+        f"QT延長の洞調律（60/分、QT 約0.56秒）2拍 → T波の上から、約{m.TDP_F*60:.0f}/分で大きさがねじれるように変わる → "
+        f"{m.TDP_B - m.TDP_A:.2f}秒で自然に止まる",
     ]
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    hook_t = m.HOOK_T0 + 3*m.HOOK_STEP + 0.2
-    frames = [('冒頭のフック（問いかけと、止めた波形を変形しているところ）', hook_t)] \
-        + [(f"{p['no']} {p['name']}", key_time(i)) for i, p in enumerate(m.PATTERNS)] \
-        + [('最後：10個の一覧（保存・何個わかった？）', m.T_END + m.FLY + 2.5)]
+    frames = [('冒頭：問いかけ「10問、全部わかる？」と、変形するフック（名前は出さない）', m.HOOK_T0 + 2*m.HOOK_STEP + 0.2)]
+    for i, p in enumerate(m.PATTERNS):
+        a, _ = m.WINDOWS[i]
+        frames.append((f"{p['no']} 出題中（カウントダウン「1」。名前・色は出さない）", a + m.CD0 + 2*m.CD_STEP + 0.2))
+        frames.append((f"{p['no']} 答え：{p['name']}", m.T_REV[i] + 0.9))
+    frames.append(('最後：何問正解？・保存・10問の答えの一覧', m.T_END + m.FLY + 3.2))
     fdir = os.path.join(OUT, 'review_frames')
     os.makedirs(fdir, exist_ok=True)
     pngs, index = [], []
     for k, (name, t) in enumerate(frames, 1):
         fp = os.path.join(fdir, f'{k:02d}.png')
         m.frame(t).save(fp)
-        pngs.append(fp); index.append(f'- {k}ページ：{name}')
-    thumb = os.path.join(OUT, 'thumb_reel28_list.png')
-    m.thumbnail_list().save(thumb)                       # いつも作り直す（古いサムネイルを入れない）
-    pngs.append(thumb); index.append(f'- {len(pngs)}ページ：サムネイル（投稿の表紙）')
-    fpdf = os.path.join(OUT, 'review_reel28_frames.pdf')
+        pngs.append(fp); index.append(f'- {k}ページ：{name}（{t:.1f}秒）')
+    thumb = os.path.join(OUT, 'thumb_reel28_quiz_list.png')
+    m.thumbnail_list().save(thumb)                      # いつも作り直す
+    pngs.append(thumb); index.append(f'- {len(pngs)}ページ：サムネイル（投稿の表紙。答えは出さない）')
+    fpdf = os.path.join(OUT, 'review_reel28_quiz_frames.pdf')
     try:
         import img2pdf
         with open(fpdf, 'wb') as f:
@@ -106,42 +93,48 @@ def main():
         ims[0].save(fpdf, save_all=True, append_images=ims[1:], resolution=72, quality=95, subsampling=0)
     print(fpdf, len(pngs), 'ページ（等倍）')
 
-    # 依頼文
+    cmp = {r[0]: r for r in m.compare_sources()}
+    rows = []
+    for i, (p, d) in enumerate(zip(m.PATTERNS, describe())):
+        folder, _, _, src_no = p['src']
+        _, _, dmax, L0, L1, ev_ok, spk_ok, _ = cmp[p['no']]
+        same = '同じ' if dmax < 1e-9 and ev_ok and spk_ok and abs(L0 - L1) < 1e-9 else f'ずれ {dmax:.1e}mV'
+        rows.append(f"| {p['no']} | {p['name']} | {EP[folder]} {src_no} | {p['one']} | "
+                    f"{LEVEL_JA[p['level']]}「{p['guide']}」（元：{SRC_TAG[i]}） | {d} | {same} |")
     narr = '\n'.join(f"- {n}：{vo.TEXT[n]}" for n, _ in vo.LINES)
     caption = open(os.path.join(HERE, 'caption.txt'), encoding='utf-8').read().strip()
     srcs = '\n'.join(f'- {k}：{u}' for k, u in SRC.items())
-    tagtxt = {k: v[0] for k, v in m.TAGS.items()}
-    rows = '\n'.join(f"| {p['no']} {p['name']} | {p['one']} ＋「{tagtxt[p['tag']]}」 | {m.mag_readout(i)} | {d} |"
-                     for i, (p, d) in enumerate(zip(m.PATTERNS, describe())))
+    view = [m.T_REV[i] - (m.T_SW[i] + 0.3) for i in range(m.N_PAT)]
     txt = f'''あなたは循環器専門医として、看護師・看護学生向けの心電図教育リール（Instagram）を医学的にレビューしてください。
 添付は「映像のコマを等倍で1ページずつ並べたPDF」です。ナレーションとキャプションは、この依頼文の中にあります。
 
 ## 作品の概要
-- 第28弾「心筋梗塞とST変化、10パターン」（前回の12パターン版から作り直し）。縦 1080×1920・60fps・ナレーション入り（録音前。下の台本で録る）
-- 見る人：看護師・看護学生（病棟でモニター心電図を見る人。胸痛の患者のモニター変化に最初に気づきうる）
-- 第17〜21弾と同じ作り：冒頭3秒で波形を止めて5パターン（②〜⑥）に素早く変形（フック）→ 10パターンを1つずつ紹介 → 紹介が終わった波形は縮んで上下の枠に移り、ミニ波形として流れ続ける → 最後に10個の一覧
-- この回だけの見せ方：
-  - **STの虫眼鏡**：中部の帯の上の窓に、1拍を拡大して描く（⑨は左に洞調律・右にAIVRを並べて約2.9秒、⑩は約2.3秒。倍率は 1mm＝14〜20px、⑨⑩は全体を入れるため 8〜10px）。前のパターンが枠に着地してから出す。窓の中は 1mm（たて0.1mV・よこ0.04秒）の正方形の方眼、基線（TP）の点線、ST などの位置の矢印。右上に値（「ST ↑3mm」など。モデルの波形から計算、1mm 以上は 0.5mm きざみ）
-  - **時間の流れのバー**：②〜⑤のあいだ、上に「超急性期T → ST上昇 → 異常Q波 → 冠性T」を出し、いまの段階に下線。時間の目安（何時間・何日）は書いていない
-- 再生を伸ばすしかけ：冒頭0〜2.4秒に問いかけ「このST、すぐ報告？」、最後に「保存して見返してね」「何個わかった？コメントで教えてね」
-- 波形はモデルで作った模式図。**II誘導のモニター・実際の速さ（25mm/秒）**。各拍の特徴のところ（ST-T・Q など）だけ、いま紹介中のパターンの色（左に残っている前のパターンの拍は緑）。左下の注記は「※II誘導のモニター（実際の速さ）」「※数値はこの波形での一例」
-- **大前提：モニター（II誘導の1つ）だけでは ST 変化は判断できない**。画面の色の文字（赤「→ すぐ報告・12誘導」、橙「→ 12誘導で確認」）、最後の文「モニターのST変化は、12誘導で確認」、キャプションで伝えている
-- その他の色の文字：①「→ 比べる基準」（緑）、⑨「→ 報告して観察」（紫）、⑩「→ すぐ報告」（赤）。ナレーションでは「すぐ報告」と言わない（画面とキャプションで伝える）
-- 並び：①〜⑤ 心筋梗塞の時間の流れ（基準 → 超急性期T波 → ST上昇（大きいと墓石型）→ 異常Q波 → 冠性T波）、⑥ ST低下（虚血）、⑦⑧ まぎらわしいST変化（心膜炎・左脚ブロック）、⑨⑩ 心筋梗塞のときの不整脈（AIVR・完全房室ブロック）
-- 前回から外したもの：墓石型（③に含めた）、上行型のST低下（「虚血とは限らない」が安心材料に取られるおそれ）、早期再分極（II誘導1本では区別できない。キャプションで「12誘導で見分ける」とふれた）。足したもの：⑩完全房室ブロック
-- 画面とキャプションに「数値はこの波形での一例」と明記している
-- 出典は LITFL ECG Library（下に一覧）。LITFL 以外は使っていない
+- 第28弾「波形クイズ『この波形、なに？』（総復習）」全{m.N_PAT}問。縦 1080×1920・60fps・ナレーション入り（録音前。下の台本で録る）
+- **これまでの回で専門医レビュー済みの波形を、クイズの形で並べ直した回**。波形のモデルは各回のプログラムから数値を変えずに移植し、
+  元の回のモデルで描いた波形と1msごとに比べて、同じであることを確かめた（下の表「元の回との一致」）。名前・画面のひとことも元の回と同じ
+- 見る人：看護師・看護学生。これまでの回を見た人の復習（視聴者には「第◯弾」は見せない）
+- 1問の流れ（約6〜7.5秒）：「Q◯ これは？」と波形だけ → カウントダウン 3・2・1（リングが減る。0.6秒ごと）→ 答え（名前・ひとこと・案内「→ くわしくは〇〇の回」）
+  → 波形が縮んで上下の枠へ（枠は答えが出るまで「Q◯ ？」だけ）。答えの前は、名前・色を出さない（波形はみどり、枠は白）
+- 答えの前に波形が見えている時間は 約{view[0]+0.3:.1f}秒（0.3秒で浮かび上がり、はっきり見えるのは約{view[0]:.1f}秒。前の問題の波形を枠へ移すあいだ帯を消し、問題の波形の頭から出すため）
+- 案内の色は危険度。ほかの回とそろえた：赤＝元の回で赤の「→ すぐ報告」「→ 電気ショック」「→ 脈なしならショック」、
+  黄＝元の回で黄色の「→ すぐ報告」、緑＝元の回で色の文字なし、または緑（「→ まず患者さん」「→ 初めてなら報告」）
+- 冒頭0〜2秒：変形するフック（5問の波形。名前は出さない）の上に問いかけ「10問、全部わかる？」。最後：「何問正解？コメントで教えてね」「保存して見返してね」と、10問の答えの一覧（枠）
+- 波形はモデルで作った模式図。**II誘導・実際の速さ（25mm/秒）**。画面とキャプションに「数値はこの波形での一例」
+- 「すぐ報告」は声では言わない（画面の案内の色とキャプションで伝える）
 
 ## PDFのページ
 {chr(10).join(index)}
 
-## 各パターンの描き方（モデルの値）
-| パターン | 画面のひとこと ＋ 色の文字 | 虫眼鏡の値（モデルから計算） | 描き方（1mm = 0.1mV。ST は TP＝基線からの高さ） |
-|---|---|---|---|
-{rows}
+## 元の回との対応表
+| 問 | 答え（名前） | 元の回・番号 | 画面のひとこと（元の回と同じ） | 案内の色 | 描き方（元の回のモデルの値） | 元の回との一致 |
+|---|---|---|---|---|---|---|
+{chr(10).join(rows)}
 
-## ナレーション（録音前の台本。数字は画面に出ているので、声では読まない）
+## ナレーション（録音前の台本。答えのところだけ声。カウントダウン中は声なし）
 {narr}
+
+元の回の台本からとった言い回し（くわしくは台本 narration.md の表）：Q6「PRが伸びて、伸びて、抜ける」→「PRが伸びて、抜ける」、
+Q10「ねじれる、トルサード。持続して脈がなければ、ショック。」→「答えは、トルサード。ねじれる。」（後半は声で言わず、案内の赤とキャプションで）
 
 ## キャプション
 ```
@@ -149,46 +142,47 @@ def main():
 ```
 
 ## とくに見てほしい点
-1. 「すぐ報告・12誘導」（②③⑥）、「12誘導で確認」（④⑤⑦⑧）、「報告して観察」（⑨）、「すぐ報告」（⑩）の分け方。とくに ④異常Q波（ST がまだ少し高い形で描いた）、⑧左脚ブロック（新しい左脚ブロック＋胸痛）をどう扱うか
-2. STの虫眼鏡の値と描き方。①「ST 0mm（基線と同じ）」、②「T ↑7mm」、③「ST ↑3mm」（J点で測った）、④「Q ↓3mm」、⑤「T ↓3.5mm」、⑥「ST ↓1.5mm」（J+60ms）、⑦「PR ↓0.7mm　ST ↑0.9mm」、⑧「ST ↓2mm　QRSと逆向き」、⑨「QRS 0.15秒（幅広）」、⑩「P 86/分・QRS 38/分」。ST を測る点（J点か J+60ms か）と、値の出し方（0.5mm きざみ、1mm 未満は 0.1mm）で誤解がないか
-3. 時間の流れのバー（超急性期T → ST上昇 → 異常Q波 → 冠性T）。時間の目安は書かなかった。この順番の示し方で誤解がないか（Q波は早く出ることもある、ST上昇と冠性Tが同時にあることもある、など）
-4. ③ ST上昇：上に凸で描いた（LITFL：STEMI の ST 上昇は concave・convex・obliquely straight のどれもある）。墓石型は ひとこと「大きいと墓石型」と台本「大きいと、墓石のような形に。」でふれるだけにした
-5. ② 超急性期T波：T 6.8mm（R の約77%）、幅広く左右非対称、ST はほぼ基線。台本「早い時期に、Tが高く幅広くなる。」は言いすぎでないか（LITFL：often precede the appearance of ST elevation and Q waves）
-6. ⑥ 水平型 ST 低下（1.5mm）を「虚血のサイン → すぐ報告・12誘導」としたこと。鏡像変化（ほかの誘導の ST 上昇の裏返し）のこともある点にふれるべきか
-7. ⑦ 心膜炎（107/分、PR -0.7mm、ST +0.9mm 下に凸）。「広い範囲」は12誘導の話で、II誘導1本では見分けにくい。画面「PR低下＋下に凸のST上昇」と言い切ってよいか
-8. ⑧ 左脚ブロック：II誘導で、幅の広いノッチのある R と、逆向き（下がる）ST-T で描いた。II誘導の左脚ブロックの形として妥当か（軸によって変わる）
-9. ⑨ AIVR：洞調律 70/分のあと、幅の広い QRS が 77/分で4拍 → 洞調律。P波（房室解離）は描いていない。「報告して観察」でよいか
-10. ⑩ 完全房室ブロック（新しく足した）：心房 86/分、幅の狭い接合部補充調律 38/分、QRS には下壁のST上昇（LITFL の例に合わせた）。「→ すぐ報告」、ひとこと「PとQRSが別々。下壁梗塞で」、台本「下壁の梗塞で起きやすい、完全房室ブロック。」（LITFL Inferior STEMI：Up to 20% … second- or third-degree AV block）。下壁梗塞の房室ブロックはアトロピンに反応しやすく一過性が多い（LITFL）が、その点を入れるべきか
-11. 冒頭の問いかけ「このST、すぐ報告？」（画面だけ。声では言わない）と、最後の「何個わかった？コメントで教えてね」、キャプション1行目「このST変化、すぐ報告？それとも12誘導で確認？」。医療の判断をあおる言い方になっていないか
-12. スマホの大きさで、虫眼鏡の字（右上の値 30px、見出し 20px、「基線」20px）が読めるか
+1. **問題の選び方と順番**（易しい → 難しい）：Q1 心房細動 → Q2 洞頻脈 → Q3 二段脈 → Q4 粗いVF → Q5 完全房室ブロック → Q6 ウェンケバッハ →
+   Q7 高K：テント状T波 → Q8 偽VT → Q9 ペーシング不全 → Q10 トルサード。順番の難しさの感覚は妥当か。
+   はじめの案（12問）から、心室ペーシング（Q9 ペーシング不全の波形の中に心室ペーシングが入っていて、続けて出すと答えが重なる）と
+   PSVT（頻脈の回で「P波がT波に重なる洞頻脈は PSVT に見える」と教えており、モニター1本の波形だけでは答えが1つに決まりにくい）を外して10問にした（12問だと約86秒になる）。
+   ほかに入れかえたほうがよいもの（心房粗動 4:1、モビッツII型 など）はあるか
+2. **答えの前に見せる波形だけで、答えが1つに決まるか**（各問の「出題中」のページ）。とくに
+   Q1（心房細動：粗い f波。多源性心房頻拍・心房粗動と迷わないか）、Q2（洞頻脈：心房頻拍と迷わないか）、
+   Q5（完全房室ブロック：2:1・高度房室ブロックと迷わないか。PR がばらばらに見えるか）、Q7（テント状T波：ふつうの高いT波・超急性期T波と迷わないか）、
+   Q8（偽VT：揺れの中のふつうのQRSが、答えの前の約{view[0]+0.3:.1f}秒で見えるか）、Q10（トルサード：多形性VTと答えても正しいか）
+3. **ひとこと・声の短縮が正しいか**：Q1 は名前「心房細動（f波が粗い）」に対して声は「心房細動」、Q7 は名前「高K：テント状T波」に対して声は「高カリウム」、
+   Q8 は名前「偽VT（歯みがき）」に対して声は「ノイズ」。Q10 の声で「持続して脈がなければ、ショック」を省いたこと
+4. **案内の色（危険度）の決め方**：元の回の表示から機械的に決めた（表の「案内の色」）。ただし元の回どうしで「→ すぐ報告」の色が赤（徐脈・ペースメーカー・ノイズ・心房細動）と
+   黄（致死性不整脈・頻脈・高カリウム）に分かれている。Q7 高K を黄、Q3 二段脈・Q6 ウェンケバッハ・Q8 偽VT を緑にしたことは妥当か
+5. キャプションの「🚨見つけたらすぐ報告：Q4・Q5・Q7・Q9・Q10（VF・脈のないトルサードは電気ショック）」「⚠️心房細動は、初めて見つけたら報告。ノイズに見えても、まず患者さんを見てください」
+6. 冒頭の問いかけ「10問、全部わかる？」、最後の「何問正解？コメントで教えてね」が、医療の判断をあおる言い方になっていないか
+7. カウントダウン（2.4秒）と、答えの前に波形が見えている時間（約{view[0]+0.3:.1f}秒）が、看護師・看護学生のクイズとして短すぎないか
 
 ## 返してほしい形
-- パターン番号（またはページ）ごとに：判定（OK／要修正／推奨）・理由・直し方（数値や言い換えまで具体的に）
+- 問ごとに：判定（OK／要修正／推奨）・理由・直し方（数値や言い換えまで具体的に）
 - 「要修正」は医学的に誤りのもの、「推奨」はより良くなるもの、と分けてください
 - LITFL 以外を根拠にするときは、出典名を書いてください
 - ナレーションの台本を変えたほうがよいものは、その文を書いてください（このあと録音します）
 
-## 出典
+## 出典（元の回から引き継いだもの）
 {srcs}
 '''
     with open(os.path.join(HERE, 'review_request.md'), 'w', encoding='utf-8') as f:
         f.write(txt)
     print(os.path.join(HERE, 'review_request.md'))
 
-    lines = ['第28弾 心筋梗塞とST変化 10パターン ― 画面の文字', '',
-             '[見出し] 心筋梗塞とST変化 10パターン（「10」は黄色・2倍）',
-             f'[冒頭 0〜2.4秒の問いかけ] {m.HOOK_Q}',
-             f'[冒頭 0〜{m.T_GO:.1f}秒] 心電図で気づく ／ 心筋梗塞とST変化',
-             '[冒頭の変形で出る名前] ' + ' → '.join(f"{m.PATTERNS[i]['no']} {m.PATTERNS[i]['name']}" for i in m.HOOK), '']
-    for i, pat in enumerate(m.PATTERNS):
+    lines = [f'第28弾 波形クイズ「この波形、なに？」全{m.N_PAT}問 ― 画面の文字', '',
+             f'[見出し] {m.HEADER[0][0]} {m.N_PAT} 問（数字は黄色・2倍）',
+             f'[冒頭 0〜2.6秒] {m.HOOK_Q}（黄）／ {m.TITLE_SUB} ／ {m.TITLE}', '[冒頭の変形] 名前は出さない', '']
+    for i, p in enumerate(m.PATTERNS):
         a, b = m.WINDOWS[i]
-        alert = f" {m.TAGS[pat['tag']][0]}"
-        lines.append(f"[{a:5.1f}〜{b:5.1f}秒] {pat['no']} {pat['name']} ／ {pat['one']}{alert} ／ ヒント：{pat['hint']}"
-                     f" ／ 虫眼鏡：{m.mag_title(i)}「{m.mag_readout(i)}」")
-    lines += ['', '[②〜⑤のあいだ] 時間の流れ ' + ' → '.join(m.TIME_STAGES) + '（いまの段階に下線）',
-              f'[最後] {m.END_LINE} ／ 保存して見返してね ／ {m.END_Q}',
+        lines.append(f"[{a:5.1f}〜{m.T_REV[i]:5.1f}秒] {p['no']} これは？（カウントダウン 3・2・1）"
+                     + (f" ／ {m.COUNT_NOTE}" if i == 0 else '') + f" ／ 枠：{p['no']} ？")
+        lines.append(f"[{m.T_REV[i]:5.1f}〜{b:5.1f}秒] {p['name']} ／ {p['one']} ／ {p['guide']}（{LEVEL_JA[p['level']]}） ／ 枠：{p['no']} {p['name']}")
+    lines += ['', f'[最後] {m.END_Q}（黄） ／ {m.END_SAVE}（緑）',
               f'[左下] {m.NOTE1} ／ {m.NOTE2}', '[右下] @nurse_polarbearden（透かし）']
-    txt = os.path.join(OUT, 'screen_text_reel28.txt')
+    txt = os.path.join(OUT, 'screen_text_reel28_quiz.txt')
     with open(txt, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines) + '\n')
     print(txt)
