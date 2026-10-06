@@ -1,23 +1,25 @@
+このST変化、すぐ報告？それとも12誘導で確認？
 @nurse_polarbearden📍他の投稿をチェック
 ---------------------------------------------------------
 ▶︎こんにちは、看護師でんです。
 
-モニターのST変化、気づけますか？
-心筋梗塞とST変化、まず覚えたい12パターンをまとめました。
+心筋梗塞とST変化、まず覚えたい10パターンをまとめました。
 
 🕒心筋梗塞の流れ：超急性期T波 → ST上昇（大きいと墓石型）→ 異常Q波 → 冠性T波
-🚨すぐ報告・12誘導 → 超急性期T波・ST上昇・墓石型・水平〜下降型のST低下
-📋12誘導で確認 → 異常Q波・冠性T波・上行型のST低下・心膜炎・早期再分極・左脚ブロック
+🚨すぐ報告・12誘導 → 超急性期T波・ST上昇・水平〜下降型のST低下
+📋12誘導で確認 → 異常Q波・冠性T波・心膜炎・左脚ブロック
+⚡すぐ報告 → 完全房室ブロック（下壁の梗塞で起きやすい）
 🫀AIVR（再灌流のときに出やすい）→ 多くは自然におさまる。報告して観察
 
 ※モニターのST変化は12誘導で確認します（モニターの1つの誘導だけでは判断できません）
 ※ST上昇の形は、上に凸だけでなく、下に凸やまっすぐのこともあります
-※上行型のST低下でも、胸痛があれば12誘導で確認します
+※若い人に多い「早期再分極」もST上昇に見えます。モニターでは区別できないので12誘導で見分けます
 
+何個わかったか、コメントで教えてね。
 保存して、見返してね。
 
 ※数値はこの波形での一例です（II誘導）
-※参考：LITFL ECG Library（ST Segment / T wave / Q Wave / Anterior MI / Inferior STEMI / Myocardial Ischaemia / Pericarditis / Benign Early Repolarisation / LBBB / AIVR）
+※参考：LITFL ECG Library（ST Segment / T wave / Q Wave / Anterior MI / Inferior STEMI / Myocardial Ischaemia / Pericarditis / Benign Early Repolarisation / LBBB / AIVR / AV block 3rd degree）
 
 📌保存・シェアは大歓迎です
 🚫画像・動画の無断転載、素材としての使用はご遠慮ください

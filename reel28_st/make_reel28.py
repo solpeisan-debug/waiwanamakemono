@@ -174,8 +174,9 @@ def _reg(kind, rr, n):
 #             'J'（J点）'J60'（J点+60ms）'Tmax' 'Tmin' 'Qmin'（モデルから計算）
 #             ('w', 名前) QRS の幅のかっこ（始まり〜J点）と「名前 0.15秒」
 #             ('p', [時刻…]) P波の上に「P」　('t', 文) 値のうしろに一言
-_E = {k: _reg(k, RR, 6) for k in 'NHEQIDL'}
-_C = _reg('C', 0.56, 8)                     # 107/分
+_E = {k: _reg(k, RR, 6) for k in 'NHQIDL'}
+_C = _reg('C', 0.56, 9)                     # 107/分（9拍＝5.04秒）
+_E3 = _reg('E', RR, 7)                      # ③ は台本が長い（墓石型にもふれる）ので 7拍＝5.6秒
 AIVR_RR = 0.78                              # 77/分（洞調律 70/分より少し速い）
 _A = [(0.0, 'N'), (0.86, 'N')] + [(1.64 + k*AIVR_RR, 'V') for k in range(4)]
 # ⑩ 完全房室ブロック（下壁梗塞。LITFL の例：心房 ~85/分・心室 ~38/分・接合部補充調律・下壁のST上昇）
@@ -193,7 +194,7 @@ PATTERNS = [
          mag=dict(subj='T', ref=0.8, c=0.12, mm=16, base=112, lab_t=-0.31, marks=[('v', 'T', 'Tmax')])),
     dict(no='③', name='ST上昇', col=C_ACUTE, hint='STが上がる',
          one='STが上がる。大きいと墓石型', tag='urgent',
-         ev=_E['E'], L=4.8, hl=_each(_E['E'], 0.02, 0.36),
+         ev=_E3, L=5.6, hl=_each(_E3, 0.02, 0.36),
          mag=dict(subj='ST', ref=0.8, c=0.12, mm=22, base=112, marks=[('v', 'ST', 'J')])),
     dict(no='④', name='異常Q波', col=C_OLD, hint='深いQ',
          one='深く幅広いQ。梗塞のあと', tag='check',
@@ -209,7 +210,7 @@ PATTERNS = [
          mag=dict(subj='ST', ref=0.8, c=0.10, mm=28, base=66, marks=[('v', 'ST', 'J60')])),
     dict(no='⑦', name='急性心膜炎', col=C_MIM, hint='PRも下がる',
          one='PR低下＋下に凸のST上昇', tag='check',
-         ev=_C, L=4.48, hl=_each(_C, -0.12, -0.035) + _each(_C, 0.03, 0.30),
+         ev=_C, L=5.04, hl=_each(_C, -0.12, -0.035) + _each(_C, 0.03, 0.30),
          mag=dict(subj='PRとST', ref=0.56, c=0.02, mm=30, base=76, lab='below',
                   marks=[('v', 'PR', -0.07), ('v', 'ST', 'J')])),
     dict(no='⑧', name='左脚ブロック', col=C_MIM, hint='幅広QRS',
@@ -236,7 +237,7 @@ for _p in PATTERNS:
 
 # 区間の長さ（秒）。仮の値（録音前）：台本の文の長さの見込み（6字/秒）＋0.75秒以上で、
 # 拍の並びがくずれない位置（周期 L の終わり＝次の拍まで、そのパターンの R-R 間隔）で切る。
-# - ①②③⑥⑧ 4.8：75/分の6拍　- ④⑤ 4.0：75/分の5拍　- ⑦ 4.48：107/分の8拍
+# - ①②⑥⑧ 4.8：75/分の6拍　- ③ 5.6：75/分の7拍　- ④⑤ 4.0：75/分の5拍　- ⑦ 5.04：107/分の9拍
 # - ⑨ 4.76：洞調律2拍＋AIVR 4拍（最後の拍から次まで 0.78秒）
 # - ⑩ 4.36：周期 6.3秒の途中。最後の QRS（3.55秒）から次の洞調律まで 0.81秒。次の洞調律の P 波（4.20秒）は
 #   心房のリズム（0.70秒ごと）の続きになるので、⑩ の 4.20秒の P 波は落とす（_strip）
@@ -306,7 +307,7 @@ def hl_mask(pat, rel):
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
 T_TITLE = 4.9                     # 冒頭の1文（4.9秒）が入り、見出しと枠が出そろう長さ
-END_HOLD = 5.7                    # 10個そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
+END_HOLD = 6.5                    # 10個そろってからの時間（まとめ・保存の2文、「何個わかった？」を読む間、冒頭へ戻る時間）
 HOOK = [1, 2, 3, 4, 5]            # ②超急性期T → ③ST上昇 → ④異常Q → ⑤冠性T（心筋梗塞の時間の流れ）→ ⑥ST低下
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
@@ -1163,7 +1164,7 @@ def thumbnail():
     put(im, '心筋梗塞とST変化', 96, 900, WHITE, cx=540, cy=Y_ONE + 14, max_w=880)
     v, cid, spk = hook_arrays(2)
     wl = draw_wave(v, cid, WAVE_GREEN, 1.0, spk)
-    im.alpha_composite(wl, (0, F_Y0 + 50))
+    im.alpha_composite(wl, (0, F_Y0 - 46))          # 大きなタイトルと下の枠のまん中（10パターンの配置）
     return im.convert('RGB')
 
 
@@ -1261,8 +1262,9 @@ def thumbnail_list():
             im_h, _ = text_img(THUMB_DESC[i], 18, 500, (176, 186, 186))
             assert nx + im_h.size[0] - 8 <= x1 + 4, f'{pat["no"]} のひとことが入らない'
             put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
-        # ST の変化は小さいので、第21弾（30px/mV・4秒）より大きく（52px/mV・3秒。検査役の試作）
-        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.66, 52.0, span=3.0)
+        # ST の変化は小さいので、第21弾（30px/mV・4秒）より大きく。10パターン（1列5段）で段が高くなったぶん
+        # 52 → 60px/mV、基線の位置 0.66 → 0.62（名前の下 約17px から R の頂点）
+        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.62, 60.0, span=3.0)
         im.alpha_composite(lay, pos)
         if r < NR - 1:
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
