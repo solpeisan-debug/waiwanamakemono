@@ -9,8 +9,9 @@
 - a        ：前の問題の波形が枠へ縮んで移る（FLY 0.8秒）
 - a+0.62   ：「Q◯ これは？」が出る（前の波形が移り終わるころ。帯とほぼ同時）
 - a+SW     ：中部の帯が、この問題の波形の頭から出てくる。前の問題の波形は見せない（帯の時計をここで跳ばす）
-- a+CD0〜  ：カウントダウン 3・2・1（リングが減っていく）。名前・色は出さない（波形はみどり、枠は「Q◯ ？」）
-- a+REVEAL ：答え（名前・ひとこと・「→ くわしくは〇〇の回」）。波形の特徴のところに色。声「答えは、…」
+- a+HINT0 ：ヒントの段階（1.7秒〜）。「ヒント：〇〇」と、波形の特徴のところ（hint_hl）だけ紫に。同時にカウントダウン 3・2・1
+             （「これは？」の右のリング。0.65秒ごと、音は木の「コッ」。モニター音は -6dB）。名前・答えの色は出さない（枠は「Q◯ ？」）
+- a+REVEAL ：答え（3.65秒〜。名前・ひとこと・「→ くわしくは〇〇の回」）。特徴の紫がその問題の色に変わる。音「ポーン」。声「答えは、…」
 - b        ：答えの声のあと。波形が縮んで枠へ移る（次の問題の a）
 
 配置：
@@ -257,9 +258,26 @@ AF_EV = [(round(float(sum(AF_RR[:k])), 4), 'af') for k in range(len(AF_RR))]
 # =====================================================================================
 
 
-def _q(no, name, col, level, theme, one, say, ev, L, hl, src, art=None, gain=None):
+def _q(no, name, col, level, theme, one, say, ev, L, hl, src, art=None, gain=None, hint=None, hint_hl=None):
     return dict(no=no, name=name, col=col, level=level, theme=theme, guide=f'→ くわしくは{theme}の回',
-                one=one, say=say, ev=ev, L=L, hl=hl, src=src, art=art, gain=gain)
+                one=one, say=say, ev=ev, L=L, hl=hl, src=src, art=art, gain=gain,
+                hint=hint, hint_hl=hl if hint_hl is None else hint_hl)
+
+
+# ヒント（答えの前に出す。答えの名前は書かない）と、色を付ける特徴の場所（周期の中の秒）。
+# 文は元の回の hint（レビュー済み）から。Q1・Q5・Q8 はユーザーの案。hint_hl を書いていない問題は、色の場所も元の回と同じ（hl）
+HINT = {
+    'Q1': 'P波がない・R-Rがバラバラ',      # ユーザーの案（元の回 ②「f波が大きい」・ひとこと「P波なし、R-Rがバラバラ」）
+    'Q2': 'Pがそろう',                     # 第24弾 ① hint
+    'Q3': '1拍おき',                       # 第17弾 ⑨ hint
+    'Q4': '大きくバラバラ',                 # 第21弾 ⑥ hint
+    'Q5': 'PとQRSの間隔',                  # ユーザーの案（元の回 ⑨「PとQRSがばらばら」）
+    'Q6': 'PRが伸びて抜ける',               # 第18弾 ⑤ hint
+    'Q7': 'T波がとがる',                    # 第25弾 ② hint
+    'Q8': '同じ間隔のQRS',                  # ユーザーの案（元の回 ⑨「VTに見える」）
+    'Q9': 'スパイクだけ',                   # 第19弾 ⑨ hint
+    'Q10': 'ねじれる',                      # 第21弾 ⑤ hint
+}
 
 
 PATTERNS = [
@@ -268,7 +286,8 @@ PATTERNS = [
        AF_EV, round(sum(AF_RR), 4), ALL, ('reel26_afl', 'make_reel26', 1, '② 心房細動（f波が粗い）'), art=art_af_coarse),
     _q('Q2', '洞頻脈', (110, 222, 236), 'green', '頻脈',
        'どの拍にも、ふつうのP波', '答えは、洞頻脈。どの拍にもP波がある。',
-       [(k*0.52, 'st') for k in range(8)], 4.16, ALL, ('reel24_tachy', 'make_reel24', 0, '① 洞頻脈')),
+       [(k*0.52, 'st') for k in range(8)], 4.16, ALL, ('reel24_tachy', 'make_reel24', 0, '① 洞頻脈'),
+       hint_hl=[(k*0.52 - 0.15 - 0.06, k*0.52 - 0.15 + 0.06) for k in range(8)]),     # どの拍のP波（P頂点 ±0.06秒）
     _q('Q3', '二段脈', (255, 152, 72), 'green', '期外収縮',
        '1拍おきにPVC。脈は半分のことも', '答えは、二段脈。1拍おきにPVC。',
        [(0, 'n17'), (.48, 'v17'), (.8, 'p17')], 1.6, [(0.48 - 0.09, 0.48 + 0.40)],
@@ -290,7 +309,7 @@ PATTERNS = [
     _q('Q8', '偽VT（歯みがき）', (255, 152, 72), 'green', 'ノイズ',
        'VTに見えても、ふつうのQRSが同じ間隔', '答えは、ノイズ。ふつうのQRSが隠れている。',
        [(k*RR, 'n20') for k in range(5)], 4.0, [(0.45, 3.55)], ('reel20_artifact', 'make_reel20', 8, '⑨ 偽VT（歯みがき）'),
-       art=art_brush),
+       art=art_brush, hint_hl=[(k*RR - 0.06, k*RR + 0.06) for k in range(5)]),         # 同じ間隔のQRS（R頂点 ±0.06秒）
     _q('Q9', 'ペーシング不全', (255, 92, 112), 'red', 'ペースメーカー',
        'スパイクのあとに、QRSがない', '答えは、ペーシング不全。スパイクのあとに、QRSがない。',
        [(0, 'v19'), (LRI, 'v19'), (2*LRI, 's19'), (3*LRI, 'v19')], 4*LRI, [(2*LRI - 0.12, 2*LRI + 0.30)],
@@ -303,6 +322,7 @@ PATTERNS = [
 N_PAT = len(PATTERNS)
 for _p in PATTERNS:
     _p['beats'] = _p['ev']
+    _p['hint'] = HINT[_p['no']]
 
 
 def art_apply(pat, rel, v):
@@ -345,12 +365,14 @@ def periodic_beats(pat, t0, t1):
     return out
 
 
-def hl_mask(pat, rel):
-    """周期の中の色を付ける範囲（rel は区間の始まりからの時刻）。"""
+def hl_mask(pat, rel, key='hint_hl'):
+    """周期の中の色を付ける範囲（rel は区間の始まりからの時刻）。ヒントと答えで同じ場所（hint_hl）に色を付ける。"""
     L = pat['L']
     r = np.mod(rel, L)
     m = np.zeros(len(rel), dtype=bool)
-    for a, b in pat['hl']:
+    if pat[key] is ALL:
+        return np.ones(len(rel), dtype=bool)
+    for a, b in pat[key]:
         for sh in (-L, 0.0, L):
             m |= (r + sh >= a) & (r + sh <= b)
     return m
@@ -365,9 +387,10 @@ T_TITLE = 3.6                     # 冒頭の1文「心電図クイズ。この1
 HOOK = [9, 3, 0, 7, 4]            # Q10トルサード → Q4 VF → Q1 心房細動 → Q8 偽VT → Q5 完全房室ブロック
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.3, 0.38, 0.12
 SW = 0.5                          # a から、帯の時計を跳ばす（この問題の波形を出す）まで
-CD0, CD_STEP, CD_N = 0.9, 0.7, 3  # カウントダウン：a+0.9 から 0.7秒ごとに 3・2・1（前の波形が枠へ移り終わってから）
-REVEAL = CD0 + CD_STEP*CD_N       # 答えを出す時刻（a から 3.0秒）
-SAY_CPS = 6.0                     # 声の長さの見込み（6字/秒）
+HINT0 = 1.7                       # ヒント（「ヒント：〇〇」と特徴の色付け）を出す時刻（a から）。出題だけの時間は a〜a+1.7
+CD0, CD_STEP, CD_N = HINT0, 0.65, 3   # ヒントと同時にカウントダウン：0.65秒ごとに 3・2・1
+REVEAL = CD0 + CD_STEP*CD_N       # 答えを出す時刻（a から 3.65秒）
+SAY_CPS = 7.0                     # 声の長さの見込み：同じ声（Ren）の第20弾の録音で実測 6.96字/秒（13文、6.1〜8.2）。録音後に決め直す
 SAY_LEAD, SAY_TAIL = 0.15, 0.30   # 答えが出てから話し始めるまで／言い終わってから縮み始めるまで
 FLY = 0.8                         # 中部から枠へ縮んで移る時間
 END_HOLD = 6.0                    # 10個そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
@@ -377,9 +400,11 @@ PRE_END = 0.4
 
 
 # 帯に出すとき、区間の頭からどれだけ進めておくか（周期の中のどこから見せるか）。ふつうは PRE。
-# Q10 トルサードは周期 5.6秒（QT延長の洞調律 0・1.0秒 → ねじれ 1.40〜3.95秒 → 4.6秒）。4.0秒から見せると、
-# 帯が出たときは洞調律（右はしで次のねじれが始まる）→ 答えの瞬間にねじれの全体が画面に入り、答えのあと約2.5秒まで見える
-PRE_OF = {9: 4.0}
+# Q10 トルサードは周期 5.6秒（QT延長の洞調律 0・1.0秒 → ねじれ 1.40〜3.95秒 → 4.6秒）。3.85秒から見せると、
+# 帯が出たときは洞調律 → ヒント（色付け）のときに右からねじれが入り → 答えの瞬間に、始まり（T波の上）から終わりまで全部が画面に入る
+# Q9 ペーシング不全は周期 4秒（スパイクだけの拍は 2.0秒）。2.3秒から見せると、ヒントが出たとき右のほう（x 約880）にスパイクだけの拍があり、
+# 答えの瞬間まで画面に残る（x 約200）。答えのあと約1.5秒で、次のスパイクだけの拍が右から入る
+PRE_OF = {8: 2.3, 9: 3.85}
 
 
 def pre_of(i):
@@ -390,11 +415,11 @@ def say_len(i):
     return len(PATTERNS[i]['say']) / SAY_CPS
 
 
-WINDOWS, T_REV = [], []
+WINDOWS, T_REV, T_HINT = [], [], []
 _t = T_TITLE
 for _i in range(N_PAT):
     _b = _t + REVEAL + SAY_LEAD + say_len(_i) + SAY_TAIL
-    WINDOWS.append((_t, _b)); T_REV.append(_t + REVEAL)
+    WINDOWS.append((_t, _b)); T_REV.append(_t + REVEAL); T_HINT.append(_t + HINT0)
     _t = _b
 T_END = WINDOWS[-1][1]
 T_SW = [a + SW for a, _ in WINDOWS]
@@ -540,8 +565,10 @@ Y_GUIDE = Y_ONE + 46
 F_BASE = _BOT_TOP - 22 + WAVE_LO*F_MV
 assert F_BASE - WAVE_HI*F_MV >= Y_GUIDE + 30, '帯の上が案内の字に近すぎる'
 F_Y0, F_Y1 = int(F_BASE - WAVE_HI*F_MV - 24), int(_BOT_TOP - 2)
-Y_RING = Y_NAME + 84               # カウントダウンのリングの中心（「これは？」の下 14px）
-RING_R = 36
+RING_R = 32                        # カウントダウンのリング：「Q◯ これは？」の右に並べる
+Y_RING = Y_NAME + 2
+Y_HINT = Y_NAME + 66               # 「ヒント：〇〇」（36px）。下の帯（いちばん上 約900）とのあいだ 50px 以上
+HINT_COL = (236, 120, 255)         # ヒントの色付け：答えの色（青・水色・橙・赤・黄）と危険度の色（赤・黄・緑）のどれともちがう紫
 
 HEADER = [('この波形、なに？', 1.0, WHITE), (str(N_PAT), 2.0, YEL), ('問', 1.0, WHITE)]
 HEADER_BASE = 322                 # 「10」の上端 約255（上 250px より下）
@@ -669,10 +696,7 @@ def strip_colors(tau):
         inside = (tau >= s0) & (tau < s1)
         if not inside.any():
             continue
-        if PATTERNS[i]['hl'] is ALL:
-            m = inside
-        else:
-            m = inside & hl_mask(PATTERNS[i], tau - s0)
+        m = inside & hl_mask(PATTERNS[i], tau - s0)
         cid[m] = i
     return cid
 
@@ -784,7 +808,7 @@ def hook_state(t):
     return seq[k], seq[k + 1], ease((t - times[k]) / HOOK_MORPH)
 
 
-def draw_wave(v, cid, base_col, a, spk=()):
+def draw_wave(v, cid, base_col, a, spk=(), hl_col=None):
     h = F_Y1 - F_Y0
     ys = F_BASE - F_Y0 - v*F_MV
     out = Image.new('RGBA', (W, h), (0, 0, 0, 0))
@@ -793,7 +817,7 @@ def draw_wave(v, cid, base_col, a, spk=()):
         sel = sel | np.roll(sel, 1) | np.roll(sel, -1)
         idx = np.where(sel)[0]
         runs = [list(zip(FX[r], ys[r])) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
-        col = base_col if ci < 0 else PATTERNS[ci]['col']
+        col = base_col if ci < 0 else (hl_col or PATTERNS[ci]['col'])
         if runs:
             out.alpha_composite(glow_line((W, h), runs, col, 4.5, a))
         sr = spike_runs([q for q in spk if q[2] == ci], FX, ys, F_MV)
@@ -803,15 +827,19 @@ def draw_wave(v, cid, base_col, a, spk=()):
 
 
 def featured(t, base_col, a, cur=None):
-    """中部の帯。色を付けるのは、いま答えが出ている問題（cur）の特徴のところだけ。答えの前はみどりだけ。"""
+    """中部の帯。色を付けるのは、いまの問題（cur）の特徴のところ（hint_hl）だけ。
+    出題中はみどりだけ → ヒントで紫（HINT_COL）→ 答えでその問題の色へ。"""
     if T_STOP <= t < T_GO:
         (v0, c0, s0), (v1, c1, s1), u = hook_state(t)
         return draw_wave(v0 + (v1 - v0)*u, np.full(len(v0), -1, dtype=int), base_col, a, s1 if u >= 0.5 else s0)
     v, cid, spk = strip_arrays(tau_c(t))
-    c = cur if (cur is not None and t >= T_REV[cur]) else -999
+    c = cur if (cur is not None and t >= T_HINT[cur]) else -999
     cid = np.where(cid == c, cid, -1)
     spk = [(x, amp, ci if ci == c else -1) for x, amp, ci in spk]
-    return draw_wave(v, cid, base_col, a, spk)
+    hl_col = None
+    if c >= 0:
+        hl_col = mix(mix(base_col, HINT_COL, ramp(t, T_HINT[c], 0.25)), PATTERNS[c]['col'], ramp(t, T_REV[c], 0.3))
+    return draw_wave(v, cid, base_col, a, spk, hl_col)
 
 
 STRIP_W, STRIP_H, STRIP_BASE = CELL_W - 20, 76, 50     # ミニ波形の帯（枠の中）
@@ -860,7 +888,7 @@ def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=No
     if plain:
         ect = np.zeros(len(xs), dtype=bool)
     else:
-        ect = np.ones(len(xs), dtype=bool) if pat['hl'] is ALL else hl_mask(pat, rel)
+        ect = hl_mask(pat, rel)
     y_lo = int(min(ys.min(), base_y - 1.1*mv) - 30)
     y_hi = int(max(ys.max(), base_y + 0.9*mv) + 30)
     bx0, by0 = int(x_lo) - 30, y_lo
@@ -869,7 +897,7 @@ def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=No
     spk = []
     for ts, amp in spike_times(bl):
         if rel[0] <= ts <= rel[-1]:
-            on = (not plain) and (pat['hl'] is ALL or bool(hl_mask(pat, np.array([ts]))[0]))
+            on = (not plain) and bool(hl_mask(pat, np.array([ts]))[0])
             spk.append((xs[0] + (ts - rel[0]) * pxs, amp, on))
     for flag, col in ((False, WAVE_GREEN), (True, pat['col'])):
         sel = ect == flag
@@ -983,33 +1011,37 @@ def draw_header(base, a):
 
 
 def draw_question(im, i, t):
-    """「Q◯ これは？」と、カウントダウン 3・2・1 のリング。"""
+    """「Q◯ これは？」と、その右のカウントダウンのリング（3・2・1）。ヒントの段階で「ヒント：〇〇」。"""
     a_i, _ = WINDOWS[i]
     a = ramp(t, a_i + 0.62, 0.2) * (1 - ramp(t, T_REV[i] - 0.12, 0.12))   # 前の波形が枠へ移り終わってから（帯とほぼ同時）
     if a <= 0.004:
         return
     q, w1 = PATTERNS[i]['no'], text_w(PATTERNS[i]['no'], 52, 900)
     w2 = text_w('これは？', 56, 900)
-    x0 = 540 - (w1 + 20 + w2) / 2
+    r = RING_R
+    gap = 20
+    x0 = 540 - (w1 + gap + w2 + gap + 2*r) / 2          # リングの場所も入れて、まん中にそろえる（リングが出ても字が動かない）
     put(im, q, 52, 900, YEL, x=x0, cy=Y_NAME, a=a)
-    put(im, 'これは？', 56, 900, WHITE, x=x0 + w1 + 20, cy=Y_NAME, a=a)
+    put(im, 'これは？', 56, 900, WHITE, x=x0 + w1 + gap, cy=Y_NAME, a=a)
     c0 = a_i + CD0
-    if t < c0 - 0.1:
+    a_h = a * ramp(t, c0, 0.25)
+    if i == 0:                                         # 1問目だけ：正解の数を数えるように（ヒントが出るまで）
+        put(im, COUNT_NOTE, 24, 500, GREY, cx=540, cy=Y_HINT, a=a*(1 - ramp(t, c0 - 0.2, 0.2)))
+    if a_h <= 0.004:
         return
+    put(im, f"ヒント：{PATTERNS[i]['hint']}", 36, 800, HINT_COL, cx=540, cy=Y_HINT, a=a_h, max_w=820)
     u = cl((t - c0) / (CD_STEP*CD_N))                   # 0 → 1
-    n = CD_N - min(CD_N - 1, int((t - c0) // CD_STEP)) if t >= c0 else CD_N
+    n = CD_N - min(CD_N - 1, int((t - c0) // CD_STEP))
+    rx = x0 + w1 + gap + w2 + gap + r - 8
     lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay)
-    r = RING_R
-    box = (540 - r, Y_RING - r, 540 + r, Y_RING + r)
-    d.ellipse(box, outline=(70, 86, 82, int(255*a)), width=6)
+    box = (rx - r, Y_RING - r, rx + r, Y_RING + r)
+    d.ellipse(box, outline=(70, 86, 82, int(255*a_h)), width=6)
     if u < 1:
-        d.arc(box, -90, -90 + 360*(1 - u), fill=YEL + (int(255*a),), width=7)
+        d.arc(box, -90, -90 + 360*(1 - u), fill=YEL + (int(255*a_h),), width=7)
     im.alpha_composite(lay)
-    k = (t - c0) % CD_STEP / CD_STEP if t >= c0 else 0.0
-    put(im, str(n), 44, 900, WHITE, cx=540, cy=Y_RING + 2, a=a*(1 - 0.35*ease(k)))
-    if i == 0:                                         # 1問目だけ：正解の数を数えるように
-        put(im, COUNT_NOTE, 24, 500, GREY, cx=540, cy=Y_RING + r + 26, a=a)
+    k = (t - c0) % CD_STEP / CD_STEP
+    put(im, str(n), 40, 900, WHITE, cx=rx, cy=Y_RING + 2, a=a_h*(1 - 0.35*ease(k)))
 
 
 def draw_answer(im, i, t):
@@ -1207,7 +1239,7 @@ def check():
               f"（{b - a:4.1f}秒）声 {say_len(i):3.1f}秒（{len(pat['say'])}字）  帯の区間 {pat['D']:.2f}s 周期 {pat['L']:.2f}s")
     print(f'最後の問題の終わり {T_END:.1f}s → 一覧 {T_END+FLY:.1f}〜{DUR:.1f}s（全体 {DUR:.1f}s）')
     print(f'波形の高さ：上 {WAVE_HI:+.2f}mV 下 {WAVE_LO:+.2f}mV → 帯 y {F_BASE - WAVE_HI*F_MV:.0f}〜{F_BASE - WAVE_LO*F_MV:.0f}'
-          f'（名前 {Y_NAME:.0f}・ひとこと {Y_ONE:.0f}・案内 {Y_GUIDE:.0f}・リング {Y_RING:.0f}）')
+          f'（名前 {Y_NAME:.0f}・ひとこと {Y_ONE:.0f}・案内 {Y_GUIDE:.0f}・ヒント {Y_HINT:.0f}）')
     print('元の回のモデルとのくらべ（1周期×2、1ms ごと）')
     for no, src, dmax, L0, L1, ev_ok, spk_ok, name0 in compare_sources():
         print(f'  {no:>3} ← {src}（元の名前「{name0}」）：ずれ最大 {dmax:.2e} mV、周期 {L0} / {L1}、'
@@ -1228,6 +1260,10 @@ def check():
         ws = [text_w(pat['name'], 50, 900), text_w(pat['one'], 30, 500), text_w(pat['guide'], 28, 800)]
         flag = '' if max(ws) <= 820 else '  ← 小さくなる'
         print(f"  {pat['no']:>3} 名前 {ws[0]:4d}px ひとこと {ws[1]:4d}px 案内 {ws[2]:4d}px{flag}  {pat['guide']}")
+    print('ヒント（36px、上限 820px）と色付けの場所（周期の中の秒）')
+    for pat in PATTERNS:
+        hl = '全体' if pat['hint_hl'] is ALL else '・'.join(f'{x:.2f}〜{y:.2f}' for x, y in pat['hint_hl'])
+        print(f"  {pat['no']:>3} 「ヒント：{pat['hint']}」 {text_w('ヒント：' + pat['hint'], 36, 800)}px  色：{hl}")
     print('枠の名前（上限 370px）：', ', '.join(f"{p['no']} {text_w(p['no'] + ' ' + p['name'], 22, 700)}" for p in PATTERNS))
 
 
@@ -1255,14 +1291,56 @@ def render_chunk(args):
     return path
 
 
+# 音（3種類。ピッとカウントの音を、高さも音色もはっきり分ける）
+#   モニター音「ピッ」：正弦波 960Hz（幅の広い拍は 720Hz）、80ms、減衰 45ms、ピーク 0.20
+#   カウント「コッ」  ：木の音。420Hz＋1180Hz の短い減衰（14ms・6ms）＋2ms の雑音のクリック、60ms、ピーク 約0.22
+#   答え「ポーン」    ：明るいベル。1568Hz（ソ）＋倍音 3136・4704Hz、0.9秒、減衰 0.28秒、ピーク 約0.18（ピッより高く、長く響く）
+BEEP_F, BEEP_F_WIDE, BEEP_AMP, BEEP_DUR, BEEP_TAU = 960.0, 720.0, 0.20, 0.08, 0.045
+TOK_F = (420.0, 1180.0)
+POM_F = 1568.0
+DUCK = 0.5                        # ヒントとカウントダウンのあいだ、モニター音を -6dB
+
+
 def _tone(a, sr, ts, f, amp=0.2, dur=0.08, tau=0.045):
     n = len(a)
     L = int(dur*sr)
     tt = np.arange(L)/sr
     s = amp*np.minimum(1, tt/0.004)*np.exp(-tt/tau)*np.sin(2*np.pi*f*tt)
+    _add(a, sr, ts, s)
+
+
+def _add(a, sr, ts, s):
+    n, L = len(a), len(s)
     j = int(ts*sr)
     if 0 <= j < n:
         a[j:j+L] += s[:max(0, min(L, n-j))]
+
+
+def tok_wave(sr=44100):
+    """カウントの「コッ」（木の音）。"""
+    tt = np.arange(int(0.06*sr))/sr
+    att = np.minimum(1, tt/0.0008)
+    s = (np.exp(-tt/0.014)*np.sin(2*np.pi*TOK_F[0]*tt) + 0.45*np.exp(-tt/0.006)*np.sin(2*np.pi*TOK_F[1]*tt))*att
+    nz = np.random.RandomState(7).normal(0, 1, len(tt))
+    nz = np.diff(np.concatenate([[0.0], nz]))*np.exp(-tt/0.002)            # 高い音だけの短い雑音（打った瞬間）
+    s = s + 0.25*nz
+    return 0.22*s/np.abs(s).max()
+
+
+def pom_wave(sr=44100):
+    """答えの「ポーン」（明るいベル）。"""
+    tt = np.arange(int(0.9*sr))/sr
+    att = np.minimum(1, tt/0.006)
+    s = (np.sin(2*np.pi*POM_F*tt) + 0.35*np.exp(-tt/0.15)*np.sin(2*np.pi*2*POM_F*tt)
+         + 0.12*np.exp(-tt/0.08)*np.sin(2*np.pi*3*POM_F*tt))*att*np.exp(-tt/0.28)
+    return 0.18*s/np.abs(s).max()
+
+
+def beep_wave(f=BEEP_F, sr=44100):
+    """モニターの「ピッ」（_tone と同じ形）。"""
+    a = np.zeros(int(BEEP_DUR*sr) + 1, dtype=np.float64)
+    _tone(a, sr, 0.0, f, BEEP_AMP, BEEP_DUR, BEEP_TAU)
+    return a
 
 
 def beep_events():
@@ -1282,27 +1360,103 @@ def beep_events():
                 g = PATTERNS[i]['gain'](np.array([r - SEGS[i][0]]), PATTERNS[i]['L'])[0]
                 if abs(g) < 0.5:                       # トルサードのあいだは、モニターが拍を数えない
                     continue
-            out.append((ts, 720.0 if k in WIDE else 960.0))
+            out.append((ts, BEEP_F_WIDE if k in WIDE else BEEP_F))
     return out
 
 
 def beeps(path, sr=44100):
-    """モニター音＋カウントダウンの小さな音（3・2・1）＋答えの音。"""
+    """モニター音「ピッ」（ヒントとカウントダウンのあいだは -6dB）＋カウント「コッ」（3・2・1）＋答え「ポーン」。"""
     n = int(DUR*sr)
     a = np.zeros(n, dtype=np.float32)
     for ts, f in beep_events():
-        _tone(a, sr, ts, f)
+        duck = any(T_HINT[i] <= ts < T_REV[i] for i in range(N_PAT))
+        _tone(a, sr, ts, f, amp=BEEP_AMP*(DUCK if duck else 1.0), dur=BEEP_DUR, tau=BEEP_TAU)
     for k in range(len(HOOK)):                         # 冒頭の変形のたびに
         _tone(a, sr, HOOK_T0 + k*HOOK_STEP, 720.0, dur=0.07, tau=0.04)
+    tok, pom = tok_wave(sr), pom_wave(sr)
     for i in range(N_PAT):
-        for k in range(CD_N):                          # カウントダウン：小さく高い音
-            _tone(a, sr, WINDOWS[i][0] + CD0 + k*CD_STEP, 1320.0, amp=0.10, dur=0.06, tau=0.025)
-        _tone(a, sr, T_REV[i], 880.0, amp=0.14, dur=0.18, tau=0.08)       # 答え：2つの音
-        _tone(a, sr, T_REV[i] + 0.09, 1320.0, amp=0.12, dur=0.22, tau=0.10)
+        for k in range(CD_N):                          # カウントダウン：木の音「コッ」
+            _add(a, sr, WINDOWS[i][0] + CD0 + k*CD_STEP, tok)
+        _add(a, sr, T_REV[i], pom)                     # 答え：明るい「ポーン」
     pcm = (np.clip(a, -1, 1)*32767).astype(np.int16)
     with wave.open(path, 'wb') as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
         w.writeframes(pcm.tobytes())
+
+
+def sound_figure(path, sr=44100):
+    """音のちがいを図に：上＝3つの音の波形（同じ時間・同じ縦軸）、中＝周波数（スペクトル）、下＝1問ぶんの音の並び。"""
+    Wf, Hf = 1600, 1420
+    im = Image.new('RGB', (Wf, Hf), (12, 18, 16))
+    d = ImageDraw.Draw(im)
+    sounds = [('モニター「ピッ」 960Hz（幅の広い拍 720Hz）', beep_wave(), (130, 232, 172)),
+              ('カウント「コッ」 木の音 420＋1180Hz', tok_wave(), (255, 214, 64)),
+              ('答え「ポーン」 ベル 1568Hz＋倍音', pom_wave(), (236, 120, 255))]
+    put(im := im.convert('RGBA'), '音のちがい（第28弾 クイズ）', 40, 800, WHITE, x=40, cy=40)
+    d = ImageDraw.Draw(im)
+    # 上：波形（0〜300ms、縦は ±0.25）
+    x0, x1, yt = 60, Wf - 40, 90
+    rowh = 150
+    for k, (nm, w, col) in enumerate(sounds):
+        yc = yt + rowh*k + rowh/2 + 20
+        put(im, nm, 24, 700, col, x=x0, cy=yt + rowh*k + 18)
+        d.line([(x0, yc), (x1, yc)], fill=(50, 64, 60), width=1)
+        n = int(0.30*sr)
+        ww = np.zeros(n); ww[:min(n, len(w))] = w[:n]
+        xs = x0 + np.arange(n)/n*(x1 - x0)
+        ys = yc - ww/0.25*(rowh/2 - 25)
+        d.line(list(zip(xs.tolist(), ys.tolist())), fill=col, width=1)
+    for ms in range(0, 301, 50):
+        x = x0 + ms/300*(x1 - x0)
+        put(im, f'{ms}ms', 18, 500, GREY, cx=x, cy=yt + rowh*3 + 30)
+    # 中：スペクトル（0〜4kHz、dB）
+    ys0 = yt + rowh*3 + 70
+    hs = 380
+    put(im, '周波数（スペクトル、0〜5000Hz。縦は dB、それぞれの最大を 0dB、-40dB まで）', 24, 700, WHITE, x=x0, cy=ys0)
+    top, bot = ys0 + 30, ys0 + 30 + hs - 60
+    d.rectangle([x0, top, x1, bot], outline=(50, 64, 60))
+    for f in range(0, 5001, 500):
+        x = x0 + f/5000*(x1 - x0)
+        d.line([(x, top), (x, bot)], fill=(30, 42, 38))
+        put(im, f'{f}', 18, 500, GREY, cx=x, cy=bot + 16)
+    for nm, w, col in sounds:
+        N = 1 << 16
+        sp = np.abs(np.fft.rfft(w, N)); fr = np.fft.rfftfreq(N, 1/sr)
+        db = 20*np.log10(sp/sp.max() + 1e-9)
+        m_ = fr <= 5000
+        xs = x0 + fr[m_]/5000*(x1 - x0); yy = top + np.clip(-db[m_], 0, 40)/40*(bot - top)
+        d.line(list(zip(xs.tolist(), yy.tolist())), fill=col, width=2)
+    # 下：Q2 の1問ぶんの音（声なし）
+    yb = bot + 60
+    i = 1
+    a_i, b_i = WINDOWS[i]
+    t0, t1 = a_i, b_i
+    put(im, f'Q2 の1問ぶんの音（{t1 - t0:.1f}秒。ヒントとカウントのあいだはピッを -6dB）', 24, 700, WHITE, x=x0, cy=yb)
+    tr = np.zeros(int(DUR*sr), dtype=np.float32)
+    tmp = os.path.join(os.path.dirname(path), '_fig.wav')
+    beeps(tmp, sr)
+    with wave.open(tmp) as wv:
+        tr = np.frombuffer(wv.readframes(wv.getnframes()), dtype=np.int16).astype(np.float32)/32767
+    os.remove(tmp)
+    seg = tr[int(t0*sr):int(t1*sr)]
+    yc = yb + 170
+    hh = 110
+    put(im, 'ヒントが出るとき：カウント 3 → 2 → 1（コッ）→ 答え（ポーン）', 20, 600, YEL, x=x0, cy=yb + 30)
+    for tt, lab, c in [(T_HINT[i] - t0, '3', YEL), (T_HINT[i] - t0 + CD_STEP, '2', YEL),
+                       (T_HINT[i] - t0 + 2*CD_STEP, '1', YEL), (T_REV[i] - t0, '答え', (236, 120, 255))]:
+        x = x0 + tt/(t1 - t0)*(x1 - x0)
+        d.line([(x, yc - hh - 10), (x, yc + hh)], fill=(70, 70, 50))
+        put(im, lab, 20, 700, c, x=x + 4, cy=yc - hh - 4)
+    step = max(1, len(seg)//(x1 - x0))
+    for px in range(x1 - x0):
+        ch = seg[px*step:(px + 1)*step]
+        if len(ch):
+            d.line([(x0 + px, yc - ch.max()/0.25*hh), (x0 + px, yc - ch.min()/0.25*hh)], fill=(200, 210, 205))
+    for sec in range(0, int(t1 - t0) + 1):
+        x = x0 + sec/(t1 - t0)*(x1 - x0)
+        put(im, f'{sec}s', 18, 500, GREY, cx=x, cy=yc + hh + 18)
+    im.convert('RGB').save(path)
+    return path
 
 
 def main():
@@ -1312,6 +1466,7 @@ def main():
     ap.add_argument('--still', type=float, nargs='*')
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--thumb', action='store_true')
+    ap.add_argument('--sounds', action='store_true', help='音のちがいの図 out/sounds_reel28_quiz.png')
     ap.add_argument('--jobs', type=int, default=2)             # CPU は4つ。ほかの作業と分けあうので 2
     ap.add_argument('--hq', action='store_true', help='高画質（CRF 10・slow）。out/reel28_quiz_hq.mp4')
     o = ap.parse_args()
@@ -1320,6 +1475,8 @@ def main():
         o.out = os.path.join(HERE, 'out', 'reel28_quiz_hq.mp4')
     if o.check:
         check(); return
+    if o.sounds:
+        print(sound_figure(os.path.join(HERE, 'out', 'sounds_reel28_quiz.png'))); return
     os.makedirs(os.path.dirname(o.out), exist_ok=True)
     if o.thumb:
         p = os.path.join(os.path.dirname(o.out), 'thumb_reel28_quiz_list.png')
