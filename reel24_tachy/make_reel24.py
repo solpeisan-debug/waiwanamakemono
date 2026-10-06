@@ -113,11 +113,27 @@ def qrs_avnrt(t):                 # PSVT（房室結節リエントリー）：�
     return qrs_180(t) - 0.07*_g(t, 0.046, 0.010)
 
 
-AVRT_RP = 0.115                   # 房室回帰性頻拍：R → 逆行性P の間隔（LITFL：70ms より長い）
+AVRT_RP = 0.110                   # 房室回帰性頻拍：R頂点 → 逆行性Pの頂点。RP（QRSの始まり → Pの始まり）が 100〜140ms、
+                                  # Pの始まりがQRSの終わりから 20〜50ms 後になる位置（専門医レビュー 2026-10-06：short RP に）
 
 
-def qrs_avrt(t):                  # 房室回帰性頻拍（順方向性）：QRSのあと、STの上に逆向きのP波
-    return qrs_200(t) + p_retro(t - AVRT_RP)
+def p_retro_avrt(t):              # 房室回帰性頻拍の逆行性P：QRSのすぐあとの、細めの下向きの切れこみ
+    return -0.14*_g(t, 0.0, 0.016)
+
+
+def qrs_avrt(t):                  # 房室回帰性頻拍（順方向性）：QRSのすぐあと（STの始まり）に逆向きのP波
+    return qrs_200(t) + p_retro_avrt(t - AVRT_RP)
+
+
+def avrt_rp_ms():
+    """⑨の RP（QRSの始まり → Pの始まり）と、QRSの終わり → Pの始まり（ms）。--check と依頼文で使う。"""
+    tt = np.arange(-0.2, 0.3, 0.0005)
+    q = qrs_200(tt)
+    mq = (np.abs(q) > 0.03) & (tt < 0.075) & (tt > -0.15)
+    q_on, q_end = tt[mq].min(), tt[mq].max()
+    p = p_retro_avrt(tt - AVRT_RP)
+    p_on = tt[np.abs(p) > 0.05*np.abs(p).max()].min()
+    return (p_on - q_on)*1000, (p_on - q_end)*1000
 
 
 # 拍の種類：(QRS＋Tの形, P波の形, P頂点 → R頂点)
@@ -221,8 +237,8 @@ PATTERNS = [
     dict(no='②', name='洞頻脈（P波がT波に重なる）', col=C_SIN, hint='TにPが重なる',
          one='P波がT波に重なり、PSVTに見える', tag='ecg12',
          ev=[(k*0.40, 'H') for k in range(12)], L=4.8, hl=ALL),
-    dict(no='③', name='心房頻拍', col=C_ATR, hint='形のちがうP',
-         one='形のちがうP波が、規則正しく', tag='ecg12',
+    dict(no='③', name='心房頻拍', col=C_ATR, hint='いつもと違うP',
+         one='いつもと違うP波が、規則正しく', tag='ecg12',
          ev=[(k*0.46, 'A') for k in range(10)], L=4.6, hl=ALL),
     dict(no='④', name='多源性心房頻拍', col=C_ATR, hint='Pが3種類以上',
          one='P波の形が3種類以上・不規則', tag='patient',
@@ -1058,7 +1074,7 @@ THUMB_VIEW[1] = (0.05, [(0.40 + 0.04, 0.40 + 0.38)])       # ② P波がT波に�
 THUMB_VIEW[7] = (OO_STOP + 0.75 - 4.0, [(OO_PAC - 0.30, OO_PAC + 0.40)])   # ⑧ PACから突然始まり、右の端で突然止まる
 THUMB_MAX_MARKS = {1: 1, 7: 1}
 THUMB_NAME = {1: '洞頻脈（PがTに重なる）', 6: 'PSVT', 7: '始まり方', 8: '房室回帰性頻拍'}   # サムネイルだけ短い名前
-THUMB_DESC = ['Pがそろう', '', '形のちがうP', '3種類以上', 'バラバラ', '150で規則的',
+THUMB_DESC = ['Pがそろう', '', 'いつもと違うP', '3種類以上', 'バラバラ', '150で規則的',
               'Pが見えない', '突然か、少しずつか', 'QRSの後にP', '直前に逆向きP']
 
 
@@ -1212,7 +1228,10 @@ def check():
     print(f"⑦ PSVT：{rate(SVT_RR):.0f}/分、P波なし（QRSの終わりに偽S波）、QRS {qrs_ms(qrs_avnrt):.0f}ms")
     print(f"⑧ 始まり方：洞調律 90/分 → PAC（連結 {OO_PAC_C:.2f}秒、PR {pr_ms('B'):.0f}ms）→ PSVT {rate(OO_SVT_RR):.0f}/分 {OO_SVT_N}拍 → "
           f"突然止まって {OO_PAUSE:.2f}秒後に洞調律 → 少しずつ {' → '.join(f'{rate(r):.0f}' for r in OO_SINUS_RR)}/分")
-    print(f"⑨ 房室回帰性頻拍：{rate(0.30):.0f}/分、R → 逆行性P {AVRT_RP*1000:.0f}ms（LITFL：70ms より長い）")
+    rp, gap = avrt_rp_ms()
+    print(f"⑨ 房室回帰性頻拍：{rate(0.30):.0f}/分、RP（QRSの始まり → Pの始まり）{rp:.0f}ms（目標 100〜140）、"
+          f"QRSの終わり → Pの始まり {gap:.0f}ms（目標 20〜50）、R頂点 → P頂点 {AVRT_RP*1000:.0f}ms")
+    assert 100 <= rp <= 140 and 20 <= gap <= 50, '⑨ の RP が目標の外'
     print(f"⑩ 接合部頻拍：{rate(0.52):.0f}/分、逆向きのP、PR {pr_ms('J'):.0f}ms（<120）")
     print('--- 心拍数カウンター（拍ごとの表示。パターンの区間の中） ---')
     for i, pat in enumerate(PATTERNS):

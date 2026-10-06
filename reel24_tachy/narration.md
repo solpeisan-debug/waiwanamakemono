@@ -24,8 +24,8 @@
 
 どの拍にもP波がある、洞頻脈。
 PSVTに見えても、P波がT波に重なる洞頻脈。
-形のちがうP波が、規則正しく。心房頻拍。
-P波の形が3種類以上、多源性心房頻拍。
+いつもと違うP波が、規則正しく。心房頻拍。
+P波の形が3種類以上で、不規則。多源性心房頻拍。
 P波がなく、バラバラ。速い心房細動。
 のこぎりの波が隠れる、心房粗動の2対1。
 
@@ -79,6 +79,14 @@ QRSの直前に逆向きのP。接合部頻拍。
 - **⑩ 接合部頻拍**：LITFL（Accelerated junctional rhythm）「Junctional Tachycardia: > 100 bpm」「Retrograde P waves may be present and can appear before, during or after the QRS complex. They are usually inverted in inferior leads」「Short PR interval (< 120 ms) indicates a junctional rather than atrial focus」。原因の例「Digoxin toxicity (= the classic cause of AJR)」
 - **まとめ**：LITFL（SVT）「SVTs can be classified based on: Site of origin (atria or AV node) or; Regularity (regular or irregular)」（箇条書きをつないだ）→「規則正しいか、P波はどこか」
 - **キャプションの「急変として対応」**：LITFL（SVT）の症状「Presyncope or syncope due to a transient fall in blood pressure」「Chest pain」「Dyspnoea」、LITFL（AVRT）「patients that are unstable due to this rhythm require urgent DC cardioversion」
+
+## 専門医レビュー（2026-10-06、10パターン版）
+
+- 要修正なし。推奨4点を反映した。⑧の「突然／少しずつ」は LITFL の文言がなくてもよい、とのこと
+- 【推奨→直した】③ 心房頻拍：画面のひとことと台本を「形のちがうP波」→「いつもと違うP波」に（④ MAT の「P波の形が3種類以上」とまぎれないように。1種類の、ふだんと違うP波）
+- 【推奨→直した】④ 多源性心房頻拍：台本を「P波の形が3種類以上で、不規則。多源性心房頻拍。」に（不規則であることも声で言う）
+- 【推奨→直した】⑤ 心房細動：キャプションに「（※実際のモニターの心拍数は平均値が出るため、不規則な脈でも動画ほど毎拍は激しく変わりません。波形の間隔のバラつきに注目してください）」を足した（カウンターは拍ごとの値なので）
+- 【推奨→直した】⑨ 房室回帰性頻拍：逆行性P波をQRSに近づけ、short RP の頻拍に。RP（QRSの始まり → Pの始まり）112ms、QRSの終わりから 26ms 後にPが始まる（目標 100〜140ms・20〜50ms）。200/分のまま。P波は細め（σ 16ms）にして、QRSのすぐあとの切れこみとして見えるようにした
 
 ## 声の指定
 
