@@ -1173,17 +1173,17 @@ def thumbnail_list():
     """サムネイル（透かしなし）。第24弾の一覧型と同じ作り：
     タイトル → ①〜⑩を2列×5段（左の列 ①〜⑤ 体・呼吸・電気、右の列 ⑥〜⑩ 電極・不整脈に見えるノイズ）
     ＋⑪本物のVT を6段目に横長（色つきの名前・ひとこと・波形・点線の丸）→ 下の枠。
-    プロフィールのグリッド（中央 1080×1350、y 285〜1635）に要素が収まる。"""
+    プロフィールのグリッド（中央 3:4 = 1080×1440、y 240〜1680）いっぱいに使う（要素は y 262〜1662）。"""
     im = grid()
     d = ImageDraw.Draw(im, 'RGBA')
     RED = (255, 92, 84)
-    d.line([(510, 300), (570, 300)], fill=RED + (255,), width=4)
-    put(im, '心電図で気づく', 34, 700, (118, 226, 150), cx=540, cy=342)
-    put(im, 'ノイズ', 126, 900, WHITE, cx=540, cy=436, max_w=880)
-    put(im, f'{N_PAT}個、全部わかる？', 60, 900, (255, 196, 64), cx=540, cy=546)
-    COLS = [(135, 515), (565, 945)]             # 列のあいだは50px あける（線は引かない）
+    d.line([(505, 264), (575, 264)], fill=RED + (255,), width=5)
+    put(im, '心電図で気づく', 38, 700, (118, 226, 150), cx=540, cy=310)
+    put(im, 'ノイズ', 146, 900, WHITE, cx=540, cy=416, max_w=900)
+    put(im, f'{N_PAT}個、全部わかる？', 70, 900, (255, 196, 64), cx=540, cy=540)
+    COLS = [(96, 520), (560, 984)]              # 列のあいだは40px あける（線は引かない）
     NR = 6                                      # 段の数（6段目は⑪の横長）
-    Y0, RH = 628, 852 // NR
+    Y0, RH = 600, 158
     for i, pat in enumerate(PATTERNS):
         if i < 10:
             c, r = divmod(i, 5)
@@ -1195,25 +1195,25 @@ def thumbnail_list():
             span = 4.0 * (x1 - x0) / (COLS[0][1] - COLS[0][0])
         y = Y0 + r*RH
         name = f"{pat['no']} {pat['name']}"
-        im_n, _ = text_img(name, 26, 800, pat['col'], max_w=x1 - x0)
-        put(im, name, 26, 800, pat['col'], x=x0, cy=y + 24, max_w=x1 - x0)
+        im_n, _ = text_img(name, 30, 800, pat['col'], max_w=x1 - x0)
+        put(im, name, 30, 800, pat['col'], x=x0, cy=y + 26, max_w=x1 - x0)
         nx = x0 + im_n.size[0] + 8
         if THUMB_DESC[i]:
-            im_h, _ = text_img(THUMB_DESC[i], 18, 500, (176, 186, 186))
+            im_h, _ = text_img(THUMB_DESC[i], 21, 500, (176, 186, 186))
             assert nx + im_h.size[0] - 8 <= x1 + 4, f'{pat["no"]} のひとことが入らない'
-            put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
-        lay, pos = thumb_row_wave(i, x0, x1, y + 38, y + RH - 2, 34.0, span=span)
+            put(im, THUMB_DESC[i], 21, 500, (176, 186, 186), x=nx, cy=y + 28)
+        lay, pos = thumb_row_wave(i, x0, x1, y + 46, y + RH - 4, 38.0, span=span)
         im.alpha_composite(lay, pos)
         if r < NR - 1:
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)] if i < 10 else [], fill=(38, 54, 48, 255), width=1)
-    by = Y0 + NR*RH + 24
-    d.rounded_rectangle([(230, by), (850, by + 96)], radius=18, fill=(16, 22, 21, 255),
+    by = Y0 + NR*RH + 14
+    d.rounded_rectangle([(210, by), (870, by + 100)], radius=20, fill=(16, 22, 21, 255),
                         outline=(70, 84, 80, 255), width=2)
-    parts = [('まず覚えたい', 40, WHITE), (str(N_PAT), 72, (255, 196, 64)), ('パターン', 40, WHITE)]
+    parts = [('まず覚えたい', 44, WHITE), (str(N_PAT), 80, (255, 196, 64)), ('パターン', 44, WHITE)]
     ims = [text_img(t, sz, 900, col) for t, sz, col in parts]
     tw = sum(a.size[0] - 8 for a, _ in ims) + 8
     x = 540 - tw/2
-    base_line = by + 70                          # 文字の下端（ベースライン）をそろえる
+    base_line = by + 74                          # 文字の下端（ベースライン）をそろえる
     for (t, sz, col), (a, asc) in zip(parts, ims):
         put(im, t, sz, 900, col, x=x, cy=base_line - 0.38*asc)
         x += a.size[0] - 8
