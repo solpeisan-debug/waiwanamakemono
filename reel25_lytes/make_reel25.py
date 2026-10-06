@@ -875,9 +875,10 @@ def draw_gauge(im, t, a):
     x0, x1 = GAUGE_X - GAUGE_W/2, GAUGE_X + GAUGE_W/2
     d.rounded_rectangle((x0, GAUGE_Y0, x1, GAUGE_Y1), radius=8, fill=CARD_FILL + (int(230*a),),
                         outline=CARD_EDGE + (int(255*a),), width=2)
-    if lev > 0.005:
-        yf = GAUGE_Y1 - lev*(GAUGE_Y1 - GAUGE_Y0)
-        d.rounded_rectangle((x0 + 3, yf + 3, x1 - 3, GAUGE_Y1 - 3), radius=5, fill=col + (int(255*a),))
+    yf = GAUGE_Y1 - lev*(GAUGE_Y1 - GAUGE_Y0)
+    fh = (GAUGE_Y1 - 3) - (yf + 3)                # 塗りの高さ（上がり始めは負になるので描かない）
+    if fh >= 1:
+        d.rounded_rectangle((x0 + 3, yf + 3, x1 - 3, GAUGE_Y1 - 3), radius=min(5, fh/2), fill=col + (int(255*a),))
     for k in range(1, len(K_STAGES)):        # 段階の目盛り
         y = GAUGE_Y1 - k*(GAUGE_Y1 - GAUGE_Y0)/len(K_STAGES)
         d.line([(x0 - 5, y), (x0 - 1, y)], fill=CARD_EDGE + (int(255*a),), width=2)

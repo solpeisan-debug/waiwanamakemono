@@ -183,12 +183,12 @@ SVT_RR = 0.33                               # ⑦ PSVT 182/分
 
 
 def _onset_offset():
-    """⑧ 始まり方の対比（周期の頭から）：洞調律 90/分 2拍 → PAC（連結 0.36秒・PRが長い）→ PSVT 170/分 7拍
+    """⑧ 始まり方の対比（周期の頭から）：洞調律 90/分 4拍 → PAC（連結 0.36秒・PRが長い）→ PSVT 170/分 4拍
     → 突然止まって 0.80秒あく → 洞調律 75 → 少しずつ 90 → 105 → 120 → 135 → 120 → 105 → 90/分（洞頻脈）→ 次の周期の頭。
     突然のPSVTを先にして、止まったところと少しずつ変わる洞調律が、紹介の時間のうちにカウンターの位置を通るようにした。"""
     t = 0.45
-    ev = [(t, 'S'), (t + 0.667, 'S')]
-    t += 0.667 + OO_PAC_C
+    ev = [(t + k*0.667, 'S') for k in range(OO_PRE_N)]
+    t += (OO_PRE_N - 1)*0.667 + OO_PAC_C
     pac = t
     ev.append((t, 'B'))
     for _ in range(OO_SVT_N):
@@ -206,7 +206,8 @@ def _onset_offset():
 
 OO_PAC_C = 0.36                             # PACの連結（直前のRから）
 OO_SVT_RR = 0.353                           # ⑧ PSVT 170/分
-OO_SVT_N = 7
+OO_SVT_N = 4                                # 170 のまま止まっている時間を短く（約1.4秒）
+OO_PRE_N = 4                                # PACの前の洞調律（跳ぶ瞬間に、帯の左が⑦の続きではなく洞調律になるように）
 OO_PAUSE = 0.80                             # 止まってから洞調律まで（75/分）
 OO_SINUS_RR = [0.667, 0.571, 0.50, 0.444, 0.50, 0.571, 0.667]   # 止まったあと少しずつ：90, 105, 120, 135, 120, 105, 90/分
 OO_EV, OO_L, OO_PAC, OO_STOP = _onset_offset()
@@ -260,11 +261,11 @@ N_PAT = len(PATTERNS)
 # - 規則正しいリズム（①②③⑥⑦⑨⑩）は、拍の間隔の整数倍。次のパターンの最初の拍までが、どちらかのパターンの間隔になる
 #   （⑥⑦は1周期より1拍ぶん長い。⑨⑩は最初の拍を少しうしろにずらして、つなぎ目の間隔をそろえた）
 # - ④ 5.08：1周期＋1拍　- ⑤ 3.80：8つめの拍のあと（次の⑥の最初の拍まで 0.35秒。心房細動の短いRRくらい）
-# - ⑧ 9.33：1周期（洞調律 → PAC → PSVT → 突然止まる → 洞調律が少しずつ 75 → 135 → 105/分まで、カウンターの位置を通る）。
+# - ⑧ 9.61：1周期（洞調律 → PAC → PSVT → 突然止まる → 洞調律が少しずつ 75 → 135 → 105/分まで、カウンターの位置を通る）。
 #   紹介の終わり（縮み始め）には、カウンターの位置が区間の終わりの 0.75秒手前にあるので、最後の 90/分の拍は枠へ移るときに通る
 # 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
 SEG_D = {'①': 4.16, '②': 4.8, '③': 4.60, '④': 5.08, '⑤': 3.80, '⑥': 4.43,
-         '⑦': 4.29, '⑧': 9.33, '⑨': 5.1, '⑩': 5.05}
+         '⑦': 4.29, '⑧': 9.61, '⑨': 5.1, '⑩': 5.05}
 for _p in PATTERNS:
     _p['D'] = SEG_D[_p['no']]
     assert _p['D'] >= 3.44 - 1e-9, _p['no']
@@ -366,7 +367,7 @@ _TOP_END = 636 + 110               # 上の枠（①②③／④⑤⑥の3段）
 _BOT_TOP = 1298                    # 下の枠（⑦⑧／⑨⑩の2段）の上端。下端は 1528（下の注記と 19px あける）
 # 見た目の上端（名前の字の上）〜下端（S波の底、約0.2mV）で余白をそろえる
 # その下に心拍数カウンター（波形の下端から CNT_GAP あけて、数字の高さ CNT_H）
-CNT_GAP, CNT_H = 34, 46
+CNT_GAP, CNT_H = 34, 56
 _MID_H = 22 + 54 + 16 + 30 + 140 + 30 + CNT_GAP + CNT_H
 _GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
 Y_NAME = _TOP_END + _GAP + 22
@@ -452,7 +453,25 @@ def hr_at(t):
     if k < 0:
         return None
     r, bpm, i = STRIP_HR[k]
-    return bpm, i, (ref - r) * SLOW
+    return bpm, i, (ref - r) * SLOW, k
+
+
+def hr_note(k):
+    """⑧だけ：カウンターの横の小さな字（↑ 1拍で跳ぶ／↓ 突然止まる／↗↘ 少しずつ）。"""
+    r, bpm, i = STRIP_HR[k]
+    if i is None or PATTERNS[i]['no'] != '⑧' or k == 0 or STRIP_HR[k - 1][2] != i:
+        return None                          # ⑧の最初の拍は、前のパターン（⑦）とくらべない
+    prev = STRIP_HR[k - 1][1]
+    kind = [kk for rr, kk, ii in STRIP if abs(rr - r) < 1e-9][0]
+    if kind in ('B', 'R'):
+        return '↑ 1拍で跳ぶ'
+    if bpm < prev - 30:
+        return '↓ 突然止まる'
+    if bpm > prev + 1:
+        return '↗ 少しずつ'
+    if bpm < prev - 1:
+        return '↘ 少しずつ'
+    return None
 
 
 # --- ミニ波形の枠 -----------------------------------------------------------------
@@ -794,6 +813,10 @@ def draw_cell(base, i, t, state, a_all):
             a=a_all, max_w=CELL_W - 30)
     elif state == 'now':
         put(base, pat['no'], 30, 700, pat['col'], x=x0 + 16, cy=y0 + CELL_H/2, a=min(1.0, a_all*2))
+        # 「これは？」のあいだは、ヒントをそのパターンの色で明るく出す（名前が出たら消す）
+        a_h = 1 - ramp(t, WINDOWS[i][0] + QUIZ_T - 0.1, 0.25)
+        put(base, f"ヒント：{pat['hint']}", 24, 600, pat['col'], x=x0 + 64, cy=y0 + CELL_H/2,
+            a=min(1.0, a_all*2)*a_h, max_w=CELL_W - 80)
     else:
         put(base, pat['no'], 30, 700, DIM, x=x0 + 16, cy=y0 + CELL_H/2, a=a_all)
         put(base, f"ヒント：{pat['hint']}", 24, 500, (120, 134, 132), x=x0 + 64, cy=y0 + CELL_H/2,
@@ -911,7 +934,7 @@ def draw_counter(im, t, cur, a):
     h = hr_at(t)
     if h is None or cur is None or h[1] != cur or a <= 0.004:
         return
-    bpm, _, since = h
+    bpm, _, since, k = h
     flash = math.exp(-since/0.18)                   # 拍の瞬間に明るく、すぐ戻る
     num = f'{bpm:.0f}'
     im_n, asc_n = text_img(num, 64, 800, WHITE)
@@ -921,10 +944,15 @@ def draw_counter(im, t, cur, a):
     total = hs + gap + w3 + 10 + (im_u.size[0] - 8)
     x0 = 540 - total/2
     cy = CNT_TOP + CNT_H/2
-    draw_heart(im, x0 + hs/2, cy + 2, hs*(1 + 0.12*flash), C_HEART, a*(0.55 + 0.45*flash))
-    xr = x0 + hs + gap + w3                         # 数字は右ぞろえ
+    xr = x0 + hs + gap + w3                         # 数字は右ぞろえ（右端と「/分」は動かない）
+    wn = im_n.size[0] - 8                           # いまの数字の幅。ハートは数字のすぐ左に置く（2けたでも離れない）
+    draw_heart(im, xr - wn - gap - hs/2, cy + 7, hs*(1 + 0.12*flash), C_HEART, a*(0.55 + 0.45*flash))
     put(im, num, 64, 800, WHITE, right=xr, cy=cy + 4, a=a)
+    xu = xr + 10 + im_u.size[0] - 8
     put(im, '/分', 32, 700, GREY, x=xr + 10, cy=cy + 14, a=a)
+    note = hr_note(k)
+    if note:
+        put(im, note, 26, 700, TAGS['rate'][1], x=xu + 22, cy=cy + 12, a=a)
 
 
 def frame(t):
@@ -960,17 +988,20 @@ def frame(t):
     if cur is not None:
         a_i, b_i = WINDOWS[cur]
         pat = PATTERNS[cur]
-        al = ramp(t, a_i + 0.1, 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
+        # 前のパターンが上の枠（①〜⑥）へ移るときは、縮んで上へ動くミニ波形と重ならないよう、出始めを遅らせる
+        t0 = a_i + (0.45 if 0 < cur <= 6 else 0.1)
+        al = ramp(t, t0, 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
         # クイズ：はじめは「これは？」、波形が見えてから約0.7秒たって名前に変わる（声は特徴 → 名前の順）
-        a_q = ramp(t, a_i + 0.1, 0.25) * (1 - ramp(t, a_i + QUIZ_T - 0.15, 0.15))
-        a_n = ramp(t, a_i + QUIZ_T, 0.25) * (1 - ramp(t, b_i - 0.25, 0.25))
+        # 「これは？」→ 名前は 0.1秒で重ねて切りかえる（両方うすくなる時間を作らない）
+        a_q = ramp(t, t0, 0.25) * (1 - ramp(t, a_i + QUIZ_T - 0.1, 0.1))
+        a_n = ramp(t, a_i + QUIZ_T - 0.1, 0.1) * (1 - ramp(t, b_i - 0.25, 0.25))
         put(im, f"{pat['no']} {QUIZ}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=a_q, max_w=820)
         put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=a_n, max_w=820)
         draw_one(im, pat, al)
 
     # 冒頭0〜1秒：大きめの問いかけ（見出しが出る前に消す）
     a_ask = max(1 - ramp(t, ASK_END, 0.3), a_loop)
-    put(im, ASK, 64, 900, YEL, cx=540, cy=ASK_Y, a=a_ask, max_w=820)
+    put(im, ASK, 80, 900, YEL, cx=540, cy=ASK_Y, a=a_ask, max_w=820)
 
     # 冒頭：タイトルと、変形中のパターン名
     a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
@@ -1026,9 +1057,9 @@ THUMB_VIEW = {i: (0.0, []) for i in range(len(PATTERNS))}
 THUMB_VIEW[1] = (0.05, [(0.40 + 0.04, 0.40 + 0.38)])       # ② P波がT波に重なる（T波の下り坂のこぶ）
 THUMB_VIEW[7] = (OO_STOP + 0.75 - 4.0, [(OO_PAC - 0.30, OO_PAC + 0.40)])   # ⑧ PACから突然始まり、右の端で突然止まる
 THUMB_MAX_MARKS = {1: 1, 7: 1}
-THUMB_NAME = {1: '洞頻脈（PがTに重なる）', 6: 'PSVT（AVNRT）', 7: '始まり方', 8: '房室回帰性頻拍'}   # サムネイルだけ短い名前
-THUMB_DESC = ['Pがそろう', '', '形のちがうP', '3種類以上', 'バラバラ', 'のこぎり状',
-              'Pが見えない', '突然始まり突然止まる', 'QRSの後にP', '直前に逆向きP']
+THUMB_NAME = {1: '洞頻脈（PがTに重なる）', 6: 'PSVT', 7: '始まり方', 8: '房室回帰性頻拍'}   # サムネイルだけ短い名前
+THUMB_DESC = ['Pがそろう', '', '形のちがうP', '3種類以上', 'バラバラ', '150で規則的',
+              'Pが見えない', '突然か、少しずつか', 'QRSの後にP', '直前に逆向きP']
 
 
 def dashed_ellipse(d, box, col, dash=6, gap=5, width=2):
