@@ -6,7 +6,8 @@
 `--check` で、元の回のモデルと同じ波形になることを1周期ずつ確かめる。視聴者に「第◯弾」は見せない。
 
 1問の流れ（WINDOWS[i] = (a, b)）：
-- a        ：前の問題の波形が枠へ縮んで移る（FLY 0.8秒）。「Q◯ これは？」が出る
+- a        ：前の問題の波形が枠へ縮んで移る（FLY 0.8秒）
+- a+0.62   ：「Q◯ これは？」が出る（前の波形が移り終わるころ。帯とほぼ同時）
 - a+SW     ：中部の帯が、この問題の波形の頭から出てくる。前の問題の波形は見せない（帯の時計をここで跳ばす）
 - a+CD0〜  ：カウントダウン 3・2・1（リングが減っていく）。名前・色は出さない（波形はみどり、枠は「Q◯ ？」）
 - a+REVEAL ：答え（名前・ひとこと・「→ くわしくは〇〇の回」）。波形の特徴のところに色。声「答えは、…」
@@ -287,7 +288,7 @@ PATTERNS = [
        [(k*1.0, 't25') for k in range(4)], 4.0, [(k*1.0 + 0.09, k*1.0 + 0.40) for k in range(4)],
        ('reel25_lytes', 'make_reel25', 1, '② 高K：テント状T波')),
     _q('Q8', '偽VT（歯みがき）', (255, 152, 72), 'green', 'ノイズ',
-       'VTに見えても、ふつうのQRSが同じ間隔', '答えは、ノイズ。ふつうのQRSが隠れています。',
+       'VTに見えても、ふつうのQRSが同じ間隔', '答えは、ノイズ。ふつうのQRSが隠れている。',
        [(k*RR, 'n20') for k in range(5)], 4.0, [(0.45, 3.55)], ('reel20_artifact', 'make_reel20', 8, '⑨ 偽VT（歯みがき）'),
        art=art_brush),
     _q('Q9', 'ペーシング不全', (255, 92, 112), 'red', 'ペースメーカー',
@@ -364,8 +365,8 @@ T_TITLE = 3.6                     # 冒頭の1文「心電図クイズ。この1
 HOOK = [9, 3, 0, 7, 4]            # Q10トルサード → Q4 VF → Q1 心房細動 → Q8 偽VT → Q5 完全房室ブロック
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.3, 0.38, 0.12
 SW = 0.5                          # a から、帯の時計を跳ばす（この問題の波形を出す）まで
-CD0, CD_STEP, CD_N = 0.6, 0.6, 3  # カウントダウン：a+0.6 から 0.6秒ごとに 3・2・1
-REVEAL = CD0 + CD_STEP*CD_N       # 答えを出す時刻（a から 2.4秒）
+CD0, CD_STEP, CD_N = 0.9, 0.7, 3  # カウントダウン：a+0.9 から 0.7秒ごとに 3・2・1（前の波形が枠へ移り終わってから）
+REVEAL = CD0 + CD_STEP*CD_N       # 答えを出す時刻（a から 3.0秒）
 SAY_CPS = 6.0                     # 声の長さの見込み（6字/秒）
 SAY_LEAD, SAY_TAIL = 0.15, 0.30   # 答えが出てから話し始めるまで／言い終わってから縮み始めるまで
 FLY = 0.8                         # 中部から枠へ縮んで移る時間
@@ -376,8 +377,9 @@ PRE_END = 0.4
 
 
 # 帯に出すとき、区間の頭からどれだけ進めておくか（周期の中のどこから見せるか）。ふつうは PRE。
-# Q10 トルサードは、QT延長の洞調律2拍 → ねじれ（周期の 1.40〜3.95秒）が、出題中と答えの瞬間（答えのあと約1.5秒まで）に画面に入るよう 0.1秒から
-PRE_OF = {9: 0.1}
+# Q10 トルサードは周期 5.6秒（QT延長の洞調律 0・1.0秒 → ねじれ 1.40〜3.95秒 → 4.6秒）。4.0秒から見せると、
+# 帯が出たときは洞調律（右はしで次のねじれが始まる）→ 答えの瞬間にねじれの全体が画面に入り、答えのあと約2.5秒まで見える
+PRE_OF = {9: 4.0}
 
 
 def pre_of(i):
@@ -508,12 +510,12 @@ DUR = _loop_dur()
 CELL_W, CELL_H = 400, 110
 COL_X = (130, 550)
 TOP_Y = [344, 464, 584]           # Q1〜Q6（2列×3段）。波形が大きい（上 約1.5mV・下 約1.2mV）ので、見出しとともに 20px 上げた
-BOT_Y = [1308, 1428]              # Q7〜Q10（2列×2段。下端 1538）
+BOT_Y = [1300, 1420]              # Q7〜Q10（2列×2段。下端 1530。注意書きを 1600 の内側に）
 CELL_FILL = 225
 M_PXS = 66.0                      # ミニ波形：実際の1秒 = 66px
 M_MV = 33.0
 _TOP_END = TOP_Y[-1] + CELL_H     # 714
-_BOT_TOP = BOT_Y[0]               # 1308
+_BOT_TOP = BOT_Y[0]               # 1300
 
 
 def _amp_range():
@@ -528,17 +530,17 @@ def _amp_range():
 
 WAVE_HI, WAVE_LO = _amp_range()
 # 中部のかたまり：名前（50px）→ ひとこと（30px）→ 案内（28px）→ 波形（上 WAVE_HI 〜 下 WAVE_LO）。上下の余白をそろえる
-_MID_H = 34 + 46 + 30 + 14 + 28 + 14 + (WAVE_HI - WAVE_LO)*F_MV
+_MID_H = 34 + 46 + 30 + 14 + 28 + 14 + (WAVE_HI - WAVE_LO)*F_MV   # 名前の位置を決める見積もり（直す前と同じ）
 _GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
 Y_NAME = _TOP_END + _GAP + 34
-Y_ONE = Y_NAME + 50
-Y_GUIDE = Y_ONE + 42
+Y_ONE = Y_NAME + 56
+Y_GUIDE = Y_ONE + 46
 # 帯の基線：いちばん下（VF・トルサードの谷）が下の枠の 22px 上に来る位置。ふつうの波形が上に寄りすぎないように、
 # 上の余り（案内の字とのあいだ）より下を詰める。いちばん上（歯みがきの山）は案内の字の下 30px 以上
 F_BASE = _BOT_TOP - 22 + WAVE_LO*F_MV
 assert F_BASE - WAVE_HI*F_MV >= Y_GUIDE + 30, '帯の上が案内の字に近すぎる'
 F_Y0, F_Y1 = int(F_BASE - WAVE_HI*F_MV - 24), int(_BOT_TOP - 2)
-Y_RING = (Y_ONE + Y_GUIDE) / 2     # カウントダウンのリングの中心（答えのひとこと・案内の場所）
+Y_RING = Y_NAME + 84               # カウントダウンのリングの中心（「これは？」の下 14px）
 RING_R = 36
 
 HEADER = [('この波形、なに？', 1.0, WHITE), (str(N_PAT), 2.0, YEL), ('問', 1.0, WHITE)]
@@ -813,11 +815,36 @@ def featured(t, base_col, a, cur=None):
 
 
 STRIP_W, STRIP_H, STRIP_BASE = CELL_W - 20, 76, 50     # ミニ波形の帯（枠の中）
+STRIP_W_R = 900 - (COL_X[1] + 10)                      # 右の列は波形の右端を x 900 まで（透かしの列に入れない）
+
+
+def strip_w(i):
+    return STRIP_W if cell_rect(i)[0] == COL_X[0] else STRIP_W_R
 
 
 def cell_strip_origin(i):
     x0, y0, _, _ = cell_rect(i)
     return x0 + 10, y0 + 30
+
+
+def _mini_scale():
+    """問題ごとのミニ波形の大きさと基線：上下の幅を 64px 以内にし、枠の名前の下（y0+33）〜枠の下（y0+107）のまん中に置く。
+    上はペースメーカーのスパイクの先（1mV）も含める。"""
+    mvs, bases = [], []
+    for pat in PATTERNS:
+        rel = np.arange(0, pat['L'], 0.002)
+        bl = periodic_beats(pat, -1, pat['L'] + 1)
+        v = art_apply(pat, rel, wave_from(bl, rel))
+        hi, lo = float(v.max()), float(v.min())
+        for ts, amp in spike_times(bl):
+            if 0 <= ts < pat['L']:
+                hi = max(hi, float(np.interp(ts, rel, v)) + amp)
+        mv = min(M_MV, 64.0/(hi - lo))
+        mvs.append(mv); bases.append(40.5 + (hi + lo)/2*mv)
+    return mvs, bases
+
+
+MINI_MV, MINI_BASE = _mini_scale()
 
 
 def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=None, a_norm=1.0, plain=False):
@@ -865,11 +892,12 @@ def lerp(a, b, u):
 def view_params(i, u):
     """u=0 で中部の帯、u=1 で枠のミニ波形。"""
     ox, oy = cell_strip_origin(i)
-    cx = lerp(XC, ox + STRIP_W/2, u)
-    base_y = lerp(F_BASE, oy + STRIP_BASE, u)
+    sw = strip_w(i)
+    cx = lerp(XC, ox + sw/2, u)
+    base_y = lerp(F_BASE, oy + MINI_BASE[i], u)
     pxs = F_PXS*(M_PXS/F_PXS)**u
-    mv = F_MV*(M_MV/F_MV)**u
-    half = lerp(XC, STRIP_W/2, u)
+    mv = F_MV*(MINI_MV[i]/F_MV)**u
+    half = lerp(XC, sw/2, u)
     lw = lerp(4.5, 2.2, u)
     b1 = lerp(8, 3, u); b2 = lerp(20, 7, u)
     return cx, base_y, pxs, mv, cx - half, cx + half, lw, (b1, b2)
@@ -887,7 +915,7 @@ def mini(base, i, t, u=1.0, a=1.0, plain=False):
         x0, y0, x1, y1 = cell_rect(i)
         clip = Image.new('RGBA', (W, H), (0, 0, 0, 0))
         clip.alpha_composite(im, pos)
-        box = (x0 + 3, y0 + 26, x1 - 3, y1 - 3)
+        box = (x0 + 3, y0 + 33, x1 - 3, y1 - 3)
         base.alpha_composite(clip.crop(box), (box[0], box[1]))
         return
     base.alpha_composite(im, pos)
@@ -957,7 +985,7 @@ def draw_header(base, a):
 def draw_question(im, i, t):
     """「Q◯ これは？」と、カウントダウン 3・2・1 のリング。"""
     a_i, _ = WINDOWS[i]
-    a = ramp(t, a_i + 0.05, 0.25) * (1 - ramp(t, T_REV[i] - 0.12, 0.12))
+    a = ramp(t, a_i + 0.62, 0.2) * (1 - ramp(t, T_REV[i] - 0.12, 0.12))   # 前の波形が枠へ移り終わってから（帯とほぼ同時）
     if a <= 0.004:
         return
     q, w1 = PATTERNS[i]['no'], text_w(PATTERNS[i]['no'], 52, 900)
@@ -1004,19 +1032,22 @@ def frame(t):
         _GRID = grid()
     im = _GRID.copy()
 
-    a_loop = ramp(t, DUR - LOOP_FADE - 0.05, LOOP_FADE - 0.05)   # 1 で冒頭と同じ画面
-    keep = 1 - a_loop
-    draw_header(im, ramp(t, 2.3, 0.4)*keep)
+    keep = 1 - ramp(t, DUR - 0.80, 0.35)          # 冒頭へ戻る：クイズの画面を先に消してから
+    a_loop = ramp(t, DUR - 0.40, 0.35)            # 冒頭の字を出す（二重にしない）
+    draw_header(im, ramp(t, 2.35, 0.35)*keep)
 
-    a_cells = ramp(t, T_GO - 0.4, 0.5)*keep
+    a_cells = ramp(t, 2.3, 0.4)*keep
     cur = current(t)
-    flying = None
+    states = [cell_state(i, t) for i in range(N_PAT)]
+    flying = states.index('landing') if 'landing' in states else None
+    if flying is not None:                         # 縮んで移る波形は、自分の枠の上・ほかの枠の下を通る
+        draw_cell(im, flying, t, 'landing', a_cells)
+        mini(im, flying, t, ease((t - WINDOWS[flying][1]) / FLY))
     for i in range(N_PAT):
-        st = cell_state(i, t)
-        if st == 'landing':
-            flying = i
-        draw_cell(im, i, t, st, a_cells)
-        if st == 'done':
+        if i == flying:
+            continue
+        draw_cell(im, i, t, states[i], a_cells)
+        if states[i] == 'done':
             mini(im, i, t, 1.0, a=keep)
 
     if cur is not None:
@@ -1024,7 +1055,7 @@ def frame(t):
         draw_answer(im, cur, t)
 
     # 冒頭：問いかけとタイトル（変形中の名前は出さない）
-    a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
+    a_t = max(1 - ramp(t, 2.0, 0.35), a_loop)
     if a_t > 0:
         put(im, HOOK_Q, 72, 900, YEL, cx=540, cy=520, a=a_t, max_w=880)
         put(im, TITLE_SUB, 36, 500, PURPLE, cx=540, cy=670, a=a_t)
@@ -1033,49 +1064,30 @@ def frame(t):
     # 最後：コメントのお願い → 保存（声の順）
     a_end = ramp(t, T_END + FLY, 0.6)*keep
     if a_end > 0:
-        put(im, END_Q, 44, 900, YEL, cx=540, cy=Y_NAME, a=a_end, max_w=820)
-        put(im, END_SAVE, 36, 700, GREEN, cx=540, cy=Y_ONE + 10, a=ramp(t, T_END + FLY + 2.4, 0.6)*keep)
+        put(im, END_Q, 52, 900, YEL, cx=540, cy=803, a=a_end, max_w=820)
+        put(im, END_SAVE, 44, 700, GREEN, cx=540, cy=866, a=ramp(t, T_END + FLY + 2.4, 0.6)*keep)
 
     a_strip = strip_alpha(t)
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     if a_strip > 0.01:
         im.alpha_composite(featured(t, base_col, a_strip, cur), (0, F_Y0))
-    if flying is not None:
-        mini(im, flying, t, ease((t - WINDOWS[flying][1]) / FLY))
 
-    put(im, NOTE1, 24, 400, GREY, x=135, cy=1560, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, NOTE2, 24, 400, GREY, x=135, cy=1587, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1570, a=0.42)
+    put(im, NOTE1, 24, 400, GREY, x=135, cy=1554, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE2, 24, 400, GREY, x=135, cy=1580, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, WATERMARK, 28, 500, WHITE, right=W - 184, cy=1570, a=0.42)
     return im.convert('RGB')
 
 
 # =====================================================================================
 # サムネイル（透かしなし。答えは出さない）
 # =====================================================================================
-def thumbnail():
-    """10個の枠（番号と波形だけ）と、大きな「この波形、なに？」と Q10 の波形。"""
-    global _GRID
-    if _GRID is None:
-        _GRID = grid()
-    t = T_END + FLY + 2.0
-    im = _GRID.copy()
-    draw_header(im, 1.0)
-    for i in range(N_PAT):
-        draw_cell(im, i, t, 'done', 1.0, plain=True)
-        mini(im, i, t, 1.0, plain=True)
-    put(im, f'{TITLE_SUB}　全{N_PAT}問', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME, max_w=820)
-    put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_GUIDE, max_w=880)
-    v, cid, spk = hook_arrays(9)
-    im.alpha_composite(draw_wave(v, cid, WAVE_GREEN, 1.0, spk), (0, F_Y0 - 20))   # いちばん下の谷が下の枠にかからない高さ
-    return im.convert('RGB')
-
-
 # 一覧型（第17弾と同じ作り）：見せ始めの時刻（周期の中）。答えの名前は出さず「Q◯」だけ
 THUMB_T0 = {i: -0.3 for i in range(N_PAT)}
 THUMB_T0.update({3: 0.2, 4: 0.0, 5: -0.2, 7: 0.1, 8: 0.5, 9: 0.9})
 
 
-def thumb_row_wave(i, x0, x1, base_y, mv, span=3.0):
+def thumb_row_wave(i, x0, x1, y_top, y_bot, mv, span=3.0, lw=3.0):
+    """一覧型サムネイルの1行の波形：y_top〜y_bot の上下まん中に、波形（スパイクの先を含む）の (いちばん上＋いちばん下)/2 を置く。"""
     pat = PATTERNS[i]
     pxs = (x1 - x0) / span
     t0 = THUMB_T0[i]
@@ -1084,46 +1096,49 @@ def thumb_row_wave(i, x0, x1, base_y, mv, span=3.0):
     bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
     v = art_apply(pat, rel, wave_from(bl, rel))
     v = v * np.clip(np.minimum(xs - x0, x1 - xs) / 6.0, 0, 1)
+    spk = [(x0 + (ts - t0)*pxs, amp) for ts, amp in spike_times(bl) if rel[0] + 0.03 <= ts <= rel[-1] - 0.03]
+    hi = max([float(v.max())] + [1.0 for _ in spk])
+    lo = float(v.min())
+    base_y = (y_top + y_bot) / 2 + (hi + lo) / 2 * mv
     ys = base_y - v*mv
     pad = 40
     size = (int(x1 - x0) + 2*pad, int(4.0*mv) + 2*pad)
     ox, oy = int(x0) - pad, int(base_y - 2.0*mv) - pad
-    spk = [(x0 + (ts - t0)*pxs, amp) for ts, amp in spike_times(bl) if rel[0] + 0.03 <= ts <= rel[-1] - 0.03]
-    lay = glow_line(size, [list(zip(xs - ox, ys - oy))], WAVE_GREEN, 2.8, 1.0, blur=(4, 10))
+    lay = glow_line(size, [list(zip(xs - ox, ys - oy))], WAVE_GREEN, lw, 1.0, blur=(4, 10))
     sr = spike_runs(spk, xs, ys, mv, ox, oy)
     if sr:
-        lay.alpha_composite(spike_layer(size, sr, WAVE_GREEN, 2.8, 1.0, (4, 10)))
+        lay.alpha_composite(spike_layer(size, sr, WAVE_GREEN, lw, 1.0, (4, 10)))
     return lay, (ox, oy)
 
 
 def thumbnail_list():
-    """タイトル → 10問を2列×5段（「Q◯」と波形）→ 下の枠「全10問、何問わかる？」。プロフィールのグリッド（y 285〜1635）に収める。"""
+    """タイトル → 10問を2列×5段（「Q◯」と波形）→ 下の枠「全10問、何問わかる？」。中身は y 262〜1662（余白を大きく使う）。"""
     im = grid()
     d = ImageDraw.Draw(im, 'RGBA')
-    d.line([(510, 300), (570, 300)], fill=(255, 92, 84, 255), width=4)
-    put(im, TITLE_SUB, 34, 700, (118, 226, 150), cx=540, cy=342)
-    put(im, TITLE, 112, 900, WHITE, cx=540, cy=436, max_w=880)
-    put(im, '全部わかる？', 60, 900, YEL, cx=540, cy=546)
-    COLS = [(135, 515), (565, 945)]
+    d.line([(505, 264), (575, 264)], fill=(255, 92, 84, 255), width=5)
+    put(im, TITLE_SUB, 38, 700, (118, 226, 150), cx=540, cy=310)
+    put(im, TITLE, 146, 900, WHITE, cx=540, cy=416, max_w=900)
+    put(im, '全部わかる？', 70, 900, YEL, cx=540, cy=540)
+    COLS = [(96, 520), (560, 984)]
     NR = (N_PAT + 1) // 2
-    Y0, RH = 628, 852 // NR
+    Y0, RH = 600, 189
     for i, pat in enumerate(PATTERNS):
         c, r = divmod(i, NR)
         x0, x1 = COLS[c]
         y = Y0 + r*RH
-        put(im, pat['no'], 28, 900, YEL, x=x0, cy=y + 24)
-        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.60, 46.0)
+        put(im, pat['no'], 34, 900, YEL, x=x0, cy=y + 28)
+        lay, pos = thumb_row_wave(i, x0, x1, y + 52, y + RH - 8, 54.0)
         im.alpha_composite(lay, pos)
         if r < NR - 1:
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
-    by = Y0 + NR*RH + 24
-    d.rounded_rectangle([(230, by), (850, by + 96)], radius=18, fill=(16, 22, 21, 255),
+    by = Y0 + NR*RH + 17
+    d.rounded_rectangle([(210, by), (870, by + 100)], radius=20, fill=(16, 22, 21, 255),
                         outline=(70, 84, 80, 255), width=2)
-    parts = [('全', 40, WHITE), (str(N_PAT), 72, YEL), ('問、何問わかる？', 40, WHITE)]
+    parts = [('全', 44, WHITE), (str(N_PAT), 80, YEL), ('問、何問わかる？', 44, WHITE)]
     ims = [text_img(s, sz, 900, col) for s, sz, col in parts]
     tw = sum(a.size[0] - 8 for a, _ in ims) + 8
     x = 540 - tw/2
-    base_line = by + 70
+    base_line = by + 74
     for (s, sz, col), (a, asc) in zip(parts, ims):
         put(im, s, sz, 900, col, x=x, cy=base_line - 0.38*asc)
         x += a.size[0] - 8
@@ -1307,8 +1322,6 @@ def main():
         check(); return
     os.makedirs(os.path.dirname(o.out), exist_ok=True)
     if o.thumb:
-        p = os.path.join(os.path.dirname(o.out), 'thumb_reel28_quiz.png')
-        thumbnail().save(p); print(p)
         p = os.path.join(os.path.dirname(o.out), 'thumb_reel28_quiz_list.png')
         thumbnail_list().save(p); print(p); return
     if o.still:
