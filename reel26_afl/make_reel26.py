@@ -385,7 +385,7 @@ def hl_mask(pat, rel):
     return m
 
 
-# --- 中部の帯：12パターンをつないだ1本の波形 ---------------------------------
+# --- 中部の帯：14パターンをつないだ1本の波形 ---------------------------------
 # パターン i は、実際の時刻 [SEGS[i][0], SEGS[i][1]) にそのパターンをくり返して置く。
 # 紹介の終わり＝区間の終わりが画面の右端に来たとき。このとき画面に見えているのは
 # パターン i だけなので、それをそのまま縮めて枠へ運ぶと、ミニ波形とつながる。
@@ -1077,11 +1077,11 @@ def thumbnail():
     for i in range(N_PAT):
         draw_cell(im, i, t, 'done', 1.0)
         mini(im, i, t, 1.0)
-    put(im, 'バラバラ？ のこぎり？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 34, max_w=820)
-    put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_ONE + 8, max_w=880)
+    put(im, 'バラバラ？ のこぎり？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 24, max_w=820)
+    put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_ONE + 6, max_w=880)
     v, cid = hook_arrays(THUMB_HERO)
     wl = draw_wave(v, cid, WAVE_GREEN, 1.0)
-    im.alpha_composite(wl, (0, F_Y0 + 34))         # 上の題字と下の枠のまん中
+    im.alpha_composite(wl, (0, F_Y0 + 40))         # 上の題字と下の枠のまん中（14個の配置で詰めた）
     return im.convert('RGB')
 
 
@@ -1143,7 +1143,7 @@ def thumb_row_wave(i, x0, x1, base_y, mv, span=4.0):
 
 def thumbnail_list():
     """サムネイル（透かしなし）。第17弾の一覧型と同じ作り：
-    タイトル → 12パターンを2列×6段（色つきの名前・ひとこと・波形・点線の丸）→ 下の枠。
+    タイトル → 14パターンを2列×7段（色つきの名前・ひとこと・波形・点線の丸）→ 下の枠。
     プロフィールのグリッド（中央 1080×1350、y 285〜1635）に要素が収まる。"""
     im = grid()
     d = ImageDraw.Draw(im, 'RGBA')
