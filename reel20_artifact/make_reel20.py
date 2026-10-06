@@ -123,7 +123,7 @@ def burst(rel, L, a, b, edge=0.25):
 
 def art_motion(rel, L):          # ① 体動：大きくゆっくりした揺れ＋ときどき鋭い振れ
     w = burst(rel, L, 0.6, 3.2)
-    slow = band_noise(rel, L, 0.6, 3.0, 0.42, 11)
+    slow = band_noise(rel, L, 0.6, 3.0, 0.34, 11)       # 0.42 → 0.34（2026-10-06 検査：山がひとことの字に近づくので。山 1.50mV）
     sharp = np.zeros_like(rel)
     for c, h in ((1.05, 0.75), (1.9, -0.6), (2.65, 0.55)):
         sharp += h*_g(np.mod(rel, L), c, 0.035)
@@ -370,7 +370,7 @@ _GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
 Y_NAME = _TOP_END + _GAP + 22
 Y_ONE = Y_NAME + 54
 F_BASE = Y_ONE + 16 + 8 + WAVE_UP*F_MV
-MARK_Y = F_BASE + 126                        # ▲とものさしの行（⑨⑩の谷 約0.8mV＝112px の下）
+MARK_Y = F_BASE + 130                        # ▲とものさしの行（⑨⑩の谷 約0.8mV＝112px の下）
 F_Y0, F_Y1 = int(F_BASE - WAVE_UP*F_MV - 30), int(_BOT_TOP - 2)
 XC = W / 2
 HALF = XC / F_PXS                 # 画面の半分が実際の何秒か
@@ -416,7 +416,7 @@ DUR = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
 # --- この回だけの見せ方 ① 「隠れたQRS」マーカー --------------------------------------
 # 帯の右のほう（x = MARK_X）を洞調律の R が通った瞬間に、その下へ緑の▲を付ける（ピッという音も同じ瞬間）。
 # となりの▲が付いたら、2つのあいだに間隔のものさし（R-R、モデルの拍の時刻の差）を引く。
-MARK_X = 900
+MARK_X = 840                                 # 右下（x≥900）はリールのボタンがかかるので、その手前
 DT_REF = (MARK_X - XC) / F_PXS              # 画面の中央から▲を付ける位置までの、実際の時間（秒）
 MARK_PATS = ('⑨', '⑩')                      # ▲を付けるパターン
 NO_QRS_PAT = '⑪'                            # ▲が付かない対比（本物のVT）
@@ -453,7 +453,7 @@ def reveal_label_a(t, i):
     if i is None or PATTERNS[i]['no'] not in REVEAL_PATS:
         return 0.0
     t0, t1, t2, t3 = reveal_times(i)
-    return ramp(t, t0 + 0.15, 0.25) * (1 - ramp(t, t2 - 0.05, 0.25))
+    return ramp(t, t1, 0.2) * (1 - ramp(t, t2 - 0.25, 0.25))      # ノイズが全部消えているあいだだけ
 
 
 def cell_rect(i):
@@ -471,7 +471,7 @@ def cell_rect(i):
 
 CELL_FILL = 225                    # 枠の中の塗りの濃さ（0〜255）。方眼をうっすら残す
 M_PXS = 66.0                      # ミニ波形：実際の1秒 = 66px（約5.8秒ぶんが見える。横長の枠は約12秒）
-M_MV = 33.0
+M_MV = 28.0                       # 枠の中で上下にはみ出さないよう 33 → 28（2026-10-06 検査）
 
 
 # --- 道具 ---------------------------------------------------------------------
@@ -737,12 +737,30 @@ def cell_strip_w(i):
     return x1 - x0 - 20
 
 
-STRIP_BASE = 49                    # ミニ波形の基線（枠の中の帯の上端から）
-
-
 def cell_strip_origin(i):
     x0, y0, _, _ = cell_rect(i)
     return x0 + 10, y0 + 28
+
+
+_MINI_VR = {}
+
+
+def mini_vrange(i):
+    """パターン i の1周期の波形の (いちばん上, いちばん下)（mV）。枠の中で上下のまん中に置くため。"""
+    if i not in _MINI_VR:
+        pat = PATTERNS[i]
+        rel = np.arange(0.0, pat['L'], 0.002)
+        bl = periodic_beats(pat, -1, pat['L'] + 1)
+        v = art_apply(pat, rel, wave_from(bl, rel))
+        _MINI_VR[i] = (float(v.max()), float(v.min()))
+    return _MINI_VR[i]
+
+
+def cell_base(i):
+    """ミニ波形の基線の y：名前の下（y0+28）〜枠の下（y1-2）のまん中に、波形の上下のまん中が来るように。"""
+    _, y0, _, y1 = cell_rect(i)
+    vmax, vmin = mini_vrange(i)
+    return (y0 + 28 + y1 - 2) / 2 + (vmax + vmin) / 2 * M_MV
 
 
 def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=None, a_norm=1.0):
@@ -782,7 +800,7 @@ def view_params(i, u):
     ox, oy = cell_strip_origin(i)
     sw = cell_strip_w(i)
     cx = lerp(XC, ox + sw/2, u)
-    base_y = lerp(F_BASE, oy + STRIP_BASE, u)
+    base_y = lerp(F_BASE, cell_base(i), u)
     pxs = F_PXS*(M_PXS/F_PXS)**u
     mv = F_MV*(M_MV/F_MV)**u
     half = lerp(XC, sw/2, u)
@@ -966,7 +984,8 @@ def draw_markers(im, t, cur, v, a):
                     d.line([(x0, MARK_Y - 7), (x0, MARK_Y + 7)], fill=GREY + (ca,), width=2)
                     if grow >= 0.999:
                         d.line([(x1, MARK_Y - 7), (x1, MARK_Y + 7)], fill=GREY + (ca,), width=2)
-                    labels.append((txt, xm, a*ramp(ref - r, 0.15, 0.2)))
+                    # 左の余白（72px）の外へ流れていくときは、うすくする
+                    labels.append((txt, xm, a*ramp(ref - r, 0.15, 0.2)*cl((xm - tw/2 - 72)/40)))
             prev = r
     elif pat['no'] == NO_QRS_PAT:
         s0 = SEGS[cur][0]
@@ -986,8 +1005,8 @@ def draw_markers(im, t, cur, v, a):
                 d.line([(xx, MARK_Y), (min(xe, xx + 10), MARK_Y)], fill=C_TRUE + (int(230*a),), width=3)
                 xx += 18
             xm = x_of(s0 + (a0 + b0)/2, t)
-            if xm <= MARK_X - 60:
-                labels.append((NO_QRS_TXT, xm, a*ramp(MARK_X - 60 - xm, 0, 60)))
+            if xm <= MARK_X - 140:                       # 出た瞬間に右下（x≥900）にかからないように
+                labels.append((NO_QRS_TXT, xm, a*ramp(MARK_X - 140 - xm, 0, 60)))
     im.alpha_composite(lay)
     for txt, xm, la in labels:
         col = C_TRUE if txt == NO_QRS_TXT else WHITE
@@ -1010,7 +1029,7 @@ def frame(t):
     keep = 1 - a_loop
     draw_header(im, ramp(t, 2.5, 0.5)*keep)
 
-    a_cells = ramp(t, T_GO - 0.3, 0.6)*keep
+    a_cells = ramp(t, T_GO, 0.5)*keep        # タイトル「ノイズ」が消えてから枠を出す
     cur = current(t)
     flying = None
     for i in range(N_PAT):
@@ -1045,7 +1064,7 @@ def frame(t):
     put(im, ASK, 100, 900, YEL, cx=540, cy=ASK_Y, a=a_ask, max_w=820)
 
     # 冒頭：タイトルと、変形中のパターン名
-    a_t = ramp(t, ASK_END + 0.1, 0.3) * (1 - ramp(t, T_GO - 0.5, 0.5))
+    a_t = ramp(t, ASK_END + 0.25, 0.25) * (1 - ramp(t, T_GO - 0.5, 0.5))   # 問いかけが消えてから（二重に見えない）
     if a_t > 0:
         put(im, TITLE_SUB, 36, 500, PURPLE, cx=540, cy=TITLE_Y[0], a=a_t)
         put(im, TITLE, 150, 900, WHITE, cx=540, cy=TITLE_Y[1], a=a_t, max_w=880)
@@ -1064,7 +1083,7 @@ def frame(t):
         put(im, END_2, 36, 700, GREEN, cx=540, cy=Y_ONE,
             a=ramp(t, T_END + FLY + 1.5, 0.6)*keep)
         put(im, END_3, 40, 800, YEL, cx=540, cy=F_BASE + 100,   # 波形の下（S波の底 約0.2mV）と下の枠のあいだ
-            a=ramp(t, T_END + FLY + 2.0, 0.6)*keep, max_w=820)
+            a=ramp(t, T_END + FLY + 2.0, 0.6)*(1 - ramp(t, DUR - LOOP_FADE - 0.35, 0.3)), max_w=820)   # 冒頭の偽VTへ変形する前に消す
 
     # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
     # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
@@ -1072,7 +1091,7 @@ def frame(t):
     for i in range(N_PAT):
         b_i = WINDOWS[i][1]
         if b_i <= t < b_i + FLY + 0.35:
-            a_strip = min(a_strip, ramp(t, b_i + FLY - 0.1, 0.45))
+            a_strip = min(a_strip, ramp(t, b_i + FLY - 0.25, 0.30))   # 次のパターンの最初の▲が付く前に出そろう
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     v = None
     if a_strip > 0.01:
@@ -1116,8 +1135,9 @@ def dashed_ellipse(d, box, col, dash=6, gap=5, width=2):
             d.line([tuple(q) for q in pts[r]], fill=col + (255,), width=width)
 
 
-def thumb_row_wave(i, x0, x1, base_y, mv, span=4.0):
-    """パターン i を1本の色で描き、特徴のところを点線の丸で囲む（サムネイル用）。"""
+def thumb_row_wave(i, x0, x1, y_top, y_bot, mv, span=4.0):
+    """パターン i を1本の色で描き、特徴のところを点線の丸で囲む（サムネイル用）。
+    基線は、y_top〜y_bot のまん中に波形の上下のまん中が来る位置。"""
     pat = PATTERNS[i]
     pxs = (x1 - x0) / span
     t0, marks = THUMB_VIEW[i]
@@ -1126,6 +1146,7 @@ def thumb_row_wave(i, x0, x1, base_y, mv, span=4.0):
     bl = periodic_beats(pat, rel[0] - 1, rel[-1] + 1)
     v = art_apply(pat, rel, wave_from(bl, rel))
     v = v * np.clip(np.minimum(xs - x0, x1 - xs) / 6.0, 0, 1)
+    base_y = (y_top + y_bot) / 2 + (v.max() + v.min()) / 2 * mv
     ys = base_y - v*mv
     pad = 40
     size = (int(x1 - x0) + 2*pad, int(3.4*mv) + 2*pad)
@@ -1142,8 +1163,8 @@ def thumb_row_wave(i, x0, x1, base_y, mv, span=4.0):
             n += 1
             sel = (rel >= lo) & (rel <= hi)
             bx0, bx1 = x0 + (lo - t0)*pxs - 4, x0 + (hi - t0)*pxs + 4
-            by0 = min(ys[sel].min() - 9, base_y - 0.45*mv)
-            by1 = max(ys[sel].max() + 9, base_y + 0.35*mv)
+            by0 = min(ys[sel].min() - 6, base_y - 0.45*mv)
+            by1 = max(ys[sel].max() + 6, base_y + 0.35*mv)
             dashed_ellipse(d, (bx0 - ox, by0 - oy, bx1 - ox, by1 - oy), pat['col'])
     return lay, (ox, oy)
 
@@ -1181,7 +1202,7 @@ def thumbnail_list():
             im_h, _ = text_img(THUMB_DESC[i], 18, 500, (176, 186, 186))
             assert nx + im_h.size[0] - 8 <= x1 + 4, f'{pat["no"]} のひとことが入らない'
             put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
-        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.62, 40.0, span=span)
+        lay, pos = thumb_row_wave(i, x0, x1, y + 38, y + RH - 2, 34.0, span=span)
         im.alpha_composite(lay, pos)
         if r < NR - 1:
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)] if i < 10 else [], fill=(38, 54, 48, 255), width=1)
