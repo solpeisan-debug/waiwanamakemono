@@ -250,6 +250,30 @@ def _cavb():                      # 第18弾 ⑨ 完全房室ブロック：心�
 
 _CAVB_EV, _CAVB_HL = _cavb()
 CAVB_PP, CAVB_RR = 6.4/9, 1.28
+
+
+def _cavb_hint():
+    """Q5 の色付け（専門医レビュー 2026-10-07 の要修正）：QRSに重なるP波（R頂点の前後0.06秒）は色付けから外し、
+    そのP波の時刻に「▼」を置く。ほかのP波（T波に重なるものも）は P頂点の前後0.07秒。QRS（R頂点の前後0.055秒）には色をかけない。"""
+    L = 6.4
+    R = [r for r, k in _CAVB_EV if k == 'q18']
+    P = [r for r, k in _CAVB_EV if k == 'p18']
+    hl, mk = [], []
+    for p in P:
+        d = min(((p - r + L/2) % L - L/2 for r in R), key=abs)
+        if abs(d) <= 0.06:
+            mk.append(p)
+            continue
+        a, b = p - 0.07, p + 0.07
+        if 0 < d < 0.07 + 0.055:                       # QRSのすぐうしろのP波：QRSの終わりから
+            a = max(a, p - d + 0.055)
+        if -(0.07 + 0.055) < d < 0:                    # QRSのすぐ前のP波：QRSの始まりまで
+            b = min(b, p - d - 0.055)
+        hl.append((round(a, 4), round(b, 4)))
+    return hl, mk
+
+
+_CAVB_HINT, _CAVB_MARK = _cavb_hint()
 LRI = 1.0                         # 第19弾 下限レート 60/分 の間隔
 AF_RR = [0.62, 0.95, 0.70, 1.10, 0.58, 0.85]          # 第26弾 RR_COARSE（平均75/分）
 AF_EV = [(round(float(sum(AF_RR[:k])), 4), 'af') for k in range(len(AF_RR))]
@@ -260,16 +284,19 @@ AF_EV = [(round(float(sum(AF_RR[:k])), 4), 'af') for k in range(len(AF_RR))]
 # =====================================================================================
 
 
-def _q(no, name, col, level, theme, one, say, ev, L, hl, src, art=None, gain=None, hint=None, hint_hl=None):
+def _q(no, name, col, level, theme, one, say, ev, L, hl, src, art=None, gain=None, hint=None, hint_hl=None,
+       ans_extra=(), marks=(), note=None, mini_lw=None):
+    hh = hl if hint_hl is None else hint_hl
+    ah = hh if (hh is ALL or not ans_extra) else sorted(list(hh) + list(ans_extra))
     return dict(no=no, name=name, col=col, level=level, theme=theme, guide=f'→ くわしくは{theme}の回',
                 one=one, say=say, ev=ev, L=L, hl=hl, src=src, art=art, gain=gain,
-                hint=hint, hint_hl=hl if hint_hl is None else hint_hl)
+                hint=hint, hint_hl=hh, ans_hl=ah, marks=list(marks), note=note, mini_lw=mini_lw, strong=mini_lw is not None)
 
 
 # ヒント（答えの前に出す。答えの名前は書かない）と、色を付ける特徴の場所（周期の中の秒）。
 # 文は元の回の hint（レビュー済み）から。Q1・Q5・Q8 はユーザーの案。hint_hl を書いていない問題は、色の場所も元の回と同じ（hl）
 HINT = {
-    'Q1': 'P波がない・R-Rがバラバラ',      # ユーザーの案（元の回 ②「f波が大きい」・ひとこと「P波なし、R-Rがバラバラ」）
+    'Q1': 'R-Rの間隔と、P波をさがして',    # 専門医レビュー 2026-10-07 の推奨（答えのひとことと同じ文にしない）。元の回 ②は「f波が大きい」
     'Q2': 'Pがそろう',                     # 第24弾 ① hint
     'Q3': '1拍おき',                       # 第17弾 ⑨ hint
     'Q4': '大きくバラバラ',                 # 第21弾 ⑥ hint
@@ -286,10 +313,10 @@ PATTERNS = [
     _q('Q1', '心房細動（f波が粗い）', (110, 200, 255), 'green', '心房細動',
        'P波なし、R-Rがバラバラ', '答えは、心房細動。R-Rがバラバラ。',
        AF_EV, round(sum(AF_RR), 4), ALL, ('reel26_afl', 'make_reel26', 1, '② 心房細動（f波が粗い）'), art=art_af_coarse),
-    _q('Q2', '洞頻脈', (110, 222, 236), 'green', '頻脈',
+    _q('Q2', '洞頻脈', (56, 189, 248), 'green', '頻脈',             # 濃い水色 #38BDF8（レビュー 2026-10-07：P波の色を見分けやすく）
        'どの拍にも、ふつうのP波', '答えは、洞頻脈。どの拍にもP波がある。',
        [(k*0.52, 'st') for k in range(8)], 4.16, ALL, ('reel24_tachy', 'make_reel24', 0, '① 洞頻脈'),
-       hint_hl=[(k*0.52 - 0.15 - 0.06, k*0.52 - 0.15 + 0.06) for k in range(8)]),     # どの拍のP波（P頂点 ±0.06秒）
+       hint_hl=[(k*0.52 - 0.15 - 0.06, k*0.52 - 0.15 + 0.06) for k in range(8)], mini_lw=4.6),  # どの拍のP波（P頂点 ±0.06秒）
     _q('Q3', '二段脈', (255, 152, 72), 'green', '期外収縮',
        '1拍おきにPVC。脈は半分のことも', '答えは、二段脈。1拍おきにPVC。',
        [(0, 'n17'), (.48, 'v17'), (.8, 'p17')], 1.6, [(0.48 - 0.09, 0.48 + 0.40)],
@@ -299,11 +326,13 @@ PATTERNS = [
        [], 4.0, ALL, ('reel21_arrest', 'make_reel21', 5, '⑥ 粗いVF'), art=art_vf_coarse),
     _q('Q5', '完全房室ブロック', (255, 92, 112), 'red', '徐脈',
        'PとQRSが別々に動く。PRが毎回ちがう', '答えは、完全房室ブロック。PとQRSが、別々に動く。',
-       _CAVB_EV, 6.4, _CAVB_HL, ('reel18_brady', 'make_reel18', 8, '⑨ 完全房室ブロック')),
+       _CAVB_EV, 6.4, _CAVB_HL, ('reel18_brady', 'make_reel18', 8, '⑨ 完全房室ブロック'),
+       hint_hl=_CAVB_HINT, marks=_CAVB_MARK),
     _q('Q6', 'ウェンケバッハ', (255, 212, 90), 'green', '徐脈',
        'PRが少しずつ伸びて、QRSが1つ抜ける', '答えは、ウェンケバッハ。PRが伸びて、抜ける。',
        [(0, 'p18'), (.18, 'q18'), (.8, 'p18'), (1.08, 'q18'), (1.6, 'p18'), (1.93, 'q18'), (2.4, 'p18')], 3.2,
-       [(-0.06, 0.20), (0.74, 1.10), (1.54, 1.95), (2.32, 2.50)], ('reel18_brady', 'make_reel18', 4, '⑤ ウェンケバッハ')),
+       [(-0.06, 0.20), (0.74, 1.10), (1.54, 1.95), (2.32, 2.50)], ('reel18_brady', 'make_reel18', 4, '⑤ ウェンケバッハ'),
+       hint_hl=[(-0.06, 0.18 - 0.04), (0.74, 1.08 - 0.04), (1.54, 1.93 - 0.04), (2.32, 2.50)]),   # P波〜QRSの始まり（R頂点の0.04秒前）
     _q('Q7', '高K：テント状T波', (255, 212, 90), 'yellow', '高カリウム',
        'T波が高く、細く、左右対称', '答えは、高カリウム。T波が高くとがる。',
        [(k*1.0, 't25') for k in range(4)], 4.0, [(k*1.0 + 0.09, k*1.0 + 0.40) for k in range(4)],
@@ -311,7 +340,8 @@ PATTERNS = [
     _q('Q8', '偽VT（歯みがき）', (255, 152, 72), 'green', 'ノイズ',
        'VTに見えても、ふつうのQRSが同じ間隔', '答えは、ノイズ。ふつうのQRSが隠れている。',
        [(k*RR, 'n20') for k in range(5)], 4.0, [(0.45, 3.55)], ('reel20_artifact', 'make_reel20', 8, '⑨ 偽VT（歯みがき）'),
-       art=art_brush, hint_hl=[(k*RR - 0.06, k*RR + 0.06) for k in range(5)]),         # 同じ間隔のQRS（R頂点 ±0.06秒）
+       art=art_brush, hint_hl=[(k*RR - 0.04, k*RR + 0.04) for k in range(5)],          # 同じ間隔のQRS（R頂点の前後0.04秒）
+       marks=[k*RR for k in range(5)], note='※まず患者さん（意識・脈）を見てから'),
     _q('Q9', 'ペーシング不全', (255, 92, 112), 'red', 'ペースメーカー',
        'スパイクのあとに、QRSがない', '答えは、ペーシング不全。スパイクのあとに、QRSがない。',
        [(0, 'v19'), (LRI, 'v19'), (2*LRI, 's19'), (3*LRI, 'v19')], 4*LRI, [(2*LRI - 0.12, 2*LRI + 0.30)],
@@ -319,7 +349,8 @@ PATTERNS = [
     _q('Q10', 'トルサード・ド・ポワント', (255, 152, 72), 'red', '致死性不整脈',
        'ねじれる。QT延長がきっかけ', '答えは、トルサード。ねじれる。',
        [(0, 'q21'), (1.0, 'q21'), (4.6, 'q21')], 5.6, [(TDP_A - 0.1, TDP_B + 0.1)],
-       ('reel21_arrest', 'make_reel21', 4, '⑤ トルサード・ド・ポワント'), art=art_tdp, gain=gain_tdp),
+       ('reel21_arrest', 'make_reel21', 4, '⑤ トルサード・ド・ポワント'), art=art_tdp, gain=gain_tdp,
+       ans_extra=[(r - 0.043, r + 0.533) for r in (0.0, 1.0, 4.6)]),     # 答えのあと：洞調律の拍の QT（QRSの始まり〜T波の終わり）
 ]
 N_PAT = len(PATTERNS)
 for _p in PATTERNS:
@@ -584,7 +615,9 @@ F_Y0, F_Y1 = int(F_BASE - WAVE_HI*F_MV - 24), int(_BOT_TOP - 2)
 RING_R = 32                        # カウントダウンのリング：「Q◯ これは？」の右に並べる
 Y_RING = Y_NAME + 2
 Y_HINT = Y_NAME + 66               # 「ヒント：〇〇」（36px）。下の帯（いちばん上 約900）とのあいだ 50px 以上
-HINT_COL = (236, 120, 255)         # ヒントの色付け：答えの色（青・水色・橙・赤・黄）と危険度の色（赤・黄・緑）のどれともちがう紫
+HINT_COL = (236, 120, 255)
+NOTE_UP = (26, 32, 40)             # 注意の1行（Q8）があるとき、名前・ひとこと・案内を上げる量（px）
+NOTE_DY = 32                       # 案内の中心 → 注意の行の中心         # ヒントの色付け：答えの色（青・水色・橙・赤・黄）と危険度の色（赤・黄・緑）のどれともちがう紫
 
 HEADER = [('この波形、なに？', 1.0, WHITE), (str(N_PAT), 2.0, YEL), ('問', 1.0, WHITE)]
 HEADER_BASE = 322                 # 「10」の上端 約255（上 250px より下）
@@ -705,14 +738,14 @@ def grid():
 SS = 2
 
 
-def strip_colors(tau):
+def strip_colors(tau, key='hint_hl'):
     """パターンの区間のうち、色を付ける範囲だけそのパターンの番号（色を付けるかは featured で決める）。"""
     cid = np.full(len(tau), -1, dtype=int)
     for i, (s0, s1) in enumerate(SEGS):
         inside = (tau >= s0) & (tau < s1)
         if not inside.any():
             continue
-        m = inside & hl_mask(PATTERNS[i], tau - s0)
+        m = inside & hl_mask(PATTERNS[i], tau - s0, key)
         cid[m] = i
     return cid
 
@@ -740,7 +773,7 @@ def strip_art(tau, v):
     return out
 
 
-def glow_line(size, runs, col, width, a, blur=(8, 20)):
+def glow_line(size, runs, col, width, a, blur=(8, 20), white=0.6):
     w, h = size
     core = Image.new('L', (w*SS, h*SS), 0)
     dc = ImageDraw.Draw(core)
@@ -756,7 +789,7 @@ def glow_line(size, runs, col, width, a, blur=(8, 20)):
         lay = Image.new('RGBA', (w, h), col + (0,))
         lay.putalpha(Image.fromarray(np.clip(g*a, 0, 255).astype(np.uint8)))
         out.alpha_composite(lay)
-    lay2 = Image.new('RGBA', (w, h), mix(col, (255, 255, 255), 0.6) + (0,))
+    lay2 = Image.new('RGBA', (w, h), mix(col, (255, 255, 255), white) + (0,))
     lay2.putalpha(core.point(lambda q: int(q*a)))
     out.alpha_composite(lay2)
     return out
@@ -782,14 +815,43 @@ def spike_runs(spk, xs, ys, mv, x_off=0.0, y_off=0.0):
     return out
 
 
-def strip_arrays(tau_center):
+def strip_arrays(tau_center, key='hint_hl'):
     tau = tau_center + (FX - XC) / F_PXS
     spk = []
     for ts, amp in STRIP_SPK:
         x = XC + (ts - tau_center) * F_PXS
         if -10 <= x <= W + 10:
-            spk.append((x, amp, int(strip_colors(np.array([ts]))[0])))
-    return strip_art(tau, wave_from(STRIP, tau)), strip_colors(tau), spk
+            spk.append((x, amp, int(strip_colors(np.array([ts]), key)[0])))
+    return strip_art(tau, wave_from(STRIP, tau)), strip_colors(tau, key), spk
+
+
+MARK_W, MARK_H, MARK_GAP = 20, 14, 6   # 「▼」（中部の帯）。ミニ波形では MINI_MARK の大きさ
+MINI_MARK = (10, 8, 4)
+
+
+def mark_xs(pat, rel0, rel1, x0, pxs):
+    """周期の中の時刻 marks → 画面の x（rel0〜rel1 のあいだ）。"""
+    L = pat['L']
+    out = []
+    for m_ in pat['marks']:
+        k0 = math.floor((rel0 - m_) / L)
+        for k in range(k0, k0 + int((rel1 - rel0) / L) + 3):
+            r = m_ + k*L
+            if rel0 <= r <= rel1:
+                out.append(x0 + (r - rel0)*pxs)
+    return out
+
+
+def draw_marks(img, xs_m, xs, ys, col, a, size, win_px):
+    """波形の一番上（x の前後 win_px）より上に「▼」。img は RGBA、xs・ys は img の座標。"""
+    w, h, gap = size
+    d = ImageDraw.Draw(img, 'RGBA')
+    for x in xs_m:
+        sel = (xs >= x - win_px) & (xs <= x + win_px)
+        if not sel.any():
+            continue
+        top = float(ys[sel].min()) - gap
+        d.polygon([(x - w/2, top - h), (x + w/2, top - h), (x, top)], fill=col + (int(255*a),))
 
 
 def hook_arrays(i):
@@ -835,7 +897,8 @@ def draw_wave(v, cid, base_col, a, spk=(), hl_col=None):
         runs = [list(zip(FX[r], ys[r])) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
         col = base_col if ci < 0 else (hl_col or PATTERNS[ci]['col'])
         if runs:
-            out.alpha_composite(glow_line((W, h), runs, col, 4.5, a))
+            strong = ci >= 0 and PATTERNS[ci].get('strong')   # Q2：色の付いたP波を濃く・太く（緑と見分けやすく）
+            out.alpha_composite(glow_line((W, h), runs, col, 6.0 if strong else 4.5, a, white=0.15 if strong else 0.6))
         sr = spike_runs([q for q in spk if q[2] == ci], FX, ys, F_MV)
         if sr:
             out.alpha_composite(spike_layer((W, h), sr, col, 4.5, a, (8, 20)))
@@ -853,14 +916,22 @@ def featured(t, base_col, a, cur=None):
         v1, _, _ = strip_arrays(tau_pat(0, t))
         u = ease((t - Q1_MORPH0) / (Q1_MORPH1 - Q1_MORPH0))
         return draw_wave(v0 + (v1 - v0)*u, np.full(len(v0), -1, dtype=int), base_col, a)
-    v, cid, spk = strip_arrays(tau_c(t))
+    key = 'ans_hl' if (cur is not None and t >= T_REV[cur]) else 'hint_hl'   # 答えのあとは ans_hl（Q10 は QT も）
+    v, cid, spk = strip_arrays(tau_c(t), key)
     c = cur if (cur is not None and t >= T_HINT[cur]) else -999
     cid = np.where(cid == c, cid, -1)
     spk = [(x, amp, ci if ci == c else -1) for x, amp, ci in spk]
     hl_col = None
     if c >= 0:
         hl_col = mix(mix(base_col, HINT_COL, ramp(t, T_HINT[c], 0.25)), PATTERNS[c]['col'], ramp(t, T_REV[c], 0.3))
-    return draw_wave(v, cid, base_col, a, spk, hl_col)
+    out = draw_wave(v, cid, base_col, a, spk, hl_col)
+    if c >= 0 and PATTERNS[c]['marks']:            # 「▼」：Q5 はQRSに隠れたP波、Q8 は同じ間隔のQRS
+        tc = tau_c(t)
+        s0 = SEGS[c][0]
+        rel0 = tc - HALF - s0
+        xm = mark_xs(PATTERNS[c], rel0, rel0 + W / F_PXS, 0.0, F_PXS)
+        draw_marks(out, xm, FX, F_BASE - F_Y0 - v*F_MV, hl_col, a*ramp(t, T_HINT[c], 0.25), (MARK_W, MARK_H, MARK_GAP), 0.05*F_PXS)
+    return out
 
 
 STRIP_W, STRIP_H, STRIP_BASE = CELL_W - 20, 76, 50     # ミニ波形の帯（枠の中）
@@ -888,8 +959,9 @@ def _mini_scale():
         for ts, amp in spike_times(bl):
             if 0 <= ts < pat['L']:
                 hi = max(hi, float(np.interp(ts, rel, v)) + amp)
-        mv = min(M_MV, 64.0/(hi - lo))
-        mvs.append(mv); bases.append(40.5 + (hi + lo)/2*mv)
+        room = (MINI_MARK[1] + MINI_MARK[2]) if pat['marks'] else 0     # 「▼」の場所を上にあける
+        mv = min(M_MV, (64.0 - room)/(hi - lo))
+        mvs.append(mv); bases.append(40.5 + room/2 + (hi + lo)/2*mv)
     return mvs, bases
 
 
@@ -909,7 +981,7 @@ def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=No
     if plain:
         ect = np.zeros(len(xs), dtype=bool)
     else:
-        ect = hl_mask(pat, rel)
+        ect = hl_mask(pat, rel, 'ans_hl')
     y_lo = int(min(ys.min(), base_y - 1.1*mv) - 30)
     y_hi = int(max(ys.max(), base_y + 0.9*mv) + 30)
     bx0, by0 = int(x_lo) - 30, y_lo
@@ -918,19 +990,25 @@ def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=No
     spk = []
     for ts, amp in spike_times(bl):
         if rel[0] <= ts <= rel[-1]:
-            on = (not plain) and bool(hl_mask(pat, np.array([ts]))[0])
+            on = (not plain) and bool(hl_mask(pat, np.array([ts]), 'ans_hl')[0])
             spk.append((xs[0] + (ts - rel[0]) * pxs, amp, on))
     for flag, col in ((False, WAVE_GREEN), (True, pat['col'])):
         sel = ect == flag
         sel = sel | np.roll(sel, 1) | np.roll(sel, -1)
         idx = np.where(sel)[0]
         runs = [list(zip(xs[r] - bx0, ys[r] - by0)) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
-        w_, a_ = ((lw_e or lw) if flag else lw), (a if flag else a*a_norm)
+        w_, a_ = (((pat['mini_lw'] or lw_e or lw) if lw < 4.0 else (lw_e or lw)) if flag else lw), (a if flag else a*a_norm)
         if runs:
-            out.alpha_composite(glow_line(size, runs, col, w_, a_, blur=blur))
+            strong = flag and pat.get('strong') and not plain
+            out.alpha_composite(glow_line(size, runs, col, w_, a_, blur=blur, white=0.15 if strong else 0.6))
         sr = spike_runs([q for q in spk if q[2] == flag], xs, ys, mv, bx0, by0)
         if sr:
             out.alpha_composite(spike_layer(size, sr, col, w_, a_, blur))
+    if pat['marks'] and not plain:
+        k = mv / F_MV
+        sz = tuple(lerp(mn, mx, (k - MINI_MV[i]/F_MV)/(1 - MINI_MV[i]/F_MV)) for mn, mx in zip(MINI_MARK, (MARK_W, MARK_H, MARK_GAP)))
+        xm = mark_xs(pat, rel[0], rel[-1], xs[0], pxs)
+        draw_marks(out, [x - bx0 for x in xm], xs - bx0, ys - by0, pat['col'], a, sz, 0.05*pxs)
     return out, (bx0, by0)
 
 
@@ -1074,9 +1152,15 @@ def draw_answer(im, i, t):
     a = ramp(t, T_REV[i], 0.2) * (1 - ramp(t, b_i - 0.25, 0.25))
     if a <= 0.004:
         return
-    put(im, pat['name'], 50, 900, pat['col'], cx=540, cy=Y_NAME, a=a, max_w=820)
-    put(im, pat['one'], 30, 500, (226, 232, 231), cx=540, cy=Y_ONE, a=a, max_w=820)
-    put(im, pat['guide'], 28, 800, LEVEL[pat['level']], cx=540, cy=Y_GUIDE, a=a, max_w=820)
+    if pat['note']:                                # 注意の1行を足す問題（Q8）：3行を少し上に詰めて、案内の下に入れる
+        yn, yo, yg = Y_NAME - NOTE_UP[0], Y_ONE - NOTE_UP[1], Y_GUIDE - NOTE_UP[2]
+    else:
+        yn, yo, yg = Y_NAME, Y_ONE, Y_GUIDE
+    put(im, pat['name'], 50, 900, pat['col'], cx=540, cy=yn, a=a, max_w=820)
+    put(im, pat['one'], 30, 500, (226, 232, 231), cx=540, cy=yo, a=a, max_w=820)
+    put(im, pat['guide'], 28, 800, LEVEL[pat['level']], cx=540, cy=yg, a=a, max_w=820)
+    if pat['note']:
+        put(im, pat['note'], 24, 700, (236, 241, 240), cx=540, cy=yg + NOTE_DY, a=a, max_w=820)
 
 
 _GRID = None

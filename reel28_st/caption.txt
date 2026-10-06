@@ -15,17 +15,19 @@ Q5 完全房室ブロック → くわしくは徐脈の回
 Q6 ウェンケバッハ → くわしくは徐脈の回
 Q7 高K：テント状T波 → くわしくは高カリウムの回
 Q8 偽VT（歯みがきのノイズ）→ くわしくはノイズの回
-Q9 ペーシング不全 → くわしくはペースメーカーの回
+Q9 ペーシング不全（捕捉不全：スパイクのあとにQRSがない）→ くわしくはペースメーカーの回
 Q10 トルサード・ド・ポワント → くわしくは致死性不整脈の回
 
-🚨見つけたらすぐ報告：Q4・Q5・Q7・Q9・Q10（VF・脈のないトルサードは電気ショック）
+🚨見つけたらすぐ報告：Q5・Q7・Q9・Q10
+🚨Q4（VF）・脈のないトルサードは心停止：まず患者さんを見て、応援を呼び、CPRと電気ショック
 ⚠️心房細動は、初めて見つけたら報告。ノイズに見えても、まず患者さんを見てください
+⚠️ほかの波形（洞頻脈・二段脈・ウェンケバッハ）も、新しく出たとき・症状があるときは報告
 
 何問正解だったか、コメントで教えてね。
 保存して、見返してね。
 
 ※数値はこの波形での一例です（II誘導）
-※参考：LITFL ECG Library（Atrial Fibrillation / Sinus Tachycardia / Premature Ventricular Complex / Ventricular Fibrillation / AV Block: 3rd degree / AV Block: 2nd degree, Mobitz I / Hyperkalaemia / Pacemaker Malfunction / Polymorphic VT and Torsades de Pointes / ECG Motion Artefacts）、Knight BP et al. N Engl J Med 1999（歯みがきによる偽VT）
+※参考：LITFL ECG Library（Atrial Fibrillation / Sinus Tachycardia / Premature Ventricular Complex / Ventricular Fibrillation / AV Block: 3rd degree / AV Block: 2nd degree, Mobitz I / Hyperkalaemia / Pacemaker Malfunction / Polymorphic VT and Torsades de Pointes / ECG Motion Artefacts）、Knight BP et al. N Engl J Med 1999（歯みがきによる偽VT）、JRC蘇生ガイドライン2020（医療従事者のBLS）
 
 📌保存・シェアは大歓迎です
 🚫画像・動画の無断転載、素材としての使用はご遠慮ください
