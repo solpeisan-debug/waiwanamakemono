@@ -8,10 +8,11 @@
 1問の流れ（WINDOWS[i] = (a, b)）：
 - a        ：前の問題の波形が枠へ縮んで移る（FLY 0.8秒）
 - a+0.62   ：「Q◯ これは？」が出る（前の波形が移り終わるころ。帯とほぼ同時）
+- a+0.8 = t0：波形がはっきり見え始める。時間のリング（「これは？」の右）が減りはじめ、7秒（THINK）で空になる
 - a+SW     ：中部の帯が、この問題の波形の頭から出てくる。前の問題の波形は見せない（帯の時計をここで跳ばす）
-- a+HINT0 ：ヒントの段階（1.7秒〜）。「ヒント：〇〇」と、波形の特徴のところ（hint_hl）だけ紫に。同時にカウントダウン 3・2・1
-             （「これは？」の右のリング。0.65秒ごと、音は木の「コッ」。モニター音は -6dB）。名前・答えの色は出さない（枠は「Q◯ ？」）
-- a+REVEAL ：答え（3.65秒〜。名前・ひとこと・「→ くわしくは〇〇の回」）。特徴の紫がその問題の色に変わる。音「ポーン」。声「答えは、…」
+- t0+1.5   ：ヒント。「ヒント：〇〇」と、波形の特徴のところ（hint_hl）だけ紫に。名前・答えの色は出さない（枠は「Q◯ ？」）
+- t0+4.0   ：最後の3秒だけ、リングの中に数字 3・2・1（1秒ごと、音は木の「コッ」。モニター音は -6dB）
+- t0+7.0   ：答え（a+7.8。名前・ひとこと・「→ くわしくは〇〇の回」）。特徴の紫がその問題の色に変わる。音「ポーン」。声「答えは、…」
 - b        ：答えの声のあと。波形が縮んで枠へ移る（次の問題の a）
 
 配置：
@@ -387,9 +388,12 @@ T_TITLE = 3.6                     # 冒頭の1文「心電図クイズ。この1
 HOOK = [9, 3, 0, 7, 4]            # Q10トルサード → Q4 VF → Q1 心房細動 → Q8 偽VT → Q5 完全房室ブロック
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.3, 0.38, 0.12
 SW = 0.5                          # a から、帯の時計を跳ばす（この問題の波形を出す）まで
-HINT0 = 1.7                       # ヒント（「ヒント：〇〇」と特徴の色付け）を出す時刻（a から）。出題だけの時間は a〜a+1.7
-CD0, CD_STEP, CD_N = HINT0, 0.65, 3   # ヒントと同時にカウントダウン：0.65秒ごとに 3・2・1
-REVEAL = CD0 + CD_STEP*CD_N       # 答えを出す時刻（a から 3.65秒）
+T0_OFF = 0.8                      # 波形がはっきり見え始める時刻 t0（a から）：帯は a+0.5 から 0.3秒で浮かぶ。前の波形が縮む 0.8秒のあと
+THINK = 7.0                       # 考える時間：t0 から答えまで 7秒（時間のリングが t0 から減りはじめ、7秒で空になる）
+HINT0 = T0_OFF + 1.5              # ヒント（「ヒント：〇〇」と特徴の紫の色付け）：t0 の 1.5秒後（a から 2.3秒）
+REVEAL = T0_OFF + THINK           # 答えを出す時刻（a から 7.8秒）
+CD_STEP, CD_N = 1.0, 3            # 最後の3秒だけ数字「3・2・1」と「コッ」（1秒ごと）
+CD0 = REVEAL - CD_STEP*CD_N       # 数字「3」が出る時刻（a から 4.8秒）
 SAY_CPS = 7.0                     # 声の長さの見込み：同じ声（Ren）の第20弾の録音で実測 6.96字/秒（13文、6.1〜8.2）。録音後に決め直す
 SAY_LEAD, SAY_TAIL = 0.15, 0.30   # 答えが出てから話し始めるまで／言い終わってから縮み始めるまで
 FLY = 0.8                         # 中部から枠へ縮んで移る時間
@@ -400,11 +404,12 @@ PRE_END = 0.4
 
 
 # 帯に出すとき、区間の頭からどれだけ進めておくか（周期の中のどこから見せるか）。ふつうは PRE。
-# Q10 トルサードは周期 5.6秒（QT延長の洞調律 0・1.0秒 → ねじれ 1.40〜3.95秒 → 4.6秒）。3.85秒から見せると、
-# 帯が出たときは洞調律 → ヒント（色付け）のときに右からねじれが入り → 答えの瞬間に、始まり（T波の上）から終わりまで全部が画面に入る
-# Q9 ペーシング不全は周期 4秒（スパイクだけの拍は 2.0秒）。2.3秒から見せると、ヒントが出たとき右のほう（x 約880）にスパイクだけの拍があり、
-# 答えの瞬間まで画面に残る（x 約200）。答えのあと約1.5秒で、次のスパイクだけの拍が右から入る
-PRE_OF = {8: 2.3, 9: 3.85}
+# 画面の左はしの時刻（周期の中）は pre + (t - a - 0.5)。答えの瞬間（a+7.8）の画面は pre+7.3 〜 pre+10.39。
+# Q9 ペーシング不全は周期 4秒（スパイクだけの拍は 2.0・6.0・10.0秒）。1.1秒から見せると、ヒントのとき右はしに 6.0秒の拍が入り、
+#    答えの瞬間に 10.0秒の拍が画面のまん中（x 約560）にある
+# Q10 トルサードは周期 5.6秒（ねじれ 1.40〜3.95・7.00〜9.55・12.60〜15.15秒）。5.0秒から見せると、波形が見え始めるとき右半分で
+#    1回目のねじれが始まり（ヒントのとき全体が画面に入る）、答えの瞬間に2回目のねじれの始まり（T波の上）から終わりまでが入る
+PRE_OF = {8: 1.1, 9: 5.0}
 
 
 def pre_of(i):
@@ -1020,28 +1025,31 @@ def draw_question(im, i, t):
     w2 = text_w('これは？', 56, 900)
     r = RING_R
     gap = 20
-    x0 = 540 - (w1 + gap + w2 + gap + 2*r) / 2          # リングの場所も入れて、まん中にそろえる（リングが出ても字が動かない）
+    x0 = 540 - (w1 + gap + w2 + gap + 2*r) / 2          # リングの場所も入れて、まん中にそろえる
     put(im, q, 52, 900, YEL, x=x0, cy=Y_NAME, a=a)
     put(im, 'これは？', 56, 900, WHITE, x=x0 + w1 + gap, cy=Y_NAME, a=a)
-    c0 = a_i + CD0
-    a_h = a * ramp(t, c0, 0.25)
+    h0 = a_i + HINT0
+    a_h = a * ramp(t, h0, 0.25)
     if i == 0:                                         # 1問目だけ：正解の数を数えるように（ヒントが出るまで）
-        put(im, COUNT_NOTE, 24, 500, GREY, cx=540, cy=Y_HINT, a=a*(1 - ramp(t, c0 - 0.2, 0.2)))
-    if a_h <= 0.004:
-        return
-    put(im, f"ヒント：{PATTERNS[i]['hint']}", 36, 800, HINT_COL, cx=540, cy=Y_HINT, a=a_h, max_w=820)
-    u = cl((t - c0) / (CD_STEP*CD_N))                   # 0 → 1
-    n = CD_N - min(CD_N - 1, int((t - c0) // CD_STEP))
+        put(im, COUNT_NOTE, 24, 500, GREY, cx=540, cy=Y_HINT, a=a*(1 - ramp(t, h0 - 0.2, 0.2)))
+    if a_h > 0.004:
+        put(im, f"ヒント：{PATTERNS[i]['hint']}", 36, 800, HINT_COL, cx=540, cy=Y_HINT, a=a_h, max_w=820)
+    # 時間のリング：t0 から減りはじめ、7秒（THINK）で空になる。数字は最後の3秒だけ（3・2・1）
+    t0 = a_i + T0_OFF
+    u = cl((t - t0) / THINK)                           # 0 → 1
     rx = x0 + w1 + gap + w2 + gap + r - 8
     lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay)
     box = (rx - r, Y_RING - r, rx + r, Y_RING + r)
-    d.ellipse(box, outline=(70, 86, 82, int(255*a_h)), width=6)
+    d.ellipse(box, outline=(70, 86, 82, int(255*a)), width=6)
     if u < 1:
-        d.arc(box, -90, -90 + 360*(1 - u), fill=YEL + (int(255*a_h),), width=7)
+        d.arc(box, -90, -90 + 360*(1 - u), fill=YEL + (int(255*a),), width=7)
     im.alpha_composite(lay)
-    k = (t - c0) % CD_STEP / CD_STEP
-    put(im, str(n), 40, 900, WHITE, cx=rx, cy=Y_RING + 2, a=a_h*(1 - 0.35*ease(k)))
+    c0 = a_i + CD0
+    if t >= c0:
+        n = CD_N - min(CD_N - 1, int((t - c0) // CD_STEP))
+        k = (t - c0) % CD_STEP / CD_STEP
+        put(im, str(n), 40, 900, WHITE, cx=rx, cy=Y_RING + 2, a=a*ramp(t, c0, 0.1)*(1 - 0.35*ease(k)))
 
 
 def draw_answer(im, i, t):
@@ -1298,7 +1306,7 @@ def render_chunk(args):
 BEEP_F, BEEP_F_WIDE, BEEP_AMP, BEEP_DUR, BEEP_TAU = 960.0, 720.0, 0.20, 0.08, 0.045
 TOK_F = (420.0, 1180.0)
 POM_F = 1568.0
-DUCK = 0.5                        # ヒントとカウントダウンのあいだ、モニター音を -6dB
+DUCK = 0.5                        # 最後の3秒（数字「3・2・1」と「コッ」）のあいだ、モニター音を -6dB
 
 
 def _tone(a, sr, ts, f, amp=0.2, dur=0.08, tau=0.045):
@@ -1369,7 +1377,7 @@ def beeps(path, sr=44100):
     n = int(DUR*sr)
     a = np.zeros(n, dtype=np.float32)
     for ts, f in beep_events():
-        duck = any(T_HINT[i] <= ts < T_REV[i] for i in range(N_PAT))
+        duck = any(WINDOWS[i][0] + CD0 <= ts < T_REV[i] for i in range(N_PAT))
         _tone(a, sr, ts, f, amp=BEEP_AMP*(DUCK if duck else 1.0), dur=BEEP_DUR, tau=BEEP_TAU)
     for k in range(len(HOOK)):                         # 冒頭の変形のたびに
         _tone(a, sr, HOOK_T0 + k*HOOK_STEP, 720.0, dur=0.07, tau=0.04)
@@ -1431,7 +1439,7 @@ def sound_figure(path, sr=44100):
     i = 1
     a_i, b_i = WINDOWS[i]
     t0, t1 = a_i, b_i
-    put(im, f'Q2 の1問ぶんの音（{t1 - t0:.1f}秒。ヒントとカウントのあいだはピッを -6dB）', 24, 700, WHITE, x=x0, cy=yb)
+    put(im, f'Q2 の1問ぶんの音（{t1 - t0:.1f}秒。最後の3秒のカウントのあいだはピッを -6dB）', 24, 700, WHITE, x=x0, cy=yb)
     tr = np.zeros(int(DUR*sr), dtype=np.float32)
     tmp = os.path.join(os.path.dirname(path), '_fig.wav')
     beeps(tmp, sr)
@@ -1441,9 +1449,10 @@ def sound_figure(path, sr=44100):
     seg = tr[int(t0*sr):int(t1*sr)]
     yc = yb + 170
     hh = 110
-    put(im, 'ヒントが出るとき：カウント 3 → 2 → 1（コッ）→ 答え（ポーン）', 20, 600, YEL, x=x0, cy=yb + 30)
-    for tt, lab, c in [(T_HINT[i] - t0, '3', YEL), (T_HINT[i] - t0 + CD_STEP, '2', YEL),
-                       (T_HINT[i] - t0 + 2*CD_STEP, '1', YEL), (T_REV[i] - t0, '答え', (236, 120, 255))]:
+    put(im, '波形が見え始めて1.5秒でヒント → 最後の3秒でカウント 3 → 2 → 1（コッ）→ 答え（ポーン）', 20, 600, YEL, x=x0, cy=yb + 30)
+    cd = a_i + CD0
+    for tt, lab, c in [(T_HINT[i] - t0, 'ヒント', (236, 120, 255)), (cd - t0, '3', YEL), (cd - t0 + CD_STEP, '2', YEL),
+                       (cd - t0 + 2*CD_STEP, '1', YEL), (T_REV[i] - t0, '答え', (236, 120, 255))]:
         x = x0 + tt/(t1 - t0)*(x1 - x0)
         d.line([(x, yc - hh - 10), (x, yc + hh)], fill=(70, 70, 50))
         put(im, lab, 20, 700, c, x=x + 4, cy=yc - hh - 4)
