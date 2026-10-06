@@ -776,7 +776,7 @@ END_LINE = '高カリウムは、軽く見えても急変しうる'
 SAVE_LINE = '保存して見返してね'
 COMMENT_LINE = '何個わかった？コメントで教えてね'
 HOOK_Q = 'この変化、気づける？'
-HOOK_Q_Y, HOOK_NAME_Y = 436, 845       # 冒頭：問いかけ・変形中のパターン名（上から下まで間隔をそろえる）
+HOOK_Q_Y, HOOK_NAME_Y = 433, 841       # 冒頭：問いかけ・変形中のパターン名（上から下まで間隔をそろえる）
 END_Y = (Y_NAME - 40, Y_NAME + 6, Y_NAME + 48)   # 最後の3行（上の枠・下の波形との余白をそろえる）
 GHOST_LEGEND = 'うすい線＝①基準'
 LEGEND_Y = 1150
@@ -994,7 +994,7 @@ def thumbnail():
     put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_ONE + 4, max_w=880)
     v, cid = hook_arrays(1)
     wl = draw_wave(v, cid, WAVE_GREEN, 1.0)
-    im.alpha_composite(wl, (0, F_Y0 + 62))
+    im.alpha_composite(wl, (0, F_Y0 + 50))      # タイトルの下・枠の上の余白がそろう位置（約30pxずつ）
     return im.convert('RGB')
 
 

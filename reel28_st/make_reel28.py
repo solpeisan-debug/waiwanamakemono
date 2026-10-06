@@ -173,7 +173,7 @@ def _reg(kind, rr, n):
 #      marks：('v', 名前, 時刻) 基線からその時刻の波形までの矢印と「名前 ↑2mm」。時刻は数値（ref からの秒）か
 #             'J'（J点）'J60'（J点+60ms）'Tmax' 'Tmin' 'Qmin'（モデルから計算）
 #             ('w', 名前) QRS の幅のかっこ（始まり〜J点）と「名前 0.15秒」
-#             ('p', [時刻…]) P波の上に「P」　('t', 文) 窓の右下に一言
+#             ('p', [時刻…]) P波の上に「P」　('t', 文) 値のうしろに一言
 _E = {k: _reg(k, RR, 6) for k in 'NHEQIDL'}
 _C = _reg('C', 0.56, 8)                     # 107/分
 AIVR_RR = 0.78                              # 77/分（洞調律 70/分より少し速い）
@@ -190,7 +190,7 @@ PATTERNS = [
     dict(no='②', name='超急性期T波', col=C_ACUTE, hint='Tが大きい',
          one='Tが高く幅広い。早期のサイン', tag='urgent',
          ev=_E['H'], L=4.8, hl=_each(_E['H'], 0.04, 0.40),
-         mag=dict(subj='T', ref=0.8, c=0.12, mm=16, base=112, marks=[('v', 'T', 'Tmax')])),
+         mag=dict(subj='T', ref=0.8, c=0.12, mm=16, base=112, lab_t=-0.31, marks=[('v', 'T', 'Tmax')])),
     dict(no='③', name='ST上昇', col=C_ACUTE, hint='STが上がる',
          one='STが上がる。大きいと墓石型', tag='urgent',
          ev=_E['E'], L=4.8, hl=_each(_E['E'], 0.02, 0.36),
@@ -210,22 +210,22 @@ PATTERNS = [
     dict(no='⑦', name='急性心膜炎', col=C_MIM, hint='PRも下がる',
          one='PR低下＋下に凸のST上昇', tag='check',
          ev=_C, L=4.48, hl=_each(_C, -0.12, -0.035) + _each(_C, 0.03, 0.30),
-         mag=dict(subj='PRとST', ref=0.56, c=0.02, mm=30, base=76,
+         mag=dict(subj='PRとST', ref=0.56, c=0.02, mm=30, base=76, lab='below',
                   marks=[('v', 'PR', -0.07), ('v', 'ST', 'J')])),
     dict(no='⑧', name='左脚ブロック', col=C_MIM, hint='幅広QRS',
          one='幅広QRS。STは逆向きが基本', tag='check',
          ev=_E['L'], L=4.8, hl=ALL,
-         mag=dict(subj='ST', ref=0.8, c=0.12, mm=18, base=54,
+         mag=dict(subj='ST', ref=0.8, c=0.12, mm=18, base=54, lab='below',
                   marks=[('v', 'ST', 'J60'), ('t', 'QRSと逆向き')])),
     dict(no='⑨', name='AIVR（促進心室固有調律）', col=C_REP, hint='幅広・再灌流',
          one='再灌流で出やすい幅広リズム', tag='report',
          ev=_A, L=round(1.64 + 4*AIVR_RR, 2), hl=_each(_A[2:], -0.08, 0.45),
-         mag=dict(subj='QRS', ref=1.64 + AIVR_RR, c=0.10, mm=16, base=36, marks=[('w', 'QRS')])),
+         mag=dict(subj='QRS', ref=1.64 + AIVR_RR, c=0.10, mm=16, base=70, lab_t=0.56, marks=[('w', 'QRS')])),
     dict(no='⑩', name='完全房室ブロック', col=C_REP, hint='PとQRSが別々',
          one='PとQRSが別々。下壁梗塞で', tag='now',
          ev=_H, L=round(9*CHB_PP, 2), D=4.36, hl=ALL,
-         mag=dict(subj='PとQRS', title='PとQRSを見る　1マス＝1mm', ref=_CHB_REF, c=0.10, mm=15, base=96,
-                  marks=[('p', [r - _CHB_REF for r, k in _H if k == 'P' and -0.62 < r - _CHB_REF < 0.82]),
+         mag=dict(subj='PとQRS', title='P と QRS　1マス＝1mm', ref=_CHB_REF, c=CHB_RR/2, mm=10, base=100, lab='below',
+                  marks=[('p', [r - _CHB_REF + n*9*CHB_PP for r, k in _H if k == 'P' for n in (-1, 0, 1)]),
                          ('t', f'P {60/CHB_PP:.0f}/分・QRS {60/CHB_RR:.0f}/分')])),
 ]
 
@@ -875,7 +875,7 @@ def _mm(v):
 
 def mag_title(i):
     m = PATTERNS[i]['mag']
-    return m.get('title', f"{m['subj']}を拡大　1マス＝1mm")
+    return m.get('title', '拡大　1マス＝1mm')       # 何を見るかは右の値（「ST ↑3mm」など）でわかる
 
 
 def mag_marks(i):
@@ -969,8 +969,12 @@ def _mag_layer(i):
         runs = [list(zip(xs[r], ys[r])) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
         if runs:
             plot.alpha_composite(glow_line((pw, ph), runs, col, 4.0, 1.0, blur=(5, 12)))
-    lab_y = yb - 14 if yb > 26 else yb + 14
-    put(plot, '基線', 20, 700, (214, 222, 222), right=pw - 6, cy=lab_y)
+    # 「基線」の字：ふつうは右はしの点線の上。波形と重なる回は、点線の下（lab='below'）か、時刻 lab_t の上
+    lab_y = yb + 16 if m.get('lab') == 'below' else yb - 14
+    if m.get('lab_t') is not None:
+        put(plot, '基線', 20, 700, (214, 222, 222), cx=(m['lab_t'] - t0) * pxs, cy=lab_y)
+    else:
+        put(plot, '基線', 20, 700, (214, 222, 222), right=pw - 6, cy=lab_y)
     # 印
     arrow_col = mix(pat['col'], (255, 255, 255), 0.35)
     marks = mag_marks(i)
@@ -993,6 +997,8 @@ def _mag_layer(i):
         elif mk[0] == 'p':
             for tp in mk[1]:
                 x = (tp - t0) * pxs
+                if not 10 <= x <= pw - 10:                   # 窓の外の P は描かない
+                    continue
                 put(plot, 'P', 20, 800, arrow_col, cx=x, cy=yb - 0.15*mvpx - 16)
     lay.alpha_composite(plot, (px0, py0))
     _MAG[i] = lay
