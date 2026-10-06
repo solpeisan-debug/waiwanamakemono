@@ -19,12 +19,12 @@
 進むと、P波が平たく、PRが延びる。
 さらにP波が消えて、脈が遅くなる。
 QRSの幅が広がり、Tとつながる。
-サイン波。このあと突然、心停止になりうる。
+サイン波。いつ心停止しても、おかしくない。
 
 低カリウムでは、T波が低くなり、U波が出る。
 重くなると、STが下がり、U波が目立つ。
 低カルシウムは、STが長くなって、QTが延びる。
-薬でも、T波が遅れて、QTが延びる。
+薬でも、T波が幅広くなり、QTが延びる。
 高カルシウムでは、QTが短くなる。
 
 高カリウムは、波形が軽く見えても、急変することがある。
@@ -73,7 +73,7 @@ QRSの幅が広がり、Tとつながる。
 - **④ P波消失・徐脈**：LITFL（Hyperkalaemia）「Bradyarrhythmias: sinus bradycardia, high-grade AV block with slow junctional and ventricular escape rhythms, slow AF」、Example 5「Absent P waves」。
   Handy Tips「Suspect hyperkalaemia in any patient with a new bradyarrhythmia or AV block, especially patients with renal failure, on haemodialysis, or taking any combination of ACE inhibitors, potassium-sparing diuretics and potassium supplements」
 - **⑤ QRS幅の拡大**：LITFL（Hyperkalaemia）「QRS widening with bizarre QRS morphology」、Example 1「Broad, bizarre QRS complexes — these merge with both the preceding P wave and subsequent T wave」
-- **⑥ サイン波・「突然、心停止になりうる」**：LITFL（Hyperkalaemia）「With worsening hyperkalaemia… Development of sine wave appearance (pre-terminal rhythm)・Ventricular fibrillation・PEA with bizarre, wide complex rhythm・Asystole」
+- **⑥ サイン波・「いつ心停止しても、おかしくない」**：LITFL（Hyperkalaemia）「With worsening hyperkalaemia… Development of sine wave appearance (pre-terminal rhythm)・Ventricular fibrillation・PEA with bizarre, wide complex rhythm・Asystole」
 - **まとめ「波形が軽く見えても、急変することがある」**：LITFL（Hyperkalaemia）「Serum potassium level may not correlate closely with ECG changes. Patients with a relatively normal ECG can suffer sudden hyperkalaemia cardiac arrest.」
 - **進む順**：LITFL（Hyperkalaemia）「effects begin on the T wave and move forwards to the P wave / PR interval, and subsequently to the QRS complex」（「usual order」。いつもこの順とはかぎらない）
 - **⑦⑧ 低カリウム**：LITFL（Hypokalaemia）「The earliest ECG manifestation of hypokalaemia is a decrease in T wave amplitude」「Widespread ST depression and T wave flattening/inversion」「Prominent U waves」「Apparent long QT interval due to fusion of T and U waves (= long QU interval)」「Potential to develop life-threatening ventricular arrhythmias, e.g. VT, VF and Torsades de Pointes」。
@@ -84,9 +84,16 @@ QRSの幅が広がり、Tとつながる。
 - **⑪ 高カルシウム**：LITFL（Hypercalcaemia）「The main ECG abnormality seen with hypercalcaemia is shortening of the QT interval」。LITFL（QT Interval）「QTc is abnormally short if < 350ms」
 - **① 基準**：LITFL（QT Interval）「A useful rule of thumb is that a normal QT is less than half the preceding RR interval」
 
+## 専門医レビュー（2026-10-06）で直したところ
+
+要修正なし。推奨2点を台本に入れた（波形・画面・キャプションは変更なし）。
+- ⑥「このあと突然、心停止になりうる」→「いつ心停止しても、おかしくない」：「このあと」だと時間の猶予があるように聞こえる。サイン波はすでに心停止の直前（pre-terminal）
+- ⑩「T波が遅れて」→「T波が幅広くなり」：耳で聞くと「Tの始まりが遅れる＝STが延びる（⑨低Caと同じ）」と取られうる。画面の「T波が遅く広い」に合わせた
+- ほか（11パターンの並び、数値なしの高Kゲージ、R頂点で重ねるゴースト、色の文字、まとめの一文）はOK
+
 ## 声の指定
 
 - 全体に落ち着いて、はっきり
-- ⑥「このあと突然、心停止になりうる」は、少し間をとって重く
+- ⑥「いつ心停止しても、おかしくない」は、少し間をとって重く
 - まとめ「高カリウムは、波形が軽く見えても、急変することがある」は、ゆっくり
 - 最後の「保存して、見返してね」は明るく
