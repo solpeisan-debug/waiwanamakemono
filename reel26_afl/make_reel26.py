@@ -439,17 +439,18 @@ F_PXS = 25 * F_PXMM
 F_MV = 10 * F_PXMM
 # 中部のかたまり：名前（54px）→ ひとこと（32px）→ 波形（R頂点 1mV 〜 下 0.4mV）→ R-R のものさし
 CELL_W, CELL_H, CELL_PITCH = 400, 96, 104
-TOP_Y = [396 + k*CELL_PITCH for k in range(4)]          # ①〜⑧（2列×4段）
+TOP_Y = [372 + k*CELL_PITCH for k in range(4)]          # ①〜⑧（2列×4段）。見出しとともに 24px 上げた（検査役 2026-10-06）
 BOT_Y = [1538 - CELL_H - (2 - k)*CELL_PITCH for k in range(3)]   # ⑨〜⑭（2列×3段）。下端 1538
 _TOP_END = TOP_Y[-1] + CELL_H      # ④⑧の下端
 _BOT_TOP = BOT_Y[0]                # ⑨⑫の上端
-RULER_DY = 72                      # 波形の基線 → ものさし
+RULER_DY = 88                      # 波形の基線 → ものさし（⑥の深いS波が棒に触れないよう 72→88）
+ONE_GAP = 24                       # ひとこと → 波形の上端（16→24）
 # 見た目の上端（名前の字の上）〜下端（ものさしの目盛り）で余白をそろえる
-_MID_H = 22 + 54 + 16 + 30 + 140 + RULER_DY + 8
+_MID_H = 22 + 54 + ONE_GAP + 30 + 140 + RULER_DY + 8
 _GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
 Y_NAME = _TOP_END + _GAP + 22
 Y_ONE = Y_NAME + 54
-F_BASE = Y_ONE + 16 + 30 + 140
+F_BASE = Y_ONE + ONE_GAP + 30 + 140
 RULER_Y = F_BASE + RULER_DY
 F_Y0, F_Y1 = int(F_BASE - 200), int(_BOT_TOP - 2)
 XC = W / 2
@@ -774,7 +775,7 @@ def view_params(i, u):
     """u=0 で中部の帯、u=1 で枠のミニ波形。"""
     ox, oy = cell_strip_origin(i)
     cx = lerp(XC, ox + STRIP_W/2, u)
-    base_y = lerp(F_BASE, oy + STRIP_BASE, u)
+    base_y = lerp(F_BASE, oy + STRIP_BASE + MINI_DY.get(i, 0), u)
     pxs = F_PXS*(M_PXS/F_PXS)**u
     mv = F_MV*(M_MV/F_MV)**u
     half = lerp(XC, STRIP_W/2, u)
@@ -783,6 +784,7 @@ def view_params(i, u):
     return cx, base_y, pxs, mv, cx - half, cx + half, lw, (b1, b2)
 
 
+MINI_DY = {5: -4, 6: -7, 10: -3, 11: -3, 12: -3, 13: -3}   # ミニ波形の基線を上げる（⑥⑦の深いS波、⑪〜⑭の下向きF波で下に寄るので）
 MINI_LW_HL = 3.0                   # ミニ波形で、色を付ける範囲の線の太さ（ほかは 2.2）
 MINI_A_NORM = 0.72                 # ミニ波形で、色を付けない範囲の濃さ
 
@@ -827,9 +829,10 @@ def draw_cell(base, i, t, state, a_all):
 # --- 画面 ---------------------------------------------------------------------------
 TITLE = '心房細動・心房粗動'
 HEADER = [(TITLE, 1.0, WHITE), (str(N_PAT), 2.0, (255, 214, 64)), ('パターン', 1.0, WHITE)]
-QUESTION = '細動？粗動？見分けられる？'       # 冒頭の問いかけ（0秒から。見出しが出る前に消す）
+QUESTION = ('細動？粗動？', '見分けられる？')    # 冒頭の問いかけ（0秒から。見出しが出る前に消す）
 COMMENT = '何個わかった？コメントで教えてね'   # 最後の呼びかけ
-HEADER_BASE = 372                   # 見出しのベースライン（y）
+END_SWAP = 3.0                      # 一覧がそろってから、まとめの文 → 呼びかけに入れかえるまで（秒）
+HEADER_BASE = 348                   # 見出しのベースライン（y）
 NOTE1 = '実際の速さ（前後のふつうの拍は75/分）'
 NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
@@ -903,7 +906,8 @@ def one_size(pat):
         sz -= 1
 
 
-QUESTION_Y = 420                    # 冒頭の問いかけの高さ（上 250px より下、「モニター心電図で見分ける」の上）
+QUESTION_Y = (392, 488)             # 冒頭の問いかけ（2行・76px）。上 250px より下、題字の上。出ているあいだはサブタイトルを消す
+QUESTION_SIZE = 76
 RULER_X0 = 140                      # ものさしの棒は、ラベル「R-R」の右から
 RULER_DIM = (70, 112, 98)           # いま紹介中でない拍のあいだの棒
 
@@ -925,56 +929,87 @@ def draw_pair(im, parts, size, cy, a=1.0, gap=22):
 
 
 def ruler_items(t):
-    """ものさし：画面に見えている拍と拍のあいだ [(x0, x1, パターン番号 or None), …]。値はモデルの R の時刻から。"""
+    """ものさし：画面に見えている拍と拍のあいだ [(x0, x1, パターン番号 or None, R-R, 始まりの拍の種類), …]。値はモデルの R の時刻から。"""
     tc = tau_c(t)
-    rs = [(r, i) for r, k, i in STRIP if tc - HALF - 3.5 <= r <= tc + HALF + 3.5]
+    rs = [(r, i, k) for r, k, i in STRIP if tc - HALF - 3.5 <= r <= tc + HALF + 3.5]
     out = []
-    for (r0, i0), (r1, i1) in zip(rs, rs[1:]):
+    for (r0, i0, k0), (r1, i1, k1) in zip(rs, rs[1:]):
         x0 = XC + (r0 - tc)*F_PXS; x1 = XC + (r1 - tc)*F_PXS
         if x1 < 0 or x0 > W:
             continue
-        out.append((x0, x1, i0 if i0 == i1 else None, r1 - r0))
+        out.append((x0, x1, i0 if i0 == i1 else None, r1 - r0, k0))
     return out
 
 
+RULER_H = 8                         # 棒の太さ（6→8px）
+
+
+def _dashed_bar(d, xa, xb, yc, col, dash=16, gap=9):
+    x = xa
+    while x < xb:
+        d.rounded_rectangle((x, yc - RULER_H/2, min(x + dash, xb), yc + RULER_H/2), radius=3, fill=col)
+        x += dash + gap
+
+
 def draw_ruler(im, t, cur, a):
-    """R-R のものさし：拍と拍のあいだを横棒で。そろう＝規則的、バラバラ＝不規則が一目でわかる。"""
+    """R-R のものさし：拍と拍のあいだを横棒で。そろう＝規則的、バラバラ＝不規則が一目でわかる。
+    両端の拍が見えている区間だけ棒を描く（端の半端な棒は描かない）。
+    例外：⑩の休みは、最後の心房細動の拍から右端までのびていく点線（タイマーと同じ動き）。
+    ①は洞調律の区間を暗くして「そろう → 急にバラバラ」を見せる。"""
     if a <= 0.01:
         return
     lay = Image.new('RGBA', (W, 40), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay)
     yc = 20
-    for x0, x1, i, _ in ruler_items(t):
+    s_tb = SEGS[I_TB][0]
+    for x0, x1, i, rr, k0 in ruler_items(t):
         col = PATTERNS[i]['col'] if (i is not None and i == cur) else RULER_DIM
-        xa, xb = max(x0 + 5, RULER_X0), x1 - 5
-        if xb - xa >= 4:
-            d.rounded_rectangle((xa, yc - 3, xb, yc + 3), radius=3, fill=col + (int(235*a),))
+        if i == 0 and k0 == 'N':
+            col = RULER_DIM
+        tc = tau_c(t)
+        is_pause = i == I_TB and abs((XC + (s_tb + TB_P0 - tc)*F_PXS) - x0) < 1.0
+        if is_pause and cur == I_TB:
+            # 休みの点線：右はのびていく（右端まで）。休みが全部入ったあとも、タイマーと一緒に左へ流れるあいだは描く（左は R-R の字の右で切る）
+            if x1 - 5 > RULER_X0 + 4:
+                _dashed_bar(d, max(x0 + 5, RULER_X0), min(x1, W) - 5, yc, C_STOP + (int(235*a),))
+            for xt in (x0, x1):
+                if RULER_X0 - 2 <= xt <= W:
+                    d.line([(xt, yc - 9), (xt, yc + 9)], fill=C_STOP + (int(235*a),), width=3)
+            continue
+        if x0 < RULER_X0 or x1 > W - 4:
+            for xt in (x0, x1):                   # 目盛りは描く
+                if RULER_X0 - 2 <= xt <= W:
+                    d.line([(xt, yc - 9), (xt, yc + 9)], fill=col + (int(235*a),), width=3)
+            continue
+        if x1 - x0 - 10 >= 4:
+            d.rounded_rectangle((x0 + 5, yc - RULER_H/2, x1 - 5, yc + RULER_H/2), radius=3, fill=col + (int(235*a),))
         for xt in (x0, x1):
-            if RULER_X0 - 2 <= xt <= W:
-                d.line([(xt, yc - 8), (xt, yc + 8)], fill=col + (int(235*a),), width=3)
+            d.line([(xt, yc - 9), (xt, yc + 9)], fill=col + (int(235*a),), width=3)
     im.alpha_composite(lay, (0, int(RULER_Y - yc)))
     put(im, 'R-R', 22, 700, GREY, x=72, cy=RULER_Y + 1, a=0.9*a)
 
 
+TIMER_SIZE = 46
+
+
 def draw_pause_timer(im, t, a):
-    """⑩ 休みのタイマー。休み（最後の心房細動の拍 → 最初の洞調律の拍）が右端から入ってきたら、
-    右端までの長さを秒でカウントアップ。休みが全部入ったら、その長さ（モデルの値）で止まる。"""
+    """⑩ 休みのタイマー。数えているあいだ（休みが右端から入ってくるあいだ）は右に止め、
+    休みが全部入ったら（モデルの休みの長さで止まって）波形と一緒に左へ流れる。
+    1.1秒まで数えてから出す（最後の拍のT波と重ならないよう）。字の幅は「休み 3.2秒」で固定。"""
     if a <= 0.01:
         return
     s0 = SEGS[I_TB][0]
     p0, p1 = s0 + TB_P0, s0 + TB_P1
-    tc = tau_c(t)
-    right = tc + HALF
-    if right < p0 + 0.30:
-        return
+    right = tau_c(t) + HALF
     el = min(right, p1) - p0
-    xa = max(XC + (p0 + 0.45 - tc)*F_PXS, 0); xb = min(XC + (p1 - 0.20 - tc)*F_PXS, W)   # 最後の拍のT波と、次のP波をよける
-    txt = f'休み {el:.1f}秒'
-    tw = text_img(txt, 46, 900, C_STOP)[0].size[0] - 8
-    if xb - xa < tw + 40:
+    if el < 1.1:
         return
-    cx = min(max((xa + xb) / 2, 72 + tw/2), W - 72 - tw/2)
-    put(im, txt, 46, 900, C_STOP, cx=cx, cy=F_BASE - 0.45*F_MV, a=a)
+    tw = text_img(f'休み {TB_PAUSE:.1f}秒', TIMER_SIZE, 900, C_STOP)[0].size[0] - 8
+    cx = W - 72 - tw/2 - max(0.0, right - p1)*F_PXS
+    if cx - tw/2 < 72:
+        return
+    put(im, f'休み {el:.1f}秒', TIMER_SIZE, 900, C_STOP, x=cx - tw/2, cy=F_BASE - 0.45*F_MV,
+        a=a*ramp(el, 1.1, 0.2))
 
 
 def frame(t):
@@ -1017,7 +1052,8 @@ def frame(t):
     # 冒頭：タイトルと、変形中のパターン名
     a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
     if a_t > 0:
-        put(im, 'モニター心電図で見分ける', 36, 500, PURPLE, cx=540, cy=560, a=a_t)
+        a_q0 = max(1 - ramp(t, 2.0, 0.45), a_loop)
+        put(im, 'モニター心電図で見分ける', 36, 500, PURPLE, cx=540, cy=560, a=a_t*(1 - a_q0))   # 問いかけと「見分け」が重なるので、問いかけのあいだは消す
         put(im, TITLE, 150, 900, WHITE, cx=540, cy=690, a=a_t, max_w=880)
         if T_STOP <= t < T_GO:
             _, _, u, shown = hook_state(t)
@@ -1029,13 +1065,16 @@ def frame(t):
     # 冒頭の問いかけ（フックの上。見出しと重ならないよう、見出しが出る前に消す）
     a_q = max(1 - ramp(t, 2.0, 0.45), a_loop)
     if a_q > 0:
-        put(im, QUESTION, 64, 900, (255, 214, 64), cx=540, cy=QUESTION_Y, a=a_q, max_w=880)
+        for line, cy in zip(QUESTION, QUESTION_Y):
+            put(im, line, QUESTION_SIZE, 900, (255, 214, 64), cx=540, cy=cy, a=a_q, max_w=880)
 
     a_end = ramp(t, T_END + FLY, 0.6)*keep
     if a_end > 0:
-        put(im, END_LINE, 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end, max_w=820)
-        draw_pair(im, [('保存して見返してね', GREEN), (COMMENT, (255, 214, 64))], 30, Y_ONE,
-                  a=ramp(t, T_END + FLY + 1.5, 0.6)*keep)
+        sw = ramp(t, T_END + FLY + END_SWAP, 0.4)            # 一覧がそろってから END_SWAP 秒で、コメントの呼びかけに入れかえる
+        put(im, END_LINE, 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end*(1 - sw), max_w=820)
+        put(im, COMMENT, 42, 900, (255, 214, 64), cx=540, cy=Y_NAME, a=a_end*sw, max_w=820)
+        put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=Y_ONE,
+            a=ramp(t, T_END + FLY + 1.5, 0.6)*keep)
 
     # ⑩ 休みのタイマー（休みが右端から入ってきたら、秒数をカウントアップ）
     if cur == I_TB:
@@ -1057,8 +1096,8 @@ def frame(t):
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
 
-    put(im, NOTE1, 22, 400, GREY, x=135, cy=1564, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, NOTE2, 22, 400, GREY, x=135, cy=1588, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE1, 22, 400, GREY, x=135, cy=1562, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE2, 22, 400, GREY, x=135, cy=1586, a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
     return im.convert('RGB')
 
@@ -1077,11 +1116,11 @@ def thumbnail():
     for i in range(N_PAT):
         draw_cell(im, i, t, 'done', 1.0)
         mini(im, i, t, 1.0)
-    put(im, 'バラバラ？ のこぎり？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 24, max_w=820)
-    put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_ONE + 6, max_w=880)
+    put(im, 'バラバラ？ のこぎり？', 38, 700, (226, 232, 231), cx=540, cy=Y_NAME - 12, max_w=820)
+    put(im, TITLE, 96, 900, WHITE, cx=540, cy=Y_ONE + 32, max_w=880)
     v, cid = hook_arrays(THUMB_HERO)
     wl = draw_wave(v, cid, WAVE_GREEN, 1.0)
-    im.alpha_composite(wl, (0, F_Y0 + 40))         # 上の題字と下の枠のまん中（14個の配置で詰めた）
+    im.alpha_composite(wl, (0, F_Y0 + 57))         # 上の枠・小見出し・題字・波形・下の枠の4つの余白をそろえる（約39px。測って決めた）
     return im.convert('RGB')
 
 
@@ -1090,7 +1129,7 @@ def thumbnail():
 THUMB_VIEW = {i: (0.0, []) for i in range(N_PAT)}
 THUMB_VIEW[0] = (0.6, [])                                    # 発作性：洞調律から心房細動へ
 THUMB_VIEW[I_ASH] = (0.3, [(T_ASH - 0.10, T_ASH + 0.36)])    # アシュマン現象：幅の広い1拍
-THUMB_VIEW[I_TB] = (0.9, [])                                 # 徐脈頻脈：止まって長い休み → 洞調律
+THUMB_VIEW[I_TB] = (1.25, [])                                # 徐脈頻脈：細動 → 長い休み → 回復した洞調律（心停止に見えないよう）
 THUMB_MAX_MARKS = {I_ASH: 1}
 THUMB_DESC = ['', '', '', '速くバラバラ', '遅くバラバラ', '1拍だけ幅広い', '',
               '', '幅広く超速い', '長い休み', 'のこぎり', '150で規則的', '', '300/分']

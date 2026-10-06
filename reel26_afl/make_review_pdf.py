@@ -83,13 +83,14 @@ def describe():
 def main():
     os.makedirs(OUT, exist_ok=True)
     hook_t = m.HOOK_T0 + 3*m.HOOK_STEP + 0.2
-    frames = [('冒頭0.5秒（問いかけ「細動？粗動？見分けられる？」）', 0.5),
+    frames = [('冒頭0.5秒（問いかけ「細動？粗動？／見分けられる？」）', 0.5),
               ('冒頭のフック（止めた波形を変形しているところ）', hook_t)]
     for i, p in enumerate(m.PATTERNS):
         if i == m.I_TB:
             frames.append((f"{p['no']} {p['name']}（休みのタイマーが数え上がっている途中）", timer_time()))
         frames.append((f"{p['no']} {p['name']}", key_time(i)))
-    frames.append((f'最後：{m.N_PAT}個の一覧（見分けのポイントとコメントの呼びかけ）', m.T_END + m.FLY + 3.0))
+    frames.append((f'最後：{m.N_PAT}個の一覧（見分けのポイント）', m.T_END + m.FLY + 2.0))
+    frames.append((f'最後：{m.N_PAT}個の一覧（コメントの呼びかけに入れかわったところ）', m.T_END + m.FLY + m.END_SWAP + 0.8))
     fdir = os.path.join(OUT, 'review_frames')
     os.makedirs(fdir, exist_ok=True)
     pngs, index = [], []
@@ -128,7 +129,7 @@ def main():
 - この回だけの見せ方：
   - **R-R のものさし**：波形の下に、拍と拍のあいだの長さを横棒で出す（棒の長さ＝モデルの R の時刻の差）。心房細動は棒がバラバラ、心房粗動（伝導比が一定）は棒がそろう
   - **休みのタイマー**（⑩）：休みが画面に入ってくると「休み ◯.◯秒」が数え上がり、{m.TB_PAUSE:.1f}秒で止まる
-  - 冒頭に問いかけ「細動？粗動？見分けられる？」、最後に「何個わかった？コメントで教えてね」
+  - 冒頭に問いかけ「細動？粗動？／見分けられる？」、最後に「何個わかった？コメントで教えてね」
 - 波形はモデルで作った模式図。**II誘導・実際の速さ（25mm/秒）**。前後のつなぎは洞調律 75/分
 - 別の回（頻脈の回）では心房細動・心房粗動を代表1つずつしか扱わないので、この回でバリエーションを扱う
 - 見分けのポイントを画面のひとことで出す：心房細動＝P波がなく R-R がバラバラ（②）、心房粗動＝のこぎり状のF波 約300/分（⑪）。最後の画面は「R-Rバラバラは細動、のこぎりは粗動」
@@ -181,16 +182,16 @@ def main():
 
     lines = [f'第26弾 心房細動・心房粗動 {m.N_PAT}パターン ― 画面の文字', '',
              f'[見出し] {m.TITLE} {m.N_PAT}パターン（「{m.N_PAT}」は黄色・2倍）',
-             f'[冒頭 0〜2.4秒] {m.QUESTION}（黄・64px）',
+             f'[冒頭 0〜2.4秒] {"／".join(m.QUESTION)}（黄・2行・{m.QUESTION_SIZE}px。出ているあいだは「モニター心電図で見分ける」を消す）',
              f'[冒頭 0〜{m.T_GO:.1f}秒] モニター心電図で見分ける ／ {m.TITLE}',
              '[冒頭の変形で出る名前] ' + ' → '.join(f"{m.PATTERNS[i]['no']} {m.PATTERNS[i]['name']}" for i in m.HOOK), '']
     for i, pat in enumerate(m.PATTERNS):
         a, b = m.WINDOWS[i]
         alert = f" {m.TAGS[pat['tag']][0]}"
         lines.append(f"[{a:5.1f}〜{b:5.1f}秒] {pat['no']} {pat['name']} ／ {pat['one']}{alert} ／ ヒント：{pat['hint']}")
-    lines += ['', f'[⑩ 休みのあいだ] 休み 0.3秒 → … → {m.TB_PAUSE:.1f}秒（カウントアップ）',
+    lines += ['', f'[⑩ 休みのあいだ] 休み 1.1秒 → … → {m.TB_PAUSE:.1f}秒（カウントアップ）',
               '[波形の下] R-R のものさし（拍と拍のあいだの横棒。左に「R-R」）',
-              '', f'[最後] {m.END_LINE} ／ 保存して見返してね　{m.COMMENT}',
+              '', f'[最後] {m.END_LINE} ／ 保存して見返してね　→ {m.END_SWAP:.0f}秒後に上の行が「{m.COMMENT}」（黄・42px）に入れかわる',
               f'[左下] {m.NOTE1} ／ {m.NOTE2}', '[右下] @nurse_polarbearden（透かし）']
     txt = os.path.join(OUT, 'screen_text_reel26.txt')
     with open(txt, 'w', encoding='utf-8') as f:
