@@ -1,61 +1,96 @@
-# 第20弾 ノイズ（アーチファクト） まず覚えたい12パターン — ナレーション
+# 第20弾 ノイズ（アーチファクト） まず覚えたい11パターン — ナレーション
 
-第17〜19弾と同じ作り。数字は画面に出ているので、声では読み上げない。「すぐ報告」は声では言わない（画面とキャプションで伝える）。
+第21・24弾と同じ作り（1パターン1文・声で3〜4秒）。数字は画面に出ているので、声では読み上げない。
+**「すぐ報告」は声では言わない**（画面の赤い「→ すぐ報告」（⑪）とキャプションで伝える）。
 名前が出てから約0.5秒後に話し始め、次のパターンの名前が出る前に言い終える。
 録音したら `align_vo.py` で文に切り分け、紹介の時間に置き直す。各パターンの長さは、声に合わせて詰める。
+声は Ren – Smooth & Soothing（第19・21・24弾と同じ）。
+
+---
+
+## 録音前の版（区間の長さは仮）
+
+- 各パターンの区間（秒・仮）：①4.8 ②4.0 ③4.8 ④4.0 ⑤4.0 ⑥4.0 ⑦5.6 ⑧4.8 ⑨5.6 ⑩5.6 ⑪4.8（映像 63.8秒）
+- 文の長さの見込み（6字/秒）＋0.75秒以上になるよう、洞調律の拍の位置（0.80秒の倍数）で切った（`--check` で確かめる）
+- ⑨⑩は「隠れたQRS」の▲と「ノイズを消すと…」を見せるため長め（5.6秒）
+- 冒頭の一文は 4.9秒まで（`T_TITLE`）。録音が届いたら、長さに合わせて直す
 
 ---
 
 ## 読み上げ用（ElevenLabs に貼る）
 
-ノイズで、まず覚えたいのは、この12パターン。
-
-体が動くと、基線が大きく乱れます。体動。
+ノイズで、まず覚えたいのは、この11パターン。
+体が動くと、基線が大きく乱れる。体動。
 力が入ると、細かいギザギザ。筋電図。
-ふるえで、心房細動に見えることも。でも、R-Rは、一定です。
-寒さのふるえ、シバリング。
+ふるえは心房細動に見えても、R-Rは一定。
 呼吸に合わせて、基線がゆっくり揺れる。
-細かく、規則正しいギザギザ。交流障害。
-
-電極の接触が悪いと、基線が飛びます。
-電極が外れると、まっすぐの線。あわてずに、まず、患者さんを見て。
-電極の付けまちがいで、波形がまるごと逆さまに。
-歯みがきで、心室頻拍のように見えることも。よく見ると、ふつうのQRSが隠れています。
-リード線の断線で、心室細動のように見えることも。ここにも、ふつうのQRSが見えますね。
-本物の心室頻拍では、ふつうのQRSが消えます。
-
-ノイズの中に、同じ間隔のQRSが見えたら、ノイズ。まず、患者さんを見てください。
+細かく規則正しいギザギザ。交流障害。
+接触が悪いと、基線が飛ぶ。
+電極外れでまっすぐの線。あわてず、まず患者さんを見て。
+付けまちがいで、波形がまるごと逆さまに。
+歯みがきの偽VT。ふつうのQRSが隠れている。
+断線の偽VF。ここにも、ふつうのQRSが見える。
+本物のVTでは、ふつうのQRSが消える。
+同じ間隔のQRSが見えたらノイズ。でも、まず患者さんを見て。
 保存して、見返してね
 
+- 読み方：11＝じゅういち、R-R＝アールアール、偽VT＝ぎブイティー、偽VF＝ぎブイエフ、QRS＝キューアールエス
+- ElevenLabs で「偽」の読みがゆれたら「にせブイティー」とかなで入れる
+
 ---
+
+## 前の版（12パターン・2026-10-04 レビュー版）からの変更（2026-10-06）
+
+- **④シバリングを外した（12 → 11パターン）**：②筋電図・③ふるえと同じ「筋肉のふるえ」の仲間で、画面の見た目もほぼ同じだから。
+  キャプションに「寒さのふるえ（シバリング）も同じように乱れます」と一文で残した（出典は下の LITFL ECG Motion Artefacts）。
+  番号は①〜⑪に振り直した（旧⑤〜⑫ → 新④〜⑪）
+- **台本を1パターン1文（声で3〜4秒）に詰めた**：くわしい説明は画面のひとこととキャプションにまかせる（第21弾の「ぎゅっと版」と同じ）。
+  専門医レビュー済みの言い回しは残した：③「ふるえは心房細動に見えても、R-Rは一定」（前半との対比）、
+  ⑦「あわてず、まず患者さんを見て」、⑨「ふつうのQRSが隠れている」／⑩「ここにも、ふつうのQRSが見える」。
+  まとめは「同じ間隔のQRSが見えたらノイズ。でも、まず患者さんを見て。」
+- **この回だけの見せ方を足した**（数値はモデルの拍の時刻から）
+  - 「隠れたQRS」マーカー：⑨⑩で、ノイズの下の洞調律のQRSが帯の右のほうを通るたびに、波形の下に緑の▲（点線でQRSとつなぐ）。
+    となりの▲とのあいだに間隔のものさし「0.80秒」。⑪本物のVTでは、幅の広いQRSのあいだに▲が付かず、赤の点線で「ふつうのQRSなし」
+  - 「ノイズを消すと…」：①②⑨⑩の紹介の後半で、ノイズをすっと薄くして下の洞調律を約0.9秒見せ、また戻す
+  - 冒頭0〜1秒の問いかけ「このVT、本物？」（そのあいだ偽VTが流れる）→ 答えのタイトル「ノイズ」。最後に「何個わかった？コメントで教えてね」（画面の字だけ）
+
+---
+
+## 並び（画面の色）
+
+- 上の枠・左の列（青）患者の動き：① 体動 → ② 筋電図 → ③ ふるえ（振戦）
+- 上の枠・右の列（紫）呼吸・電気：④ 呼吸の揺れ → ⑤ 交流障害、（黄）⑥ 電極の接触不良
+- 下の枠・左の列（黄）電極：⑦ 電極外れ → ⑧ 電極の付けまちがい
+- 下の枠・右の列（オレンジ）不整脈に見えるノイズ：⑨ 偽VT（歯みがき）→ ⑩ 偽VF（断線）
+- 下の枠・3段目に横長（赤）：⑪ 本物のVT（比べるため）
 
 ## 言い回しの注意（LITFL本文で確認。LITFL以外は出典を書いた）
 
 - **① 体動**：LITFL（ECG Motion Artefacts）「A non-compliant, mobile, talkative patient (= the most common cause)」
 - **② 筋電図**：骨格筋の電気活動が混ざる（Mondal S et al. World J Cardiol 2026：skeletal muscle tremor）
 - **③ ふるえ**：LITFL の例（パーキンソン病の振戦）「The irregular baseline in this ECG gives the appearance of atrial fibrillation」。実際は洞調律でP波も見える。画面は R-R 一定で描く
-- **④ シバリング**：LITFL「Hypothermia (shivering)」。Mondal 2026「shivering that might be mistaken for atrial flutter or VT」
-- **⑤ 呼吸の揺れ**：Mondal 2026「Baseline wander from respiration」
-- **⑥ 交流障害**：Mondal 2026「Power-line interference at 50 Hz … or 60 Hz … appearing as regular sawtooth waves」（日本は東日本50Hz・西日本60Hz）
-- **⑦ 接触不良**：Mondal 2026「Loose electrode contact producing intermittent baseline jumps or flatlines」
-- **⑧ 電極外れ**：まっすぐの線は心静止に見える。だから「まず患者さんを見る」（Mondal 2026「Always check the patient … second, check the electrodes」）
-- **⑨ 付けまちがい**：LITFL（Limb Lead Reversal）RA/LL の入れかわりで「Lead II becomes inverted」「Leads I, II, III and aVF are all completely inverted (P wave, QRS complex and T wave)」
-- **⑩ 偽VT（歯みがき）**：Knight BP et al. N Engl J Med 1999;341:1270-4（偽VTで不要な治療を受けた12例）。見分け方：ノイズの中に、ふつうのQRSが洞調律の間隔で見える
-- **⑪ 偽VF（断線）**：Mondal 2026「Broken lead wires mimicking ventricular fibrillation」「A conscious, talking patient is not in VF」「genuine P/QRS/T complexes often march through the noise with regular intervals」
-- **⑫ 本物のVT**：比べるために入れた。ノイズとちがい、幅の広いQRSが続いて、ふつうのQRSが見えなくなる
+- **（外した）シバリング**：LITFL（ECG Motion Artefacts）「Motion artefact due to tremor or shivering can obscure the waveforms of the ECG or simulate pathology」「Hypothermia (shivering)」。Mondal 2026「shivering that might be mistaken for atrial flutter or VT」→ キャプションに一文
+- **④ 呼吸の揺れ**：Mondal 2026「Baseline wander from respiration」
+- **⑤ 交流障害**：Mondal 2026「Power-line interference at 50 Hz … or 60 Hz … appearing as regular sawtooth waves」（日本は東日本50Hz・西日本60Hz）
+- **⑥ 接触不良**：Mondal 2026「Loose electrode contact producing intermittent baseline jumps or flatlines」
+- **⑦ 電極外れ**：まっすぐの線は心静止に見える。だから「まず患者さんを見る」（Mondal 2026「Always check the patient … second, check the electrodes」）
+- **⑧ 付けまちがい**：LITFL（Limb Lead Reversal）RA/LL の入れかわりで「Lead II becomes inverted」「Leads I, II, III and aVF are all completely inverted (P wave, QRS complex and T wave)」
+- **⑨ 偽VT（歯みがき）**：Knight BP et al. N Engl J Med 1999;341:1270-4（偽VTで不要な治療を受けた12例）。見分け方：ノイズの中に、ふつうのQRSが洞調律の間隔で見える
+- **⑩ 偽VF（断線）**：Mondal 2026「Broken lead wires mimicking ventricular fibrillation」「A conscious, talking patient is not in VF」「genuine P/QRS/T complexes often march through the noise with regular intervals」（▲とものさしの根拠）
+- **⑪ 本物のVT**：比べるために入れた。ノイズとちがい、幅の広いQRSが続いて、ふつうのQRSが見えなくなる
 
 ## 声の指定
 
 - ①〜⑥は淡々と
-- ⑧「まず、患者さんを見て」と、まとめの「まず、患者さんを見てください」は、はっきり
+- ⑦「あわてず、まず患者さんを見て」と、まとめの「でも、まず患者さんを見て」は、はっきり
 - 最後の「保存して、見返してね」は明るく
 
 ---
 
-## 専門医レビュー（2026-10-04）
+## 専門医レビュー（2026-10-04、12パターン版）
 
-- 要修正はなし。①②④⑤⑥⑦⑨⑫、12パターンの選び方、キャプションの「すぐ報告」の範囲は OK
+- 要修正はなし。①②④⑤⑥⑦⑨⑫（旧番号）、12パターンの選び方、キャプションの「すぐ報告」の範囲は OK
 - 【推奨→直した】③：「でも、R-Rは、一定です」（前半との対比）
-- 【推奨→直した】⑧：「あわてずに、まず、患者さんを見て」
-- 【推奨→直した】⑩：「よく見ると、ふつうのQRSが隠れています」／⑪：「ここにも、ふつうのQRSが見えますね」
+- 【推奨→直した】⑧（旧番号。新⑦）：「あわてずに、まず、患者さんを見て」
+- 【推奨→直した】⑩⑪（旧番号。新⑨⑩）：「よく見ると、ふつうのQRSが隠れています」／「ここにも、ふつうのQRSが見えますね」
 - 【推奨→採らなかった】キャプションの出典「Mondal S et al. World J Cardiol 2026」を2024に、という指摘：論文のページで確認すると、受付 2025年11月7日・公開 2026年3月26日（Vol.18 No.3、DOI 10.4330/wjc.v18.i3.116299）。2026が正しいので、そのままにした
