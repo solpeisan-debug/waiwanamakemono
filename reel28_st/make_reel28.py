@@ -133,9 +133,9 @@ def qrs_lbbb(t):                 # ⑧ 左脚ブロック：幅広い・ノッ�
             - 0.12*_win(t, 0.062, 0.30, 0.025, 0.10) - 0.24*_ga(t, 0.27, 0.08, 0.05))
 
 
-def qrs_pvc(t):                  # ⑨ AIVR の1拍：幅の広い QRS、逆向きの ST-T
-    return (0.95*_ga(t, 0.0, 0.020, 0.015) - 0.55*_g(t, 0.050, 0.019)
-            - 0.38*_ga(t, 0.25, 0.058, 0.045))
+def qrs_pvc(t):                  # ⑨ AIVR の1拍：幅の広い QRS、逆向きの ST-T（第21弾の形の 0.85倍。帯の下が枠にくっつかないように）
+    return 0.85*(0.95*_ga(t, 0.0, 0.020, 0.015) - 0.55*_g(t, 0.050, 0.019)
+                 - 0.38*_ga(t, 0.25, 0.058, 0.045))
 
 
 KINDS = {
@@ -171,7 +171,7 @@ def _reg(kind, rr, n):
 #      mm＝1mm の大きさ（px。たて 0.1mV・よこ 0.04秒が同じ大きさの正方形＝「1マス＝1mm」。中部の帯は 14px）、
 #      base＝窓の描画域の上から基線までの px。
 #      marks：('v', 名前, 時刻) 基線からその時刻の波形までの矢印と「名前 ↑2mm」。時刻は数値（ref からの秒）か
-#             'J'（J点）'J60'（J点+60ms）'Tmax' 'Tmin' 'Qmin'（モデルから計算）
+#             'J'（J点）'J60'（J点+60ms）'Tmax' 'Tmin' 'Qmin'（モデルから計算）。4つめは矢印の横のずらし（px。値は変えない）
 #             ('w', 名前) QRS の幅のかっこ（始まり〜J点）と「名前 0.15秒」
 #             ('p', [時刻…]) P波の上に「P」　('t', 文) 値のうしろに一言
 _E = {k: _reg(k, RR, 6) for k in 'NHQIDL'}
@@ -187,45 +187,45 @@ PATTERNS = [
     dict(no='①', name='基準の洞調律', col=C_BASE, hint='いつもの形',
          one='STは基線（TP）と同じ高さ', tag='base',
          ev=_E['N'], L=4.8, hl=_each(_E['N'], 0.035, 0.17),
-         mag=dict(subj='ST', ref=0.8, c=0.12, mm=24, base=76, marks=[('v', 'ST', 'J60')])),
+         mag=dict(subj='ST', ref=0.8, c=0.12, mm=16, base=76, marks=[('v', 'ST', 'J60')])),
     dict(no='②', name='超急性期T波', col=C_ACUTE, hint='Tが大きい',
          one='Tが高く幅広い。早期のサイン', tag='urgent',
          ev=_E['H'], L=4.8, hl=_each(_E['H'], 0.04, 0.40),
-         mag=dict(subj='T', ref=0.8, c=0.12, mm=16, base=112, lab_t=-0.31, marks=[('v', 'T', 'Tmax')])),
+         mag=dict(subj='T', ref=0.8, c=0.12, mm=16, base=104, lab_t=-0.31, marks=[('v', 'T', 'Tmax')])),
     dict(no='③', name='ST上昇', col=C_ACUTE, hint='STが上がる',
          one='STが上がる。大きいと墓石型', tag='urgent',
          ev=_E3, L=5.6, hl=_each(_E3, 0.02, 0.36),
-         mag=dict(subj='ST', ref=0.8, c=0.12, mm=22, base=112, marks=[('v', 'ST', 'J')])),
+         mag=dict(subj='ST', ref=0.8, c=0.12, mm=16, base=106, lab_t=0.50, marks=[('v', 'ST', 'J', 10)])),
     dict(no='④', name='異常Q波', col=C_OLD, hint='深いQ',
          one='深く幅広いQ。梗塞のあと', tag='check',
          ev=_E['Q'][:5], L=4.0, hl=_each(_E['Q'][:5], -0.05, 0.035),
-         mag=dict(subj='Q', ref=0.8, c=0.08, mm=24, base=44, marks=[('v', 'Q', 'Qmin')])),
+         mag=dict(subj='Q', ref=0.8, c=0.08, mm=14, base=66, lab_t=0.52, marks=[('v', 'Q', 'Qmin', -14)])),
     dict(no='⑤', name='冠性T波', col=C_OLD, hint='Tが下向き',
          one='左右対称の深い陰性T', tag='check',
          ev=_E['I'][:5], L=4.0, hl=_each(_E['I'][:5], 0.10, 0.42),
-         mag=dict(subj='T', ref=0.8, c=0.12, mm=22, base=36, marks=[('v', 'T', 'Tmin')])),
+         mag=dict(subj='T', ref=0.8, c=0.12, mm=16, base=40, lab_t=-0.33, marks=[('v', 'T', 'Tmin')])),
     dict(no='⑥', name='ST低下（水平・下降型）', col=C_DEP, hint='水平・下り坂',
          one='水平に下がる。虚血のサイン', tag='urgent',
          ev=_E['D'], L=4.8, hl=_each(_E['D'], 0.025, 0.22),
-         mag=dict(subj='ST', ref=0.8, c=0.10, mm=28, base=66, marks=[('v', 'ST', 'J60')])),
+         mag=dict(subj='ST', ref=0.8, c=0.10, mm=20, base=62, lab_t=0.52, marks=[('v', 'ST', 'J60')])),
     dict(no='⑦', name='急性心膜炎', col=C_MIM, hint='PRも下がる',
          one='PR低下＋下に凸のST上昇', tag='check',
          ev=_C, L=5.04, hl=_each(_C, -0.12, -0.035) + _each(_C, 0.03, 0.30),
-         mag=dict(subj='PRとST', ref=0.56, c=0.02, mm=30, base=76, lab='below',
+         mag=dict(subj='PRとST', ref=0.56, c=0.02, mm=20, base=70, lab='below',
                   marks=[('v', 'PR', -0.07), ('v', 'ST', 'J')])),
     dict(no='⑧', name='左脚ブロック', col=C_MIM, hint='幅広QRS',
          one='幅広QRS。STは逆向きが基本', tag='check',
          ev=_E['L'], L=4.8, hl=ALL,
-         mag=dict(subj='ST', ref=0.8, c=0.12, mm=18, base=54, lab='below',
+         mag=dict(subj='ST', ref=0.8, c=0.12, mm=16, base=54, lab='below',
                   marks=[('v', 'ST', 'J60'), ('t', 'QRSと逆向き')])),
     dict(no='⑨', name='AIVR（促進心室固有調律）', col=C_REP, hint='幅広・再灌流',
          one='再灌流で出やすい幅広リズム', tag='report',
          ev=_A, L=round(1.64 + 4*AIVR_RR, 2), hl=_each(_A[2:], -0.08, 0.45),
-         mag=dict(subj='QRS', ref=1.64 + AIVR_RR, c=0.10, mm=16, base=70, lab_t=0.56, marks=[('w', 'QRS')])),
+         mag=dict(subj='QRS', ref=1.64, c=-0.30, mm=8, base=78, lab_t=-1.06, marks=[('w', 'QRS')])),   # 左に洞調律の細いQRS、右にAIVRの幅広QRS
     dict(no='⑩', name='完全房室ブロック', col=C_REP, hint='PとQRSが別々',
          one='PとQRSが別々。下壁梗塞で', tag='now',
          ev=_H, L=round(9*CHB_PP, 2), D=4.36, hl=ALL,
-         mag=dict(subj='PとQRS', title='P と QRS　1マス＝1mm', ref=_CHB_REF, c=CHB_RR/2, mm=10, base=100, lab='below',
+         mag=dict(subj='PとQRS', title='P と QRS　1マス＝1mm', ref=_CHB_REF, c=CHB_RR/2, mm=10, base=92, lab='below',
                   marks=[('p', [r - _CHB_REF + n*9*CHB_PP for r, k in _H if k == 'P' for n in (-1, 0, 1)]),
                          ('t', f'P {60/CHB_PP:.0f}/分・QRS {60/CHB_RR:.0f}/分')])),
 ]
@@ -304,12 +304,12 @@ def hl_mask(pat, rel):
 # パターン i だけなので、それをそのまま縮めて枠へ運ぶと、ミニ波形とつながる。
 # 冒頭のフック：流れている波形を T_STOP で止め、その場で5つのパターンに素早く変形し、
 # 元の波形に戻ってから T_GO でまた流す。T_TITLE でパターン①が右端から入ってくる。
-T_STOP, T_GO = 0.6, 2.9
+T_STOP, T_GO = 0.25, 2.9           # 問いかけ（0秒〜）のあいだに変形が始まるよう、止めるのを 0.6→0.25秒に
 FREEZE = T_GO - T_STOP
 T_TITLE = 4.9                     # 冒頭の1文（4.9秒）が入り、見出しと枠が出そろう長さ
 END_HOLD = 6.5                    # 10個そろってからの時間（まとめ・保存の2文、「何個わかった？」を読む間、冒頭へ戻る時間）
 HOOK = [1, 2, 3, 4, 5]            # ②超急性期T → ③ST上昇 → ④異常Q → ⑤冠性T（心筋梗塞の時間の流れ）→ ⑥ST低下
-HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
+HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.3, 0.38, 0.12
 
 
 def _strip():
@@ -355,13 +355,20 @@ F_MV = 10 * F_PXMM
 # → 波形（R頂点 1mV 〜 下 約0.4mV。AIVR の S は 約0.5mV）
 _TOP_END = 604 + 110               # ③⑥の下端
 _BOT_TOP = 1308                    # ⑦⑨の上端
-BAR_CY = _TOP_END + 36             # 時間の流れのバー（字の上 約737）
-Y_NAME = BAR_CY + 64
-Y_ONE = Y_NAME + 54
+# バーのある回（②〜⑤）とない回で、名前・ひとこと・窓の高さを分ける（上の枠〜窓の上下の余白をそろえる。検査役 2026-10-06）
+STACK_BAR = dict(bar=744, name=806, one=860, mag=892)
+STACK_NOBAR = dict(bar=None, name=777, one=831, mag=871)
+BAR_CY = STACK_BAR['bar']
+Y_NAME, Y_ONE = STACK_BAR['name'], STACK_BAR['one']     # フック・サムネイルなどはこの高さを使う
 MAG_X0, MAG_X1 = 240, 840          # STの虫眼鏡の窓
-MAG_Y0 = Y_ONE + 32
-MAG_Y1 = MAG_Y0 + 170
-F_BASE = MAG_Y1 + 12 + 140         # R頂点（1mV）が窓の下 12px
+MAG_H = 170
+MAG_Y0 = STACK_BAR['mag']
+MAG_Y1 = MAG_Y0 + MAG_H
+F_BASE = 1225                      # 帯は動かさない。窓の下（バーあり 1062）〜R頂点 と、帯の底（約0.43mV）〜下の枠 をそろえる
+
+
+def stack_y(cur):
+    return STACK_BAR if cur in (1, 2, 3, 4) else STACK_NOBAR
 F_Y0, F_Y1 = int(F_BASE - 200), int(_BOT_TOP - 2)
 XC = W / 2
 HALF = XC / F_PXS                 # 画面の半分が実際の何秒か
@@ -880,13 +887,13 @@ def mag_title(i):
 
 
 def mag_marks(i):
-    """('v', 名前, 時刻, 値mV) / ('w', 名前, 始まり, 終わり, 秒) / ('p', [時刻]) / ('t', 文)"""
+    """('v', 名前, 時刻, 値mV, 横のずらしpx) / ('w', 名前, 始まり, 終わり, 秒) / ('p', [時刻]) / ('t', 文)"""
     pat = PATTERNS[i]
     out = []
     for mk in pat['mag']['marks']:
         if mk[0] == 'v':
             tr = _mag_time(pat, mk[2])
-            out.append(('v', mk[1], tr, _mag_value(pat, tr)))
+            out.append(('v', mk[1], tr, _mag_value(pat, tr), mk[3] if len(mk) > 3 else 0))
         elif mk[0] == 'w':
             f = KINDS[_ref_kind(pat)][0]
             tt = np.arange(-0.12, 0.2, 0.0005)
@@ -927,12 +934,12 @@ def _mag_layer(i):
     w, h = MAG_X1 - MAG_X0, MAG_Y1 - MAG_Y0
     lay = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay)
-    d.rounded_rectangle((0, 0, w - 1, h - 1), radius=18, fill=CARD_FILL + (242,), outline=pat['col'] + (210,), width=3)
+    d.rounded_rectangle((0, 0, w - 1, h - 1), radius=18, fill=CARD_FILL + (242,), outline=pat['col'] + (140,), width=2)
     # 見出し：虫眼鏡の印＋「STを拡大 1マス＝1mm」、右に値
     d.ellipse((14, 11, 30, 27), outline=(176, 186, 186, 255), width=3)
     d.line([(28, 25), (36, 33)], fill=(176, 186, 186, 255), width=4)
-    put(lay, mag_title(i), 20, 500, (176, 186, 186), x=44, cy=23)
-    tw = text_img(mag_title(i), 20, 500, (176, 186, 186))[0].size[0] - 8
+    put(lay, mag_title(i), 22, 500, (176, 186, 186), x=44, cy=23)
+    tw = text_img(mag_title(i), 22, 500, (176, 186, 186))[0].size[0] - 8
     rd = mag_readout(i)
     put(lay, rd, 30, 900, pat['col'], right=w - 16, cy=24, max_w=w - 44 - tw - 40)
     # 描画域
@@ -982,38 +989,46 @@ def _mag_layer(i):
     n_v = sum(1 for mk in marks if mk[0] == 'v' and _mm(mk[3]) > 0)
     for mk in marks:
         if mk[0] == 'v' and _mm(mk[3]) > 0:
-            x = (mk[2] - t0) * pxs
+            x = (mk[2] - t0) * pxs + mk[4]
             yv = yb - mk[3]*mvpx
             sgn = 1 if yv > yb else -1                       # 下向き 1、上向き -1
             dp.line([(x, yb), (x, yv - sgn*9)], fill=arrow_col + (255,), width=4)
             dp.polygon([(x, yv), (x - 8, yv - sgn*12), (x + 8, yv - sgn*12)], fill=arrow_col + (255,))
             if n_v > 1:                                      # 矢印が2つあるときは、どちらが何かを小さく
                 put(plot, mk[1], 20, 800, arrow_col, cx=x + 18, cy=yv + sgn*16)
-        elif mk[0] == 'w':
+        elif mk[0] == 'w':                                   # QRS の幅：始まり〜J点にうすい帯、基線の高さにかっこ
             x0 = (mk[2] - t0) * pxs; x1 = (mk[3] - t0) * pxs
-            y = 12
+            band = Image.new('RGBA', (pw, ph), (0, 0, 0, 0))
+            ImageDraw.Draw(band).rectangle((x0, 0, x1, ph), fill=pat['col'] + (40,))
+            plot = Image.alpha_composite(band, plot)
+            dp = ImageDraw.Draw(plot)
+            y = yb
             dp.line([(x0, y), (x1, y)], fill=arrow_col + (255,), width=3)
             for x in (x0, x1):
-                dp.line([(x, y - 7), (x, y + 9)], fill=arrow_col + (255,), width=3)
+                dp.line([(x, y - 9), (x, y + 9)], fill=arrow_col + (255,), width=3)
         elif mk[0] == 'p':
             for tp in mk[1]:
                 x = (tp - t0) * pxs
                 if not 10 <= x <= pw - 10:                   # 窓の外の P は描かない
                     continue
                 put(plot, 'P', 20, 800, arrow_col, cx=x, cy=yb - 0.15*mvpx - 16)
+    # 描画域の上 14px はうすく消す（見出しの真下で R がぷつんと切れて見えないように）
+    a_ch = np.asarray(plot.getchannel('A'), dtype=np.float32)
+    fade = np.clip(np.arange(ph, dtype=np.float32) / 14.0, 0, 1)[:, None]
+    plot.putalpha(Image.fromarray((a_ch*fade).astype(np.uint8)))
     lay.alpha_composite(plot, (px0, py0))
     _MAG[i] = lay
     return lay
 
 
-def draw_mag(im, i, a):
+def draw_mag(im, i, a, y0):
     if a <= 0.004:
         return
     lay = _mag_layer(i)
     if a < 0.999:
         lay = lay.copy()
         lay.putalpha(lay.getchannel('A').point(lambda q: int(q*a)))
-    im.alpha_composite(lay, (MAG_X0, MAG_Y0))
+    im.alpha_composite(lay, (MAG_X0, y0))
 
 
 # --- 時間の流れのバー（②〜⑤のあいだ）。時間の目安（何時間など）は書かない ---------------------------
@@ -1028,12 +1043,12 @@ def draw_time_bar(im, t, cur):
         st = cur - 1
     else:
         st = 0 if t < WINDOWS[1][0] + 1 else 3
-    items = [('時間の流れ', 20, 500, (150, 160, 162), 18)]
+    items = [('時間の流れ', 22, 500, (150, 160, 162), 18)]
     for k, lab in enumerate(TIME_STAGES):
         if k:
-            items.append(('→', 22, 500, (110, 124, 122), 10))
+            items.append(('→', 24, 500, (110, 124, 122), 10))
         on = k == st
-        items.append((lab, 24, 800 if on else 500, PATTERNS[k + 1]['col'] if on else (120, 134, 132), 10))
+        items.append((lab, 28 if on else 26, 800 if on else 500, PATTERNS[k + 1]['col'] if on else (120, 134, 132), 10))
     ws = [text_img(s_, sz, wt, col)[0].size[0] - 8 for s_, sz, wt, col, _ in items]
     total = sum(ws) + sum(g for *_, g in items[:-1])
     x = 540 - total / 2
@@ -1043,16 +1058,16 @@ def draw_time_bar(im, t, cur):
         put(im, s_, sz, wt, col, x=x, cy=BAR_CY, a=a)
         if s_ in TIME_STAGES:
             if TIME_STAGES.index(s_) == st:
-                d.rounded_rectangle((x, BAR_CY + 16, x + w_, BAR_CY + 20), radius=2,
+                d.rounded_rectangle((x, BAR_CY + 18, x + w_, BAR_CY + 22), radius=2,
                                     fill=PATTERNS[st + 1]['col'] + (int(255*a),))
         x += w_ + g
 
 
-def draw_one(im, pat, a):
+def draw_one(im, pat, a, y_one=Y_ONE):
     """中部のひとこと。うしろに色の文字（TAGS）を続けて、まとめて中央ぞろえ。"""
     tag = TAGS.get(pat.get('tag'))
     if tag is None:
-        put(im, pat['one'], 32, 500, (226, 232, 231), cx=540, cy=Y_ONE, a=a, max_w=820)
+        put(im, pat['one'], 32, 500, (226, 232, 231), cx=540, cy=y_one, a=a, max_w=820)
         return
     sz = 32
     while True:
@@ -1062,8 +1077,8 @@ def draw_one(im, pat, a):
             break
         sz -= 1
     x0 = 540 - (w1 + 14 + w2) / 2
-    put(im, pat['one'], sz, 500, (226, 232, 231), x=x0, cy=Y_ONE, a=a)
-    put(im, tag[0], sz, 800, tag[1], x=x0 + w1 + 14, cy=Y_ONE, a=a)
+    put(im, pat['one'], sz, 500, (226, 232, 231), x=x0, cy=y_one, a=a)
+    put(im, tag[0], sz, 800, tag[1], x=x0 + w1 + 14, cy=y_one, a=a)
 
 
 def frame(t):
@@ -1100,31 +1115,34 @@ def frame(t):
         a_i, b_i = WINDOWS[cur]
         pat = PATTERNS[cur]
         al = ramp(t, a_i + 0.1, 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
-        put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=al, max_w=820)
-        draw_one(im, pat, al)
+        sy = stack_y(cur)
+        put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=sy['name'], a=al, max_w=820)
+        draw_one(im, pat, al, sy['one'])
+        # 虫眼鏡は、前のパターンが枠に着地したあと（FLY のあと）に出す
+        a_mag = ramp(t, a_i + (FLY - 0.1 if cur > 0 else 0.1), 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
     draw_time_bar(im, t, cur)
 
     # 冒頭：タイトルと、変形中のパターン名
     a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
     a_q = max(1 - ramp(t, 2.1, 0.35), a_loop)       # 問いかけ：0秒から（フックのあいだ）出し、見出しが出るまえに消す
     if a_q > 0:
-        put(im, HOOK_Q, 72, 900, (255, 214, 64), cx=540, cy=410, a=a_q, max_w=820)
+        put(im, HOOK_Q, 72, 900, (255, 214, 64), cx=540, cy=520, a=a_q, max_w=820)   # 冒頭の字は全部 +110px（問いかけが波形に近くなるように）
     if a_t > 0:
-        put(im, '心電図で気づく', 36, 500, PURPLE, cx=540, cy=560, a=a_t)
-        put(im, '心筋梗塞とST変化', 150, 900, WHITE, cx=540, cy=690, a=a_t, max_w=880)
+        put(im, '心電図で気づく', 36, 500, PURPLE, cx=540, cy=670, a=a_t)
+        put(im, '心筋梗塞とST変化', 150, 900, WHITE, cx=540, cy=800, a=a_t, max_w=880)
         if T_STOP <= t < T_GO:
             _, _, u, shown = hook_state(t)
             if shown is not None:
                 pat = PATTERNS[shown]
-                put(im, f"{pat['no']} {pat['name']}", 44, 900, pat['col'], cx=540, cy=Y_ONE - 10,
+                put(im, f"{pat['no']} {pat['name']}", 44, 900, pat['col'], cx=540, cy=Y_ONE + 100,
                     a=a_t*ramp(u, 0.3, 0.4), max_w=820)
 
     a_end = ramp(t, T_END + FLY, 0.6)*keep
     if a_end > 0:
-        put(im, END_LINE, 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end, max_w=820)
+        put(im, END_LINE, 42, 800, WHITE, cx=540, cy=Y_NAME + 25, a=a_end, max_w=820)   # 3行を +25px（上下の余白をそろえる）
         a_save = ramp(t, T_END + FLY + 1.5, 0.6)*keep
-        put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=Y_ONE, a=a_save)
-        put(im, END_Q, 36, 700, (255, 214, 64), cx=540, cy=Y_ONE + 58, a=a_save, max_w=820)
+        put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=Y_ONE + 25, a=a_save)
+        put(im, END_Q, 36, 700, (255, 214, 64), cx=540, cy=Y_ONE + 83, a=a_save, max_w=820)
 
     # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
     # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
@@ -1140,7 +1158,7 @@ def frame(t):
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
     if cur is not None:                               # 虫眼鏡は波形のあと（R のグローの上）に描く
-        draw_mag(im, cur, al)
+        draw_mag(im, cur, a_mag, stack_y(cur)['mag'])
 
     put(im, NOTE1, 24, 400, GREY, x=135, cy=1560, a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, NOTE2, 24, 400, GREY, x=135, cy=1587, a=0.85*ramp(t, T_GO, 0.5)*keep)
@@ -1177,7 +1195,8 @@ THUMB_VIEW[4] = (-0.5, [(0.80 + 0.12, 0.80 + 0.42)])         # 冠性T：下向�
 THUMB_VIEW[5] = (-0.5, [(0.80 + 0.02, 0.80 + 0.22)])         # 水平型ST低下：J点からの水平な低下（2拍目）
 THUMB_VIEW[6] = (-0.5, [(0.56 - 0.14, 0.56 - 0.02)])         # 心膜炎：PR低下（2拍目の前。少し広め）
 THUMB_VIEW[8] = (1.0, [])                                    # AIVR：洞調律のあと、幅の広い拍が続く
-THUMB_VIEW[9] = (-0.2, [])                                   # 完全房室ブロック：P と QRS が別々
+THUMB_VIEW[9] = (CHB_Q0 - 0.15, [])                          # 完全房室ブロック：P と QRS が別々。QRS を3つ見せる（この行だけ 3.4秒）
+THUMB_SPAN = {9: 3.4}
 THUMB_MAX_MARKS = {1: 1, 3: 1, 4: 1, 5: 1, 6: 1}
 THUMB_DESC = ['STは基線', 'Tが大きい', 'STが上がる', '深いQ', 'Tが下向き',
               '', 'PRも下がる', '逆向きのST', '', 'PとQRSが別々']
@@ -1264,7 +1283,7 @@ def thumbnail_list():
             put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
         # ST の変化は小さいので、第21弾（30px/mV・4秒）より大きく。10パターン（1列5段）で段が高くなったぶん
         # 52 → 60px/mV、基線の位置 0.66 → 0.62（名前の下 約17px から R の頂点）
-        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.62, 60.0, span=3.0)
+        lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.62, 60.0, span=THUMB_SPAN.get(i, 3.0))
         im.alpha_composite(lay, pos)
         if r < NR - 1:
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
