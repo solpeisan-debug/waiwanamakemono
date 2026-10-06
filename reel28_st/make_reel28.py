@@ -105,48 +105,33 @@ def qrs_hyperacute(t):           # ② 超急性期T波：T が高く幅広く�
             + 0.68*_ga(t, 0.26, 0.075, 0.048))
 
 
-def qrs_ste(t):                  # ③ ST上昇：J点 約0.25mV、上に凸の ST がそのまま T につながる
+def qrs_ste(t):                  # ③ ST上昇（⑩ 完全房室ブロックの接合部補充調律にも使う＝下壁梗塞）：J点 約0.3mV、上に凸の ST がそのまま T につながる
     return _qrs(t, r=0.85, s=0.10) + _dome(t, 0.024, 0.20, 0.33, 0.27, 0.46)
 
 
-def qrs_tomb(t):                 # ④ 墓石型：R が低く、R・ST・T が1つの大きな山（約0.8mV）
-    return _qrs(t, r=0.36, q=0.0, s=0.0) + _dome(t, -0.010, 0.14, 0.31, 0.36, 0.80)
-
-
-def qrs_qwave(t):                # ⑤ 異常Q波：深く幅広い Q、ST はまだ少し高い、T の終わりが下向き
+def qrs_qwave(t):                # ④ 異常Q波：深く幅広い Q、ST はまだ少し高い、T の終わりが下向き
     return (_q_deep(t, 0.42) + 0.13*_win(t, 0.035, 0.24, 0.012, 0.10) - 0.12*_g(t, 0.33, 0.035))
 
 
-def qrs_ctw(t):                  # ⑥ 冠性T波：Q が残り、ST は基線、左右対称の深い陰性T（約0.36mV）
+def qrs_ctw(t):                  # ⑤ 冠性T波：Q が残り、ST は基線、左右対称の深い陰性T（約0.36mV）
     return _q_deep(t, 0.45) - 0.36*_g(t, 0.27, 0.050)
 
 
-def qrs_stdep_h(t):              # ⑦ 水平型ST低下：J点から 0.15mV 下がったまま水平、そのあと T
+def qrs_stdep_h(t):              # ⑥ 水平型ST低下：J点から 0.15mV 下がったまま水平、そのあと T
     return (_qrs(t) - 0.15*_win(t, 0.030, 0.19, 0.010, 0.06) + 0.20*_ga(t, 0.28, 0.05, 0.04))
 
 
-def qrs_stdep_up(t):             # ⑧ 上行型ST低下：J点 -0.15mV からまっすぐ上り坂（頻脈。QT は短め）
-    ramp = np.clip((0.15 - t) / (0.15 - 0.03), 0, 1)
-    return (_qrs(t, s=0.24) - 0.15*ramp*_win(t, 0.018, 1.0, 0.012, 0.1)
-            + 0.24*_ga(t, 0.22, 0.05, 0.035))
-
-
-def qrs_peri(t):                 # ⑨ 心膜炎：PR 部分が 0.07mV 下がり、ST は下に凸で 0.10mV 上がる（頻脈）
+def qrs_peri(t):                 # ⑦ 心膜炎：PR 部分が 0.07mV 下がり、ST は下に凸で 0.10mV 上がる（頻脈）
     return (_qrs(t) - 0.07*_win(t, -0.12, -0.035, 0.03, 0.010)
             + 0.10*_win(t, 0.03, 0.22, 0.02, 0.08) + 0.24*_ga(t, 0.22, 0.05, 0.035))
 
 
-def qrs_ber(t):                  # ⑩ 早期再分極：J点のノッチ（釣り針）、下に凸の ST 約0.1mV、高い T（ST/T 0.25 未満）
-    return (_qrs(t, s=0.10) + 0.13*_g(t, 0.040, 0.008)
-            + 0.08*_win(t, 0.035, 0.24, 0.015, 0.10) + 0.60*_ga(t, 0.30, 0.075, 0.045))
-
-
-def qrs_lbbb(t):                 # ⑪ 左脚ブロック：幅広い・ノッチのある R、ST-T は QRS と逆向き（下がる）
+def qrs_lbbb(t):                 # ⑧ 左脚ブロック：幅広い・ノッチのある R、ST-T は QRS と逆向き（下がる）
     return (0.68*_ga(t, -0.014, 0.018, 0.013) + 0.74*_ga(t, 0.024, 0.013, 0.018)
             - 0.12*_win(t, 0.062, 0.30, 0.025, 0.10) - 0.24*_ga(t, 0.27, 0.08, 0.05))
 
 
-def qrs_pvc(t):                  # ⑫ AIVR の1拍：幅の広い QRS、逆向きの ST-T
+def qrs_pvc(t):                  # ⑨ AIVR の1拍：幅の広い QRS、逆向きの ST-T
     return (0.95*_ga(t, 0.0, 0.020, 0.015) - 0.55*_g(t, 0.050, 0.019)
             - 0.38*_ga(t, 0.25, 0.058, 0.045))
 
@@ -155,15 +140,14 @@ KINDS = {
     'N': (qrs_normal, p_sinus, PR),         # 洞調律の1拍（基準）
     'H': (qrs_hyperacute, p_sinus, PR),     # 超急性期T波
     'E': (qrs_ste, p_sinus, PR),            # ST上昇
-    'T': (qrs_tomb, p_sinus, PR),           # 墓石型
     'Q': (qrs_qwave, p_sinus, PR),          # 異常Q波
     'I': (qrs_ctw, p_sinus, PR),            # 冠性T波
     'D': (qrs_stdep_h, p_sinus, PR),        # 水平型ST低下
-    'U': (qrs_stdep_up, p_sinus, PR),       # 上行型ST低下
     'C': (qrs_peri, p_sinus, PR),           # 心膜炎
-    'B': (qrs_ber, p_sinus, PR),            # 早期再分極
     'L': (qrs_lbbb, p_sinus, PR),           # 左脚ブロック
     'V': (qrs_pvc, None, 0.0),              # 心室の拍（AIVR）
+    'J': (qrs_ste, None, 0.0),              # 接合部補充調律の拍（幅の狭いQRS＋下壁のST上昇。P波とは無関係）
+    'P': (None, p_sinus, 0.0),              # P波だけ（完全房室ブロック）
 }
 SPIKES = {}                                 # この回はペーシングスパイクなし
 ALL = [(-1e9, 1e9)]                         # 全部をその色で
@@ -178,52 +162,68 @@ def _reg(kind, rr, n):
     return [(k*rr, kind) for k in range(n)]
 
 
-# 12パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、色を付ける範囲 hl（この回は連続した波形・ノイズなし。拍だけ）
-# ①〜⑥：心筋梗塞の時間の流れ（基準 → 超急性期T → ST上昇 → 墓石型 → 異常Q → 冠性T）
-# ⑦⑧：ST低下　⑨〜⑪：ST上昇に見えるが心筋梗塞とは別のもの　⑫：再灌流のときの不整脈
-_E = {k: _reg(k, RR, 6) for k in 'NHETQIDL'}
-_U = _reg('U', 0.55, 8)                     # 109/分
+# 10パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、色を付ける範囲 hl（この回は連続した波形・ノイズなし。拍だけ）
+# ①〜⑤：心筋梗塞の時間の流れ（基準 → 超急性期T → ST上昇（大きいと墓石型）→ 異常Q → 冠性T）
+# ⑥：ST低下（虚血）　⑦⑧：ST上昇・ST変化がまぎらわしいもの　⑨⑩：心筋梗塞のときの不整脈
+# mag：STの虫眼鏡（中部の帯の上の窓）。ref＝周期の中の、拡大する拍の R の時刻。t0〜t1 は ref からの秒。
+#      mv＝1mV の高さ（px）、base＝窓の描画域の上から基線までの px。
+#      marks：('v', 名前, 時刻) 基線からその時刻の波形までの矢印と「名前 ↑2mm」。時刻は数値（ref からの秒）か
+#             'J'（J点）'J60'（J点+60ms）'Tmax' 'Tmin' 'Qmin'（モデルから計算）
+#             ('w', 名前) QRS の幅のかっこ（始まり〜J点）と「名前 0.15秒」
+#             ('p', [時刻…]) P波の上に「P」　('t', 文) 窓の右下に一言
+_E = {k: _reg(k, RR, 6) for k in 'NHEQIDL'}
 _C = _reg('C', 0.56, 8)                     # 107/分
-_B = _reg('B', 1.00, 4)                     # 60/分
 AIVR_RR = 0.78                              # 77/分（洞調律 70/分より少し速い）
 _A = [(0.0, 'N'), (0.86, 'N')] + [(1.64 + k*AIVR_RR, 'V') for k in range(4)]
+# ⑩ 完全房室ブロック（下壁梗塞。LITFL の例：心房 ~85/分・心室 ~38/分・接合部補充調律・下壁のST上昇）
+CHB_PP, CHB_RR, CHB_Q0 = 0.70, 1.575, 0.40  # 心房 86/分、心室 38/分。周期 6.3秒（P 9個・QRS 4個）
+_H = [(k*CHB_PP, 'P') for k in range(9)] + [(CHB_Q0 + k*CHB_RR, 'J') for k in range(4)]
+_CHB_REF = CHB_Q0 + CHB_RR                  # 拡大する QRS（2つめ）
 PATTERNS = [
     dict(no='①', name='基準の洞調律', col=C_BASE, hint='いつもの形',
          one='STは基線（TP）と同じ高さ', tag='base',
-         ev=_E['N'], L=4.8, hl=_each(_E['N'], 0.035, 0.17)),
+         ev=_E['N'], L=4.8, hl=_each(_E['N'], 0.035, 0.17),
+         mag=dict(subj='ST', ref=0.8, t0=-0.22, t1=0.45, mv=260, base=88, marks=[('v', 'ST', 'J60')])),
     dict(no='②', name='超急性期T波', col=C_ACUTE, hint='Tが大きい',
          one='Tが高く幅広い。早期のサイン', tag='urgent',
-         ev=_E['H'], L=4.8, hl=_each(_E['H'], 0.04, 0.40)),
+         ev=_E['H'], L=4.8, hl=_each(_E['H'], 0.04, 0.40),
+         mag=dict(subj='T', ref=0.8, t0=-0.22, t1=0.48, mv=140, base=108, marks=[('v', 'T', 'Tmax')])),
     dict(no='③', name='ST上昇', col=C_ACUTE, hint='STが上がる',
-         one='J点からSTが持ち上がる', tag='urgent',
-         ev=_E['E'][:5], L=4.0, hl=_each(_E['E'][:5], 0.02, 0.36)),
-    dict(no='④', name='墓石型ST上昇', col=C_ACUTE, hint='1つの山',
-         one='R・ST・Tが1つの山に', tag='urgent',
-         ev=_E['T'][:5], L=4.0, hl=_each(_E['T'][:5], -0.03, 0.34)),
-    dict(no='⑤', name='異常Q波', col=C_OLD, hint='深いQ',
+         one='STが上がる。大きいと墓石型', tag='urgent',
+         ev=_E['E'], L=4.8, hl=_each(_E['E'], 0.02, 0.36),
+         mag=dict(subj='ST', ref=0.8, t0=-0.22, t1=0.45, mv=200, base=104, marks=[('v', 'ST', 'J')])),
+    dict(no='④', name='異常Q波', col=C_OLD, hint='深いQ',
          one='深く幅広いQ。梗塞のあと', tag='check',
-         ev=_E['Q'][:5], L=4.0, hl=_each(_E['Q'][:5], -0.05, 0.035)),
-    dict(no='⑥', name='冠性T波', col=C_OLD, hint='Tが下向き',
+         ev=_E['Q'][:5], L=4.0, hl=_each(_E['Q'][:5], -0.05, 0.035),
+         mag=dict(subj='Q', ref=0.8, t0=-0.22, t1=0.45, mv=200, base=52, marks=[('v', 'Q', 'Qmin')])),
+    dict(no='⑤', name='冠性T波', col=C_OLD, hint='Tが下向き',
          one='左右対称の深い陰性T', tag='check',
-         ev=_E['I'][:5], L=4.0, hl=_each(_E['I'][:5], 0.10, 0.42)),
-    dict(no='⑦', name='ST低下（水平・下降型）', col=C_DEP, hint='水平・下り坂',
+         ev=_E['I'][:5], L=4.0, hl=_each(_E['I'][:5], 0.10, 0.42),
+         mag=dict(subj='T', ref=0.8, t0=-0.22, t1=0.45, mv=200, base=38, marks=[('v', 'T', 'Tmin')])),
+    dict(no='⑥', name='ST低下（水平・下降型）', col=C_DEP, hint='水平・下り坂',
          one='水平に下がる。虚血のサイン', tag='urgent',
-         ev=_E['D'], L=4.8, hl=_each(_E['D'], 0.025, 0.22)),
-    dict(no='⑧', name='ST低下（上行型）', col=C_DEP, hint='上り坂',
-         one='上り坂。虚血とは限らない', tag='check',
-         ev=_U, L=4.4, hl=_each(_U, 0.022, 0.16)),
-    dict(no='⑨', name='急性心膜炎', col=C_MIM, hint='PRも下がる',
+         ev=_E['D'], L=4.8, hl=_each(_E['D'], 0.025, 0.22),
+         mag=dict(subj='ST', ref=0.8, t0=-0.22, t1=0.45, mv=300, base=72, marks=[('v', 'ST', 'J60')])),
+    dict(no='⑦', name='急性心膜炎', col=C_MIM, hint='PRも下がる',
          one='PR低下＋下に凸のST上昇', tag='check',
-         ev=_C, L=4.48, hl=_each(_C, -0.12, -0.035) + _each(_C, 0.03, 0.30)),
-    dict(no='⑩', name='早期再分極', col=C_MIM, hint='J点ノッチ',
-         one='J点にノッチ。Tが高い', tag='check',
-         ev=_B, L=4.0, hl=_each(_B, 0.025, 0.38)),
-    dict(no='⑪', name='左脚ブロック', col=C_MIM, hint='幅広QRS',
+         ev=_C, L=4.48, hl=_each(_C, -0.12, -0.035) + _each(_C, 0.03, 0.30),
+         mag=dict(subj='PRとST', ref=0.56, t0=-0.25, t1=0.38, mv=300, base=76,
+                  marks=[('v', 'PR', -0.07), ('v', 'ST', 'J')])),
+    dict(no='⑧', name='左脚ブロック', col=C_MIM, hint='幅広QRS',
          one='幅広QRS。STは逆向きが基本', tag='check',
-         ev=_E['L'], L=4.8, hl=ALL),
-    dict(no='⑫', name='AIVR（促進心室固有調律）', col=C_REP, hint='幅広・再灌流',
+         ev=_E['L'], L=4.8, hl=ALL,
+         mag=dict(subj='ST', ref=0.8, t0=-0.22, t1=0.45, mv=180, base=50,
+                  marks=[('v', 'ST', 'J60'), ('t', 'QRSと逆向き')])),
+    dict(no='⑨', name='AIVR（促進心室固有調律）', col=C_REP, hint='幅広・再灌流',
          one='再灌流で出やすい幅広リズム', tag='report',
-         ev=_A, L=round(1.64 + 4*AIVR_RR, 2), hl=_each(_A[2:], -0.08, 0.45)),
+         ev=_A, L=round(1.64 + 4*AIVR_RR, 2), hl=_each(_A[2:], -0.08, 0.45),
+         mag=dict(subj='QRS', ref=1.64 + AIVR_RR, t0=-0.25, t1=0.45, mv=100, base=80, marks=[('w', 'QRS')])),
+    dict(no='⑩', name='完全房室ブロック', col=C_REP, hint='PとQRSが別々',
+         one='PとQRSが別々。下壁梗塞で', tag='now',
+         ev=_H, L=round(9*CHB_PP, 2), D=4.36, hl=ALL,
+         mag=dict(subj='PとQRS', ref=_CHB_REF, t0=-0.66, t1=0.86, mv=110, base=96,
+                  marks=[('p', [r - _CHB_REF for r, k in _H if k == 'P' and -0.62 < r - _CHB_REF < 0.82]),
+                         ('t', f'P {60/CHB_PP:.0f}/分・QRS {60/CHB_RR:.0f}/分')])),
 ]
 
 
@@ -233,10 +233,12 @@ for _p in PATTERNS:
 
 # 区間の長さ（秒）。仮の値（録音前）：台本の文の長さの見込み（6字/秒）＋0.75秒以上で、
 # 拍の並びがくずれない位置（周期 L の終わり＝次の拍まで、そのパターンの R-R 間隔）で切る。
-# - ①②⑦⑪ 4.8：75/分の6拍　- ③〜⑥ 4.0：75/分の5拍　- ⑧ 4.4：109/分の8拍　- ⑨ 4.48：107/分の8拍
-# - ⑩ 4.0：60/分の4拍　- ⑫ 4.76：洞調律2拍＋AIVR 4拍（最後の拍から次まで 0.78秒）
+# - ①②③⑥⑧ 4.8：75/分の6拍　- ④⑤ 4.0：75/分の5拍　- ⑦ 4.48：107/分の8拍
+# - ⑨ 4.76：洞調律2拍＋AIVR 4拍（最後の拍から次まで 0.78秒）
+# - ⑩ 4.36：周期 6.3秒の途中。最後の QRS（3.55秒）から次の洞調律まで 0.81秒。次の洞調律の P 波（4.20秒）は
+#   心房のリズム（0.70秒ごと）の続きになるので、⑩ の 4.20秒の P 波は落とす（_strip）
 # 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
-SEG_D = {p['no']: p['L'] for p in PATTERNS}
+SEG_D = {p['no']: p.get('D', p['L']) for p in PATTERNS}
 for _p in PATTERNS:
     _p['D'] = SEG_D[_p['no']]
     assert _p['D'] >= 3.44 - 1e-9, _p['no']
@@ -314,6 +316,8 @@ def _strip():
         s0 = t
         for r, kind in periodic_beats(pat, 0.0, pat['D']):
             if -1e-9 <= r < pat['D'] - 1e-9:
+                if kind == 'P' and r > pat['D'] - 0.2:     # 次の洞調律の P 波と重なるので落とす（⑩）
+                    continue
                 beats.append((t + r, kind, i))
         t += pat['D']
         segs.append((s0, t))

@@ -1,9 +1,12 @@
-"""第26弾 心房細動・心房粗動 まず覚えたい12パターン（第21弾と同じ作り）
+"""第26弾 心房細動・心房粗動 まず覚えたい14パターン（第21弾と同じ作り＋この回だけの見せ方）
 
 配置：
-- 上部：①〜⑥ のミニ波形（2列×3段。心房細動：f波が粗い → 細かい → 頻脈性 → 徐脈性 → アシュマン現象 → 脚ブロック）
-- 中部：いま紹介中の波形（大きく流れる）と、名前・ひとこと（うしろに、見るところ・動き方を色で）
-- 下部：⑦〜⑫ のミニ波形（2列×3段。心房細動＋完全房室ブロック・WPW、心房粗動：4:1 → 2:1 → 伝導比が変わる → 1:1）
+- 上部：①〜⑧ のミニ波形（2列×4段。心房細動のはじまり → f波 → 心拍数 → QRSの形）
+- 中部：いま紹介中の波形（大きく流れる）と、名前・ひとこと（うしろに、看護師の動きを色で）。
+  波形の下に「R-R のものさし」（拍と拍のあいだの長さを横棒で。そろう＝規則的、バラバラ＝不規則）
+- 下部：⑨〜⑭ のミニ波形（2列×3段。WPW → 止まるとき（徐脈頻脈症候群）→ 心房粗動 4:1 → 2:1 → 伝導比が変わる → 1:1）
+- ⑩ 徐脈頻脈症候群：止まったあとの休み（ポーズ）のあいだ、秒数がカウントアップする
+- 冒頭0〜3秒：問いかけ「細動？粗動？見分けられる？」。最後：「保存して見返してね」と「何個わかった？コメントで教えてね」
 
 見分けのポイント（画面のひとことで出す）：
 - 心房細動：P波がなく、R-R が不規則（f波は粗いことも、細かくて平らに見えることもある）
@@ -44,9 +47,10 @@ PURPLE = (178, 150, 240)
 GREEN = (130, 232, 172)
 WAVE_GREEN = (40, 214, 128)
 
-C_AF = (110, 200, 255)           # 心房細動：f波と心拍数（①〜④）
-C_AFQ = (255, 196, 90)           # 心房細動：QRSの形・リズムが変わる（⑤〜⑧）
-C_FL = (255, 140, 196)           # 心房粗動（⑨〜⑫）
+C_AF = (110, 200, 255)           # 心房細動：はじまり・f波・心拍数（①〜⑤）
+C_AFQ = (255, 196, 90)           # 心房細動：QRSの形・リズムが変わる（⑥〜⑨）
+C_STOP = (255, 128, 112)         # 心房細動が止まるとき（⑩ 徐脈頻脈症候群）
+C_FL = (255, 140, 196)           # 心房粗動（⑪〜⑭）
 
 FONT = os.environ.get('REEL_FONT', os.path.join(HERE, 'fonts', 'NotoSansJP.ttf'))
 
@@ -67,6 +71,10 @@ def _ga(t, c, sl, sr):
 
 def p_sinus(t):
     return 0.15*_g(t, 0.0, 0.022)
+
+
+def p_ect(t):                     # PACの P'：小さく、とがって、少し二相性
+    return 0.13*_g(t, 0.0, 0.015) - 0.04*_g(t, 0.032, 0.013)
 
 
 def qrs_normal(t):
@@ -110,7 +118,8 @@ PREEX = {'D1': (0.90, 0.80), 'D2': (1.00, 1.00), 'D3': (1.15, 1.10)}   # (幅, �
 
 
 KINDS = {
-    'N': (qrs_normal, p_sinus, PR),         # 洞調律の1拍（前後のつなぎ）
+    'N': (qrs_normal, p_sinus, PR),         # 洞調律の1拍（前後のつなぎ・①⑩の洞調律）
+    'C': (qrs_normal, p_ect, 0.14),         # ① PAC（早い P'）
     'A': (qrs_normal, None, 0.0),           # 心房細動で伝わった拍（P波なし）
     'F': (qrs_flutter, None, 0.0),          # 心房粗動で伝わった拍（P波なし、T波は小さい）
     'S': (qrs_fast, None, 0.0),             # 速い心房細動の拍
@@ -193,18 +202,49 @@ def rr_ev(rrs, kinds='A'):
 
 
 # 各パターンの R-R（秒）
-RR_COARSE = [0.62, 0.95, 0.70, 1.10, 0.58, 0.85]            # ① 平均75/分
-RR_FINE = [0.80, 0.56, 1.02, 0.74, 0.66, 1.02]              # ② 平均75/分
-RR_FAST = [0.38, 0.47, 0.40, 0.55, 0.36, 0.44, 0.50, 0.40]  # ③ 平均137/分
-RR_SLOW = [1.05, 1.40, 1.15, 1.60]                          # ④ 平均46/分
-RR_ASH = [0.70, 1.12, 0.42, 0.66, 0.60, 0.78, 0.52]         # ⑤ 長い R-R（1.12）の直後の短い R-R（0.42）で来た拍が変行伝導
-ASH_K = 3                                                   # ⑤ 変行伝導の拍（4つめ、2.24秒）
-RR_BBB = [0.72, 0.95, 0.60, 0.88, 1.05, 0.80]               # ⑥ 平均72/分
-RR_CHB = [1.25]*4                                           # ⑦ 接合部補充調律 48/分（規則的）
-RR_WPW = [0.26, 0.21, 0.32, 0.24, 0.20, 0.29, 0.34, 0.23, 0.27, 0.22, 0.30, 0.25]   # ⑧ 平均230/分、最短300/分
+RR_COARSE = [0.62, 0.95, 0.70, 1.10, 0.58, 0.85]            # ② 平均75/分
+RR_FINE = [0.80, 0.56, 1.02, 0.74, 0.66, 1.02]              # ③ 平均75/分
+RR_FAST = [0.38, 0.47, 0.40, 0.55, 0.36, 0.44, 0.50, 0.40]  # ④ 平均137/分
+RR_SLOW = [1.05, 1.40, 1.15, 1.60]                          # ⑤ 平均46/分
+RR_ASH = [0.70, 1.12, 0.42, 0.66, 0.60, 0.78, 0.52]         # ⑥ 長い R-R（1.12）の直後の短い R-R（0.42）で来た拍が変行伝導
+ASH_K = 3                                                   # ⑥ 変行伝導の拍（4つめ、2.24秒）
+RR_BBB = [0.72, 0.95, 0.60, 0.88, 1.05, 0.80]               # ⑦ 平均72/分
+RR_CHB = [1.25]*4                                           # ⑧ 接合部補充調律 48/分（規則的）
+RR_WPW = [0.26, 0.21, 0.32, 0.24, 0.20, 0.29, 0.34, 0.23, 0.27, 0.22, 0.30, 0.25]   # ⑨ 平均230/分、最短300/分
 K_WPW = ['D2', 'D1', 'D3', 'D2', 'D1', 'D3', 'D2', 'D3', 'D1', 'D2', 'D3', 'D1']
-RR_VAR = [0.4, 0.8, 0.4, 0.6, 0.8, 0.4]                     # ⑪ 2:1・4:1・2:1・3:1・4:1・2:1（F-F 0.2秒の倍数）
+RR_VAR = [0.4, 0.8, 0.4, 0.6, 0.8, 0.4]                     # ⑬ 2:1・4:1・2:1・3:1・4:1・2:1（F-F 0.2秒の倍数）
 
+# ① 発作性心房細動の始まり：洞調律（75/分）3拍 → T波の終わりにPAC（早いP'）→ そこから R-R がバラバラ（平均約125/分）
+PAF_SINUS = [0.0, 0.8, 1.6]
+PAF_PAC = 2.06                                              # PAC の R（P' は 0.14秒前、直前の拍のT波の終わり）
+RR_PAF = [0.42, 0.64, 0.38, 0.70, 0.44, 0.58]               # PAC のあとの心房細動（ものさしでバラバラが見えるよう、ばらつきを大きめに）
+PAF_F0 = 1.98                                               # f波が始まる時刻
+# ⑩ 徐脈頻脈症候群：心房細動（約130/分）が止まる → 洞結節の回復が遅れて長い休み（ポーズ）→ 遅い洞調律
+RR_TB_AF = [0.48, 0.42, 0.56, 0.40]                         # 心房細動の R-R
+TB_PAUSE = 3.20                                             # 最後の心房細動の拍 → 最初の洞調律の拍（LITFL：洞停止は 3秒超）
+TB_SINUS_RR = 1.00                                          # 回復した洞調律（60/分）
+
+
+def _paf_ev():
+    ev = [(t, 'N') for t in PAF_SINUS] + [(PAF_PAC, 'C')]
+    t = PAF_PAC
+    for d in RR_PAF:
+        t = round(t + d, 4); ev.append((t, 'A'))
+    return ev, round(t + 0.50, 4)                          # 最後の拍から 0.50秒で次のパターン
+
+
+def _tb_ev():
+    ev, t = [(0.0, 'A')], 0.0
+    for d in RR_TB_AF:
+        t = round(t + d, 4); ev.append((t, 'A'))
+    t_last = t
+    t1 = round(t_last + TB_PAUSE, 4)
+    ev += [(t1, 'N'), (round(t1 + TB_SINUS_RR, 4), 'N')]
+    return ev, t_last, t1, round(t1 + 2*TB_SINUS_RR, 4)
+
+
+EV_PAF, L_PAF = _paf_ev()
+EV_TB, TB_P0, TB_P1, L_TB = _tb_ev()                       # TB_P0〜TB_P1 が休み
 EV_COARSE, L_COARSE = rr_ev(RR_COARSE)
 EV_FINE, L_FINE = rr_ev(RR_FINE)
 EV_FAST, L_FAST = rr_ev(RR_FAST, 'S')
@@ -216,45 +256,67 @@ EV_CHB, L_CHB = rr_ev(RR_CHB)
 EV_WPW, L_WPW = rr_ev(RR_WPW, K_WPW)
 EV_VAR, L_VAR = rr_ev(RR_VAR, 'F')
 
-# 12パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、連続した波形 art、色を付ける範囲 hl
+
+def _window(r, a, b, e=0.08):
+    """周期の中の a〜b 秒だけ 1（端は e 秒でなめらかに）。"""
+    w = np.minimum(np.clip((r - a) / e, 0, 1), np.clip((b - r) / e, 0, 1))
+    return w*w*(3 - 2*w)
+
+
+def art_f_part(amp, seed, a, b):
+    """f波を、周期の中の a〜b 秒だけ出す（①・⑩）。"""
+    def f(rel, L):
+        return band_noise(rel, L, 5.0, 8.0, amp, seed) * _window(np.mod(rel, L), a, b)
+    return f
+
+
+# 14パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、連続した波形 art、色を付ける範囲 hl
 PATTERNS = [
-    dict(no='①', name='心房細動（f波が粗い）', col=C_AF, hint='f波が大きい',
+    dict(no='①', name='発作性心房細動の始まり', col=C_AF, hint='急にバラバラ',
+         one='洞調律から、急にR-Rがバラバラ', tag='new',
+         ev=EV_PAF, L=L_PAF, art=art_f_part(F_MID, 30, PAF_F0, L_PAF + 0.2), hl=[(PAF_F0 - 0.05, L_PAF + 0.3)]),
+    dict(no='②', name='心房細動（f波が粗い）', col=C_AF, hint='f波が大きい',
          one='P波なし、R-Rがバラバラ', tag='new',
          ev=EV_COARSE, L=L_COARSE, art=art_f(F_COARSE, 31), hl=ALL),
-    dict(no='②', name='心房細動（f波が細かい）', col=C_AF, hint='ほぼ平ら',
+    dict(no='③', name='心房細動（f波が細かい）', col=C_AF, hint='ほぼ平ら',
          one='基線はほぼ平ら。R-Rで判断', tag='new',
          ev=EV_FINE, L=L_FINE, art=art_f(F_FINE, 32), hl=ALL),
-    dict(no='③', name='頻脈性の心房細動', col=C_AF, hint='速くバラバラ',
+    dict(no='④', name='頻脈性の心房細動', col=C_AF, hint='速くバラバラ',
          one='バラバラで速い（100/分超）', tag='vital',
          ev=EV_FAST, L=L_FAST, art=art_f(F_MID, 33), hl=ALL),
-    dict(no='④', name='徐脈性の心房細動', col=C_AF, hint='遅くバラバラ',
+    dict(no='⑤', name='徐脈性の心房細動', col=C_AF, hint='遅くバラバラ',
          one='バラバラで遅い（60/分未満）', tag='vital',
          ev=EV_SLOW, L=L_SLOW, art=art_f(F_MID, 34), hl=ALL),
-    dict(no='⑤', name='アシュマン現象', col=C_AFQ, hint='1拍だけ幅広い',
+    dict(no='⑥', name='アシュマン現象', col=C_AFQ, hint='1拍だけ幅広い',
          one='長いR-Rのあと、早い1拍が幅広い', tag='ecg12',
          ev=EV_ASH, L=L_ASH, art=art_f(F_MID, 35), hl=[(T_ASH - 0.10, T_ASH + 0.40)]),
-    dict(no='⑥', name='心房細動＋脚ブロック', col=C_AFQ, hint='全部幅広い',
+    dict(no='⑦', name='心房細動＋脚ブロック', col=C_AFQ, hint='全部幅広い',
          one='全部の拍が幅広く、同じ形', tag='ecg12',
          ev=EV_BBB, L=L_BBB, art=art_f(F_MID, 36), hl=ALL),
-    dict(no='⑦', name='心房細動＋完全房室ブロック', col=C_AFQ, hint='規則的で遅い',
+    dict(no='⑧', name='心房細動＋完全房室ブロック', col=C_AFQ, hint='規則的で遅い',
          one='f波なのに、R-Rが規則的で遅い', tag='report',
          ev=EV_CHB, L=L_CHB, art=art_f(F_COARSE, 37), hl=ALL),
-    dict(no='⑧', name='WPWの心房細動', col=C_AFQ, hint='幅広く超速い',
+    dict(no='⑨', name='WPWの心房細動', col=C_AFQ, hint='幅広く超速い',
          one='幅広く、とても速く、バラバラ', tag='report',
          ev=EV_WPW, L=L_WPW, art=art_f(F_MID, 38), hl=ALL),
-    dict(no='⑨', name='心房粗動（4:1）', col=C_FL, hint='のこぎり',
+    dict(no='⑩', name='徐脈頻脈症候群', col=C_STOP, hint='止まって長い休み',
+         one='細動が止まったあと、長い休み', tag='report',
+         ev=EV_TB, L=L_TB, art=art_f_part(F_MID, 39, -0.3, TB_P0 + 0.12), hl=ALL),
+    dict(no='⑪', name='心房粗動（4:1）', col=C_FL, hint='のこぎり',
          one='のこぎり状のF波（約300/分）', tag='new',
          ev=[(0.0, 'F')], L=4*FF, art=art_flutter(), hl=ALL),
-    dict(no='⑩', name='心房粗動（2:1）', col=C_FL, hint='150で規則的',
+    dict(no='⑫', name='心房粗動（2:1）', col=C_FL, hint='150で規則的',
          one='150/分で規則的なら粗動を疑う', tag='vital',
          ev=[(0.0, 'F')], L=2*FF, art=art_flutter(), hl=ALL),
-    dict(no='⑪', name='心房粗動（伝導比が変わる）', col=C_FL, hint='不規則な粗動',
+    dict(no='⑬', name='心房粗動（伝導比が変わる）', col=C_FL, hint='不規則な粗動',
          one='R-Rが不規則。心房細動と似る', tag='ecg12',
          ev=EV_VAR, L=L_VAR, art=art_flutter(), hl=ALL),
-    dict(no='⑫', name='心房粗動（1:1）', col=C_FL, hint='とても速い',
+    dict(no='⑭', name='心房粗動（1:1）', col=C_FL, hint='とても速い',
          one='F波が全部伝わる。約300/分', tag='report',
          ev=[(0.0, 'G')], L=FF, art=art_flutter(0.16), hl=ALL),
 ]
+PAT = {p['no']: p for p in PATTERNS}
+I_ASH, I_TB, I_FL41 = 5, 9, 10                              # ⑥ アシュマン現象・⑩ 徐脈頻脈症候群・⑪ 粗動4:1 の番号（0から）
 
 
 def art_apply(pat, rel, v):
@@ -268,13 +330,15 @@ N_PAT = len(PATTERNS)
 
 # 区間の長さ（秒）。仮の値：台本の各文の長さの見込み（6字/秒くらい）＋0.75秒以上で、拍の並びがくずれない位置で切る。
 # 区間の終わり＝次のパターンの最初の拍。最後の拍からの間隔が、そのパターンの R-R になる位置：
-# - ① 5.42：1周期＋0.62（最後 0.62。冒頭の文のあとなので画面の時間が短い）　- ② 4.40：最後の R-R 0.62　- ③ 3.88：1周期＋0.38
-# - ④ 4.60：最後の R-R 1.00　- ⑤ 4.80：1周期（最後 0.52。変行伝導の拍は 2.24秒）　- ⑥ 5.00：1周期（最後 0.80）
-# - ⑦ 5.00：4拍（R-R 1.25 のまま）　- ⑧ 5.22：1周期＋2.09（最後 0.23）
-# - ⑨ 4.80（0.8 の倍数）　- ⑩ 4.40（0.4 の倍数）　- ⑪ 4.60：1周期＋0.4＋0.8（最後 0.8＝4:1）　- ⑫ 4.20（0.2 の倍数）
+# - ① 5.44：最後の拍から 0.50（冒頭の文のあとなので画面の時間が 0.35秒短い）　- ② 5.42：1周期＋0.62　- ③ 4.40：最後 0.62
+# - ④ 3.88：1周期＋0.38　- ⑤ 4.60：最後 1.00　- ⑥ 4.80：1周期（最後 0.52）　- ⑦ 5.00：1周期（最後 0.80）
+# - ⑧ 5.00：4拍（R-R 1.25 のまま）　- ⑨ 5.22：1周期＋2.09（最後 0.23）
+# - ⑩ 7.06：心房細動 1.86秒 → 休み 3.20秒 → 洞調律 2拍（最後 1.00）
+# - ⑪ 4.80（0.8 の倍数）　- ⑫ 4.80（0.4 の倍数）　- ⑬ 4.60：1周期＋0.4＋0.8（最後 0.8＝4:1）　- ⑭ 4.20（0.2 の倍数）
 # 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
-SEG_D = {'①': 5.42, '②': 4.40, '③': 3.88, '④': 4.60, '⑤': 4.80, '⑥': 5.00,
-         '⑦': 5.00, '⑧': round(L_WPW + sum(RR_WPW[:8]), 4), '⑨': 4.80, '⑩': 4.40, '⑪': 4.60, '⑫': 4.20}
+SEG_D = {'①': L_PAF, '②': 5.42, '③': 4.40, '④': 3.88, '⑤': 4.60, '⑥': 4.80, '⑦': 5.00,
+         '⑧': 5.00, '⑨': round(L_WPW + sum(RR_WPW[:8]), 4), '⑩': L_TB,
+         '⑪': 4.80, '⑫': 4.80, '⑬': 4.60, '⑭': 4.20}
 for _p in PATTERNS:
     _p['D'] = SEG_D[_p['no']]
     assert _p['D'] >= 3.44 - 1e-9, _p['no']
@@ -330,8 +394,8 @@ def hl_mask(pat, rel):
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
 T_TITLE = 4.9                     # 冒頭の1文が入り、見出しと枠が出そろう長さ（仮）
-END_HOLD = 5.7                    # 12個そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
-HOOK = [0, 6, 7, 8, 11]           # ①粗い心房細動 → ⑦完全房室ブロック → ⑧WPW → ⑨粗動4:1 → ⑫粗動1:1
+END_HOLD = 6.2                    # 14個そろってからの時間（まとめ・保存の2文、コメントの呼びかけ、冒頭へ戻る時間）
+HOOK = [1, 7, 8, 10, 13]          # ②粗い心房細動 → ⑧完全房室ブロック → ⑨WPW → ⑪粗動4:1 → ⑭粗動1:1
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
 
@@ -373,15 +437,20 @@ STRIP, SEGS, STRIP_END, _DUR_LOOP = _strip()
 F_PXMM = 14.0
 F_PXS = 25 * F_PXMM
 F_MV = 10 * F_PXMM
-# 中部のかたまり：名前（54px）→ ひとこと（32px）→ 波形（R頂点 1mV 〜 下 0.4mV）
-_TOP_END = 636 + 110               # ③⑥の下端
-_BOT_TOP = 1188                    # ⑦⑩の上端
-# 見た目の上端（名前の字の上）〜下端（S波・F波の底、約0.4mV）で余白をそろえる
-_MID_H = 22 + 54 + 16 + 30 + 140 + 44
+# 中部のかたまり：名前（54px）→ ひとこと（32px）→ 波形（R頂点 1mV 〜 下 0.4mV）→ R-R のものさし
+CELL_W, CELL_H, CELL_PITCH = 400, 96, 104
+TOP_Y = [396 + k*CELL_PITCH for k in range(4)]          # ①〜⑧（2列×4段）
+BOT_Y = [1538 - CELL_H - (2 - k)*CELL_PITCH for k in range(3)]   # ⑨〜⑭（2列×3段）。下端 1538
+_TOP_END = TOP_Y[-1] + CELL_H      # ④⑧の下端
+_BOT_TOP = BOT_Y[0]                # ⑨⑫の上端
+RULER_DY = 72                      # 波形の基線 → ものさし
+# 見た目の上端（名前の字の上）〜下端（ものさしの目盛り）で余白をそろえる
+_MID_H = 22 + 54 + 16 + 30 + 140 + RULER_DY + 8
 _GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
 Y_NAME = _TOP_END + _GAP + 22
 Y_ONE = Y_NAME + 54
 F_BASE = Y_ONE + 16 + 30 + 140
+RULER_Y = F_BASE + RULER_DY
 F_Y0, F_Y1 = int(F_BASE - 200), int(_BOT_TOP - 2)
 XC = W / 2
 HALF = XC / F_PXS                 # 画面の半分が実際の何秒か
@@ -425,21 +494,18 @@ DUR = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
 
 
 # --- ミニ波形の枠 -----------------------------------------------------------------
-CELL_W, CELL_H = 400, 110
 COL_X = (130, 550)
-TOP_Y = [396, 516, 636]
-BOT_Y = [1188, 1308, 1428]
 CELL_FILL = 225                    # 枠の中の塗りの濃さ（0〜255）。方眼をうっすら残す
 M_PXS = 66.0                      # ミニ波形：実際の1秒 = 66px（約5.8秒ぶんが見える）
 M_MV = 33.0
 
 
 def cell_rect(i):
-    if i < 6:
-        col, row = i // 3, i % 3
+    if i < 8:
+        col, row = i // 4, i % 4
         x, y = COL_X[col], TOP_Y[row]
     else:
-        j = i - 6
+        j = i - 8
         col, row = j // 3, j % 3
         x, y = COL_X[col], BOT_Y[row]
     return (x, y, x + CELL_W, y + CELL_H)
@@ -664,7 +730,7 @@ def featured(t, base_col, a, cur=None):
     return draw_wave(v, cid, base_col, a)
 
 
-STRIP_W, STRIP_H, STRIP_BASE = CELL_W - 20, 76, 50     # ミニ波形の帯（枠の中）
+STRIP_W, STRIP_H, STRIP_BASE = CELL_W - 20, 66, 44     # ミニ波形の帯（枠の中。基線は枠の上から 74px）
 
 
 def cell_strip_origin(i):
@@ -760,7 +826,9 @@ def draw_cell(base, i, t, state, a_all):
 
 # --- 画面 ---------------------------------------------------------------------------
 TITLE = '心房細動・心房粗動'
-HEADER = [(TITLE, 1.0, WHITE), ('12', 2.0, (255, 214, 64)), ('パターン', 1.0, WHITE)]
+HEADER = [(TITLE, 1.0, WHITE), (str(N_PAT), 2.0, (255, 214, 64)), ('パターン', 1.0, WHITE)]
+QUESTION = '細動？粗動？見分けられる？'       # 冒頭の問いかけ（0秒から。見出しが出る前に消す）
+COMMENT = '何個わかった？コメントで教えてね'   # 最後の呼びかけ
 HEADER_BASE = 372                   # 見出しのベースライン（y）
 NOTE1 = '実際の速さ（前後のふつうの拍は75/分）'
 NOTE2 = '※数値はこの波形での一例'
@@ -835,6 +903,80 @@ def one_size(pat):
         sz -= 1
 
 
+QUESTION_Y = 420                    # 冒頭の問いかけの高さ（上 250px より下、「モニター心電図で見分ける」の上）
+RULER_X0 = 140                      # ものさしの棒は、ラベル「R-R」の右から
+RULER_DIM = (70, 112, 98)           # いま紹介中でない拍のあいだの棒
+
+
+def draw_pair(im, parts, size, cy, a=1.0, gap=22):
+    """色のちがう文を1行に並べて中央ぞろえ（入らないときは字を小さく）。"""
+    if a <= 0.004:
+        return
+    sz = size
+    while True:
+        ws = [text_img(s_, sz, 700, c)[0].size[0] - 8 for s_, c in parts]
+        if sum(ws) + gap*(len(parts) - 1) <= 820 or sz <= 24:
+            break
+        sz -= 1
+    x = 540 - (sum(ws) + gap*(len(parts) - 1)) / 2
+    for (s_, c), w_ in zip(parts, ws):
+        put(im, s_, sz, 700, c, x=x, cy=cy, a=a)
+        x += w_ + gap
+
+
+def ruler_items(t):
+    """ものさし：画面に見えている拍と拍のあいだ [(x0, x1, パターン番号 or None), …]。値はモデルの R の時刻から。"""
+    tc = tau_c(t)
+    rs = [(r, i) for r, k, i in STRIP if tc - HALF - 3.5 <= r <= tc + HALF + 3.5]
+    out = []
+    for (r0, i0), (r1, i1) in zip(rs, rs[1:]):
+        x0 = XC + (r0 - tc)*F_PXS; x1 = XC + (r1 - tc)*F_PXS
+        if x1 < 0 or x0 > W:
+            continue
+        out.append((x0, x1, i0 if i0 == i1 else None, r1 - r0))
+    return out
+
+
+def draw_ruler(im, t, cur, a):
+    """R-R のものさし：拍と拍のあいだを横棒で。そろう＝規則的、バラバラ＝不規則が一目でわかる。"""
+    if a <= 0.01:
+        return
+    lay = Image.new('RGBA', (W, 40), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lay)
+    yc = 20
+    for x0, x1, i, _ in ruler_items(t):
+        col = PATTERNS[i]['col'] if (i is not None and i == cur) else RULER_DIM
+        xa, xb = max(x0 + 5, RULER_X0), x1 - 5
+        if xb - xa >= 4:
+            d.rounded_rectangle((xa, yc - 3, xb, yc + 3), radius=3, fill=col + (int(235*a),))
+        for xt in (x0, x1):
+            if RULER_X0 - 2 <= xt <= W:
+                d.line([(xt, yc - 8), (xt, yc + 8)], fill=col + (int(235*a),), width=3)
+    im.alpha_composite(lay, (0, int(RULER_Y - yc)))
+    put(im, 'R-R', 22, 700, GREY, x=72, cy=RULER_Y + 1, a=0.9*a)
+
+
+def draw_pause_timer(im, t, a):
+    """⑩ 休みのタイマー。休み（最後の心房細動の拍 → 最初の洞調律の拍）が右端から入ってきたら、
+    右端までの長さを秒でカウントアップ。休みが全部入ったら、その長さ（モデルの値）で止まる。"""
+    if a <= 0.01:
+        return
+    s0 = SEGS[I_TB][0]
+    p0, p1 = s0 + TB_P0, s0 + TB_P1
+    tc = tau_c(t)
+    right = tc + HALF
+    if right < p0 + 0.30:
+        return
+    el = min(right, p1) - p0
+    xa = max(XC + (p0 + 0.45 - tc)*F_PXS, 0); xb = min(XC + (p1 - 0.20 - tc)*F_PXS, W)   # 最後の拍のT波と、次のP波をよける
+    txt = f'休み {el:.1f}秒'
+    tw = text_img(txt, 46, 900, C_STOP)[0].size[0] - 8
+    if xb - xa < tw + 40:
+        return
+    cx = min(max((xa + xb) / 2, 72 + tw/2), W - 72 - tw/2)
+    put(im, txt, 46, 900, C_STOP, cx=cx, cy=F_BASE - 0.45*F_MV, a=a)
+
+
 def frame(t):
     global _GRID
     if _GRID is None:
@@ -884,11 +1026,21 @@ def frame(t):
                 put(im, f"{pat['no']} {pat['name']}", 44, 900, pat['col'], cx=540, cy=Y_ONE - 10,
                     a=a_t*ramp(u, 0.3, 0.4), max_w=820)
 
+    # 冒頭の問いかけ（フックの上。見出しと重ならないよう、見出しが出る前に消す）
+    a_q = max(1 - ramp(t, 2.0, 0.45), a_loop)
+    if a_q > 0:
+        put(im, QUESTION, 64, 900, (255, 214, 64), cx=540, cy=QUESTION_Y, a=a_q, max_w=880)
+
     a_end = ramp(t, T_END + FLY, 0.6)*keep
     if a_end > 0:
         put(im, END_LINE, 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end, max_w=820)
-        put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=Y_ONE,
-            a=ramp(t, T_END + FLY + 1.5, 0.6)*keep)
+        draw_pair(im, [('保存して見返してね', GREEN), (COMMENT, (255, 214, 64))], 30, Y_ONE,
+                  a=ramp(t, T_END + FLY + 1.5, 0.6)*keep)
+
+    # ⑩ 休みのタイマー（休みが右端から入ってきたら、秒数をカウントアップ）
+    if cur == I_TB:
+        a_i, b_i = WINDOWS[cur]
+        draw_pause_timer(im, t, ramp(t, a_i + 0.1, 0.3) * (1 - ramp(t, b_i - 0.25, 0.25)))
 
     # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
     # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
@@ -900,6 +1052,7 @@ def frame(t):
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     if a_strip > 0.01:
         im.alpha_composite(featured(t, base_col, a_strip, cur), (0, F_Y0))
+        draw_ruler(im, t, cur, a_strip*ramp(t, T_GO, 0.5)*keep)
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
@@ -910,11 +1063,11 @@ def frame(t):
     return im.convert('RGB')
 
 
-THUMB_HERO = 8                     # 1枚もののサムネイルで大きく見せる波形（⑨ 心房粗動 4:1 のこぎり）
+THUMB_HERO = I_FL41                # 1枚もののサムネイルで大きく見せる波形（⑪ 心房粗動 4:1 のこぎり）
 
 
 def thumbnail():
-    """サムネイル（透かしなし）。12個そろった一覧に、大きなタイトルと⑨のこぎり状のF波。"""
+    """サムネイル（透かしなし）。14個そろった一覧に、大きなタイトルと⑪のこぎり状のF波。"""
     global _GRID
     if _GRID is None:
         _GRID = grid()
@@ -934,11 +1087,13 @@ def thumbnail():
 
 # --- 一覧型のサムネイル（第17弾と同じ作り） ---------------------------------------
 # パターンごとに (見せ始めの時刻, 点線の丸で囲む範囲[周期の中の時刻])。丸のないものは全体が特徴
-THUMB_VIEW = {i: (0.0, []) for i in range(12)}
-THUMB_VIEW[4] = (0.3, [(T_ASH - 0.10, T_ASH + 0.36)])        # アシュマン現象：幅の広い1拍
-THUMB_MAX_MARKS = {4: 1}
-THUMB_DESC = ['', '', '速くバラバラ', '遅くバラバラ', '1拍だけ幅広い', '',
-              '', '幅広く超速い', 'のこぎり', '150で規則的', '', '300/分']
+THUMB_VIEW = {i: (0.0, []) for i in range(N_PAT)}
+THUMB_VIEW[0] = (0.6, [])                                    # 発作性：洞調律から心房細動へ
+THUMB_VIEW[I_ASH] = (0.3, [(T_ASH - 0.10, T_ASH + 0.36)])    # アシュマン現象：幅の広い1拍
+THUMB_VIEW[I_TB] = (0.9, [])                                 # 徐脈頻脈：止まって長い休み → 洞調律
+THUMB_MAX_MARKS = {I_ASH: 1}
+THUMB_DESC = ['', '', '', '速くバラバラ', '遅くバラバラ', '1拍だけ幅広い', '',
+              '', '幅広く超速い', '長い休み', 'のこぎり', '150で規則的', '', '300/分']
 
 
 def dashed_ellipse(d, box, col, dash=6, gap=5, width=2):
@@ -1077,24 +1232,36 @@ def check():
         im_, _ = text_img(f"{pat['no']} {pat['name']}", 54, 900, pat['col'])
         print(f"  {pat['no']} {im_.size[0]-8}px")
     print('--- 波形の数値 ---')
-    print(f'f波（心房細動）：5〜8Hz（300〜480/分）。山から谷：粗い {f_peak(PATTERNS[0])[0]:.3f}mV、'
-          f'ふつう {f_peak(PATTERNS[2])[0]:.3f}mV、細かい {f_peak(PATTERNS[1])[0]:.3f}mV'
-          f'（95%の点の振れ幅 粗い ±{f_peak(PATTERNS[0])[1]:.3f}、細かい ±{f_peak(PATTERNS[1])[1]:.3f}mV。LITFL：0.5mm＝0.05mV が境目）')
-    print(f'① 平均 {_rate(RR_COARSE):.0f}/分（R-R {min(RR_COARSE):.2f}〜{max(RR_COARSE):.2f}s）')
-    print(f'② 平均 {_rate(RR_FINE):.0f}/分（R-R {min(RR_FINE):.2f}〜{max(RR_FINE):.2f}s）')
-    print(f'③ 平均 {_rate(RR_FAST):.0f}/分（{60/max(RR_FAST):.0f}〜{60/min(RR_FAST):.0f}/分）')
-    print(f'④ 平均 {_rate(RR_SLOW):.0f}/分（{60/max(RR_SLOW):.0f}〜{60/min(RR_SLOW):.0f}/分）')
-    print(f'⑤ 平均 {_rate(RR_ASH):.0f}/分。長い R-R {RR_ASH[ASH_K-2]:.2f}s → 短い R-R {RR_ASH[ASH_K-1]:.2f}s で来た拍（{T_ASH:.2f}s）が変行伝導'
+    fc, fm, ff = f_peak(PAT['②']), f_peak(PAT['④']), f_peak(PAT['③'])
+    print(f'f波（心房細動）：5〜8Hz（300〜480/分）。山から谷：粗い {fc[0]:.3f}mV、ふつう {fm[0]:.3f}mV、細かい {ff[0]:.3f}mV'
+          f'（95%の点の振れ幅 粗い ±{fc[1]:.3f}、細かい ±{ff[1]:.3f}mV。LITFL：0.5mm＝0.05mV が境目）')
+    paf_rr = [b[0] - a[0] for a, b in zip(EV_PAF, EV_PAF[1:])]
+    print(f'① 洞調律 {60/0.8:.0f}/分 ×{len(PAF_SINUS)}拍 → PAC（R-R {PAF_PAC - PAF_SINUS[-1]:.2f}s、P\' は直前のT波の終わり）'
+          f' → 心房細動 平均 {_rate(RR_PAF):.0f}/分（R-R {min(RR_PAF):.2f}〜{max(RR_PAF):.2f}s）。R-R の列 {[round(x, 2) for x in paf_rr]}')
+    print(f'② 平均 {_rate(RR_COARSE):.0f}/分（R-R {min(RR_COARSE):.2f}〜{max(RR_COARSE):.2f}s）')
+    print(f'③ 平均 {_rate(RR_FINE):.0f}/分（R-R {min(RR_FINE):.2f}〜{max(RR_FINE):.2f}s）')
+    print(f'④ 平均 {_rate(RR_FAST):.0f}/分（{60/max(RR_FAST):.0f}〜{60/min(RR_FAST):.0f}/分）')
+    print(f'⑤ 平均 {_rate(RR_SLOW):.0f}/分（{60/max(RR_SLOW):.0f}〜{60/min(RR_SLOW):.0f}/分）')
+    print(f'⑥ 平均 {_rate(RR_ASH):.0f}/分。長い R-R {RR_ASH[ASH_K-2]:.2f}s → 短い R-R {RR_ASH[ASH_K-1]:.2f}s で来た拍（{T_ASH:.2f}s）が変行伝導'
           f'（QRS {_qrs_ms(qrs_aberrant):.0f}ms、ふつうの拍 {_qrs_ms(qrs_normal):.0f}ms）')
-    print(f'⑥ 平均 {_rate(RR_BBB):.0f}/分、全部の拍が QRS {_qrs_ms(qrs_aberrant):.0f}ms')
-    print(f'⑦ R-R {RR_CHB[0]:.2f}s で規則的（{60/RR_CHB[0]:.0f}/分、幅の狭い接合部補充調律）＋粗いf波')
-    print(f'⑧ 平均 {_rate(RR_WPW):.0f}/分（{60/max(RR_WPW):.0f}〜{60/min(RR_WPW):.0f}/分）、'
+    print(f'⑦ 平均 {_rate(RR_BBB):.0f}/分、全部の拍が QRS {_qrs_ms(qrs_aberrant):.0f}ms')
+    print(f'⑧ R-R {RR_CHB[0]:.2f}s で規則的（{60/RR_CHB[0]:.0f}/分、幅の狭い接合部補充調律）＋粗いf波')
+    print(f'⑨ 平均 {_rate(RR_WPW):.0f}/分（{60/max(RR_WPW):.0f}〜{60/min(RR_WPW):.0f}/分）、'
           f'QRS {_qrs_ms(_preex(*PREEX["D1"], with_t=False)):.0f}〜{_qrs_ms(_preex(*PREEX["D3"], with_t=False)):.0f}ms'
           '（デルタ波つき。拍ごとに少しちがう。向きは同じ）')
-    fl = f_peak(PATTERNS[8])[0]
-    print(f'F波（心房粗動）：{60/FF:.0f}/分、山から谷 {fl:.2f}mV（⑫は {f_peak(PATTERNS[11])[0]:.2f}mV）')
-    print(f'⑨ 4:1 → {60/(4*FF):.0f}/分　⑩ 2:1 → {60/(2*FF):.0f}/分　⑫ 1:1 → {60/FF:.0f}/分')
-    print(f'⑪ 伝導比 {[round(x/FF) for x in RR_VAR]}、平均 {_rate(RR_VAR):.0f}/分（R-R は 0.2秒の倍数）')
+    print(f'⑩ 心房細動 平均 {_rate(RR_TB_AF):.0f}/分 → 最後の拍 {TB_P0:.2f}s → 休み {TB_P1 - TB_P0:.2f}s（f波もP波もない）'
+          f' → 洞調律 {60/TB_SINUS_RR:.0f}/分 ×2拍。タイマーの最後の値 {TB_P1 - TB_P0:.1f}秒')
+    fl = f_peak(PAT['⑪'])[0]
+    print(f'F波（心房粗動）：{60/FF:.0f}/分、山から谷 {fl:.2f}mV（⑭は {f_peak(PAT["⑭"])[0]:.2f}mV）')
+    print(f'⑪ 4:1 → {60/(4*FF):.0f}/分　⑫ 2:1 → {60/(2*FF):.0f}/分　⑭ 1:1 → {60/FF:.0f}/分')
+    print(f'⑬ 伝導比 {[round(x/FF) for x in RR_VAR]}、平均 {_rate(RR_VAR):.0f}/分（R-R は 0.2秒の倍数）')
+    print('ものさし（R-R の棒の長さ、px）の例：')
+    for no in ('②', '⑪', '⑬'):
+        i = [p['no'] for p in PATTERNS].index(no)
+        rr = [b[0] - a[0] for a, b in zip(PATTERNS[i]['ev'], PATTERNS[i]['ev'][1:])] or [PATTERNS[i]['L']]
+        print(f'  {no} {[round(x*F_PXS) for x in rr]}')
+    print(f'レイアウト：上の枠 {TOP_Y[0]}〜{_TOP_END}、名前 {Y_NAME:.0f}、ひとこと {Y_ONE:.0f}、基線 {F_BASE:.0f}、'
+          f'ものさし {RULER_Y:.0f}、下の枠 {_BOT_TOP}〜{BOT_Y[-1] + CELL_H}（上下の余白 {_GAP:.0f}px）')
     tr = [b[0] for b in STRIP if b[0] >= STRIP_END - 1e-9][:8]
     print('うしろの洞調律の間隔', [round(y - x, 3) for x, y in zip(tr, tr[1:])])
 

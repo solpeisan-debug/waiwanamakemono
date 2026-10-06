@@ -42,8 +42,8 @@ GREEN = (130, 232, 172)
 WAVE_GREEN = (40, 214, 128)
 
 C_SIN = (110, 222, 236)          # 洞結節から（洞頻脈）
-C_ATR = (255, 168, 76)           # 心房から（PAC・心房頻拍・MAT・心房細動・心房粗動）
-C_AVN = (255, 120, 172)          # 房室結節・副伝導路のあたり（PSVT・房室回帰性頻拍・WPW・接合部頻拍）
+C_ATR = (255, 168, 76)           # 心房から（心房頻拍・多源性心房頻拍・心房細動・心房粗動）
+C_AVN = (255, 120, 172)          # 房室結節・副伝導路のあたり（PSVT・始まり方・房室回帰性頻拍・接合部頻拍）
 
 FONT = os.environ.get('REEL_FONT', os.path.join(HERE, 'fonts', 'NotoSansJP.ttf'))
 
@@ -118,18 +118,13 @@ def qrs_avrt(t):                  # 房室回帰性頻拍（順方向性）：QR
     return qrs_200(t) + p_retro(t - AVRT_RP)
 
 
-def qrs_wpw(t):                   # WPW（洞調律）：デルタ波（QRSの立ち上がりがなだらか）で幅がやや広い。STとTはQRSと逆向き
-    return (0.40*_ga(t, -0.014, 0.034, 0.010) + 0.78*_g(t, 0.0, 0.012)
-            - 0.12*_g(t, 0.034, 0.011) - 0.10*_ga(t, 0.30, 0.065, 0.048))
-
-
 # 拍の種類：(QRS＋Tの形, P波の形, P頂点 → R頂点)
 KINDS = {
     'N': (qrs_normal, p_sinus, 0.16),       # 前後の洞調律（75/分）
-    'S': (qrs_115, p_sinus, 0.15),          # 洞頻脈
+    'S': (qrs_115, p_sinus, 0.15),          # 洞頻脈（⑧の少しずつ変わる洞調律も）
     'H': (qrs_150, p_sinus, 0.12),          # 速い洞頻脈（P波がT波に重なる）
-    'A': (qrs_150, p_ect, 0.14),            # PAC・心房頻拍（形のちがうP'）
-    'B': (qrs_150, p_ect, 0.24),            # PSVTのきっかけのPAC（遅い道を通るのでPRが長い）
+    'A': (qrs_150, p_ect, 0.14),            # 心房頻拍（形のちがうP'）
+    'B': (qrs_150, p_ect, 0.22),            # ⑧ PSVTのきっかけのPAC（遅い道を通るのでPRが長い）
     'M1': (qrs_115, p_sinus, 0.16),         # 多源性心房頻拍：4つの形のP波・PRもばらばら
     'M2': (qrs_115, p_tall, 0.13),
     'M3': (qrs_115, p_inv, 0.135),
@@ -138,8 +133,7 @@ KINDS = {
     'L': (qrs_flut, None, 0.0),             # 心房粗動（P波なし。粗動波は art で足す）
     'R': (qrs_avnrt, None, 0.0),            # PSVT（房室結節リエントリー）
     'O': (qrs_avrt, None, 0.0),             # 房室回帰性頻拍（逆行性Pは QRS の形に入れた）
-    'X': (qrs_wpw, p_sinus, 0.125),         # WPW（洞調律）：PRが短い
-    'J': (qrs_115, p_retro_j, 0.085),         # 接合部頻拍：逆向きのP波がQRSのすぐ前（PR 0.12秒未満）
+    'J': (qrs_115, p_retro_j, 0.085),       # 接合部頻拍：逆向きのP波がQRSのすぐ前（PR 0.12秒未満）
 }
 ALL = [(-1e9, 1e9)]                         # 全部をその色で
 
@@ -183,23 +177,45 @@ AF_T = np.cumsum([0.0] + AF_RR[:-1]).tolist()
 MAT_RR = [0.47, 0.44, 0.59, 0.49, 0.56, 0.58, 0.45, 0.50, 0.53]
 MAT_K = ['M1', 'M3', 'M2', 'M4', 'M2', 'M1', 'M4', 'M3', 'M2']
 MAT_T = np.cumsum([0.0] + MAT_RR[:-1]).tolist()
-# ⑧ PSVTの始まりと終わり：洞調律 → PAC（PRが長い）→ PSVT 182/分 → 突然止まる → 洞調律
-SVT_RR = 0.33
-ON_PAC = 1.65
-ON_N = 8                                    # PSVTの拍の数（PACのあと）
-ON_STOP = ON_PAC + ON_N*SVT_RR              # PSVTの最後の拍
-ON_RESUME = 5.30                            # 止まったあとの最初の洞調律
+SVT_RR = 0.33                               # ⑦ PSVT 182/分
 
-# 12パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、連続した波形 art、色を付ける範囲 hl
+
+def _onset_offset():
+    """⑧ 始まり方の対比：洞調律 90/分 → 少しずつ 105 → 120 → 135 → 120 → 105 → 90/分（洞頻脈）
+    → PAC（連結 0.36秒・PRが長い）→ PSVT 170/分 7拍 → 突然止まって 0.80秒あく → 洞調律（次の周期の頭）。"""
+    t = 0.45
+    ev = [(t, 'S')]                          # 周期の頭（止まったあとの最初の洞調律）
+    for rr in OO_SINUS_RR:
+        t += rr
+        ev.append((t, 'S'))
+    t += OO_PAC_C
+    pac = t
+    ev.append((t, 'B'))
+    for _ in range(OO_SVT_N):
+        t += OO_SVT_RR
+        ev.append((t, 'R'))
+    stop = t
+    L = stop + OO_PAUSE - 0.45
+    return ev, L, pac, stop
+
+
+OO_SINUS_RR = [0.667, 0.571, 0.50, 0.444, 0.50, 0.571, 0.667]   # 90, 105, 120, 135, 120, 105, 90/分
+OO_PAC_C = 0.36                             # PACの連結（直前のRから）
+OO_SVT_RR = 0.353                           # ⑧ PSVT 170/分
+OO_SVT_N = 7
+OO_PAUSE = 0.80                             # 止まってから洞調律まで
+OO_EV, OO_L, OO_PAC, OO_STOP = _onset_offset()
+OO_SIN_END = OO_PAC - OO_PAC_C              # 少しずつ変わる洞調律の最後の拍
+
+# 10パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、連続した波形 art、色を付ける範囲 hl
 # tag：ひとことのうしろの色の文字（TAGS）
 PATTERNS = [
     dict(no='①', name='洞頻脈', col=C_SIN, hint='Pがそろう',
          one='どの拍にも、ふつうのP波', tag='patient',
          ev=[(k*0.52, 'S') for k in range(8)], L=4.16, hl=ALL),
-    dict(no='②', name='PACの連発', col=C_ATR, hint='早いPが3つ',
-         one='形のちがうP波が、3つ続く', tag='patient',
-         ev=[(0, 'N'), (0.75, 'N'), (1.23, 'A'), (1.67, 'A'), (2.11, 'A'), (2.96, 'N'), (3.71, 'N')], L=4.46,
-         hl=[(1.02, 2.42)]),
+    dict(no='②', name='洞頻脈（P波がT波に重なる）', col=C_SIN, hint='TにPが重なる',
+         one='P波がT波に重なり、PSVTに見える', tag='ecg12',
+         ev=[(k*0.40, 'H') for k in range(12)], L=4.8, hl=ALL),
     dict(no='③', name='心房頻拍', col=C_ATR, hint='形のちがうP',
          one='形のちがうP波が、規則正しく', tag='ecg12',
          ev=[(k*0.46, 'A') for k in range(10)], L=4.6, hl=ALL),
@@ -215,22 +231,15 @@ PATTERNS = [
     dict(no='⑦', name='PSVT（房室結節リエントリー）', col=C_AVN, hint='Pが見えない',
          one='規則正しく速い。P波が見えない', tag='report',
          ev=[(k*SVT_RR, 'R') for k in range(12)], L=12*SVT_RR, hl=ALL),
-    dict(no='⑧', name='PSVTの始まりと終わり', col=C_AVN, hint='突然はじまる',
-         one='PACから突然始まり、突然止まる', tag='ecg12',
-         ev=[(0.45, 'N'), (1.20, 'N'), (ON_PAC, 'B')] + [(ON_PAC + k*SVT_RR, 'R') for k in range(1, ON_N + 1)]
-         + [(ON_RESUME, 'N')], L=5.6, hl=[(ON_PAC - 0.30, ON_STOP + 0.30)]),
+    dict(no='⑧', name='始まり方：洞頻脈とPSVT', col=C_AVN, hint='突然か、少しずつか',
+         one='少しずつなら洞頻脈、突然ならPSVT', tag='rate',
+         ev=OO_EV, L=OO_L, hl=ALL),
     dict(no='⑨', name='房室回帰性頻拍（順方向性）', col=C_AVN, hint='QRSの後にP',
          one='QRSのすぐあとに、逆向きのP波', tag='report',
          ev=[(0.45 + k*0.30, 'O') for k in range(17)], L=5.1, hl=ALL),
-    dict(no='⑩', name='WPW（洞調律のとき）', col=C_AVN, hint='デルタ波',
-         one='PRが短く、デルタ波がある', tag='ecg12',
-         ev=[(0.45 + k*0.75, 'X') for k in range(6)], L=4.5, hl=ALL),
-    dict(no='⑪', name='接合部頻拍', col=C_AVN, hint='直前に逆向きP',
+    dict(no='⑩', name='接合部頻拍', col=C_AVN, hint='直前に逆向きP',
          one='逆向きのP波が、QRSの直前に', tag='report',
-         ev=[(0.22 + k*0.52, 'J') for k in range(9)], L=4.68, hl=ALL),
-    dict(no='⑫', name='P波が隠れた洞頻脈', col=C_SIN, hint='TにPが重なる',
-         one='P波がT波に重なり、PSVTに見える', tag='ecg12',
-         ev=[(0.10 + k*0.40, 'H') for k in range(12)], L=4.8, hl=ALL),
+         ev=[(0.37 + k*0.52, 'J') for k in range(9)], L=4.68, hl=ALL),
 ]
 
 
@@ -244,14 +253,13 @@ def art_apply(pat, rel, v):
 N_PAT = len(PATTERNS)
 
 # 区間の長さ（秒）。仮の値（録音前）：台本の各文の長さの見込み（約8モーラ/秒）＋0.75秒以上で、拍の並びがくずれない位置で切る。
-# - 規則正しいリズム（①③⑥⑦⑨⑩⑪⑫）は、拍の間隔の整数倍。次のパターンの最初の拍までが、どちらかのパターンの間隔になる
-#   （⑥⑦⑫は1周期より1拍ぶん長い。⑨⑩⑪⑫は最初の拍を少しうしろにずらして、つなぎ目の間隔をそろえた）
-# - ② 4.46：1周期（PACの3連 → 洞調律に戻った2拍のあと）　- ④ 5.08：1周期＋1拍
-# - ⑤ 3.80：8つめの拍のあと（次の⑥の最初の拍まで 0.35秒。心房細動の短いRRくらい）
-# - ⑧ 5.6：1周期（洞調律 → PAC → PSVT → 止まる → 洞調律に戻ったところ）
+# - 規則正しいリズム（①②③⑥⑦⑨⑩）は、拍の間隔の整数倍。次のパターンの最初の拍までが、どちらかのパターンの間隔になる
+#   （⑥⑦は1周期より1拍ぶん長い。⑨⑩は最初の拍を少しうしろにずらして、つなぎ目の間隔をそろえた）
+# - ④ 5.08：1周期＋1拍　- ⑤ 3.80：8つめの拍のあと（次の⑥の最初の拍まで 0.35秒。心房細動の短いRRくらい）
+# - ⑧ 8.2：1周期＋止まったあとの洞調律1拍（少しずつ変わる洞調律 → PAC → PSVT → 突然止まる → 洞調律）
 # 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
-SEG_D = {'①': 4.16, '②': 4.46, '③': 4.60, '④': 5.08, '⑤': 3.80, '⑥': 4.43,
-         '⑦': 4.29, '⑧': 5.6, '⑨': 5.1, '⑩': 4.5, '⑪': 4.68, '⑫': 5.3}
+SEG_D = {'①': 4.16, '②': 4.8, '③': 4.60, '④': 5.08, '⑤': 3.80, '⑥': 4.43,
+         '⑦': 4.29, '⑧': 8.2, '⑨': 5.1, '⑩': 5.05}
 for _p in PATTERNS:
     _p['D'] = SEG_D[_p['no']]
     assert _p['D'] >= 3.44 - 1e-9, _p['no']
@@ -298,7 +306,7 @@ def hl_mask(pat, rel):
     return m
 
 
-# --- 中部の帯：12パターンをつないだ1本の波形 ---------------------------------
+# --- 中部の帯：全パターンをつないだ1本の波形 ---------------------------------
 # パターン i は、実際の時刻 [SEGS[i][0], SEGS[i][1]) にそのパターンを置く。
 # 紹介の終わり＝区間の終わりが画面の右端に来たとき。このとき画面に見えているのは
 # パターン i だけなので、それをそのまま縮めて枠へ運ぶと、ミニ波形とつながる。
@@ -307,8 +315,8 @@ def hl_mask(pat, rel):
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
 T_TITLE = 4.9                     # 冒頭の1文（仮 4.9秒）が入り、見出しと枠が出そろう長さ
-END_HOLD = 5.7                    # 12個そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
-HOOK = [3, 4, 5, 6, 9]            # ④多源性心房頻拍 → ⑤心房細動 → ⑥心房粗動 → ⑦PSVT → ⑩WPW
+END_HOLD = 5.7                    # 全部そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
+HOOK = [3, 4, 5, 6, 8]            # ④多源性心房頻拍 → ⑤心房細動 → ⑥心房粗動 → ⑦PSVT → ⑨房室回帰性頻拍
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 HANDOFF_EARLY = 0.35
 
@@ -349,14 +357,17 @@ F_PXMM = 14.0
 F_PXS = 25 * F_PXMM
 F_MV = 10 * F_PXMM
 # 中部のかたまり：名前（54px）→ ひとこと（32px）→ 波形（R頂点 1mV 〜 下 0.6mV）
-_TOP_END = 636 + 110               # ③⑥の下端
-_BOT_TOP = 1178                    # ⑦⑩の上端（下の注記と離すため、下の枠を10px上げた）
+_TOP_END = 636 + 110               # 上の枠（①②③／④⑤⑥の3段）の下端
+_BOT_TOP = 1298                    # 下の枠（⑦⑧／⑨⑩の2段）の上端。下端は 1528（下の注記と 19px あける）
 # 見た目の上端（名前の字の上）〜下端（S波の底、約0.2mV）で余白をそろえる
-_MID_H = 22 + 54 + 16 + 30 + 140 + 30
+# その下に心拍数カウンター（波形の下端から CNT_GAP あけて、数字の高さ CNT_H）
+CNT_GAP, CNT_H = 34, 46
+_MID_H = 22 + 54 + 16 + 30 + 140 + 30 + CNT_GAP + CNT_H
 _GAP = (_BOT_TOP - _TOP_END - _MID_H) / 2
 Y_NAME = _TOP_END + _GAP + 22
 Y_ONE = Y_NAME + 54
 F_BASE = Y_ONE + 16 + 30 + 140
+CNT_TOP = F_BASE + 30 + CNT_GAP          # カウンターの数字の上端
 F_Y0, F_Y1 = int(F_BASE - 200), int(_BOT_TOP - 2)
 XC = W / 2
 HALF = XC / F_PXS                 # 画面の半分が実際の何秒か
@@ -399,11 +410,51 @@ FPS_LOOP = 60
 DUR = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
 
 
+# --- 心拍数カウンター（この回だけの見せ方） -----------------------------------------
+# 帯の右のほう（x = COUNT_X）を R が通った瞬間に、その拍の心拍数（60 ÷ 直前の拍からの R-R）に変わる。
+# モニターと同じく、新しい拍が右から入ってきたところで数える。ピッという音も同じ瞬間に鳴らす。
+# R-R はそのパターンの拍の並び（周期でくり返したもの）から取る。区間のつなぎ目の間隔は使わない。
+COUNT_X = 940
+DT_REF = (COUNT_X - XC) / F_PXS              # 画面の中央から数える位置までの、実際の時間（秒）
+
+
+def _strip_hr():
+    """中部の帯の拍ごとに (R時刻, 心拍数/分, パターン番号)。"""
+    out = []
+    for r, k, i in STRIP:
+        if KINDS[k][0] is None:
+            continue
+        if i is None:
+            rr = RR
+        else:
+            pat = PATTERNS[i]
+            rel = r - SEGS[i][0]
+            prev = [b for b, kk in periodic_beats(pat, rel - 3, rel + 0.1)
+                    if KINDS[kk][0] is not None and b < rel - 1e-6]
+            rr = rel - max(prev)
+        out.append((r, 60.0 / rr, i))
+    return out
+
+
+STRIP_HR = _strip_hr()
+_HR_T = np.array([b[0] for b in STRIP_HR])
+
+
+def hr_at(t):
+    """その時刻のカウンター：(心拍数, パターン番号, 数えてからの秒)。数える前なら None。"""
+    ref = tau_c(t) + DT_REF
+    k = int(np.searchsorted(_HR_T, ref, side='right')) - 1
+    if k < 0:
+        return None
+    r, bpm, i = STRIP_HR[k]
+    return bpm, i, (ref - r) * SLOW
+
+
 # --- ミニ波形の枠 -----------------------------------------------------------------
 CELL_W, CELL_H = 400, 110
 COL_X = (130, 550)
 TOP_Y = [396, 516, 636]
-BOT_Y = [1178, 1298, 1418]
+BOT_Y = [1298, 1418]
 CELL_FILL = 225                    # 枠の中の塗りの濃さ（0〜255）。方眼をうっすら残す
 M_PXS = 66.0                      # ミニ波形：実際の1秒 = 66px（約5.8秒ぶんが見える）
 M_MV = 33.0
@@ -415,7 +466,7 @@ def cell_rect(i):
         x, y = COL_X[col], TOP_Y[row]
     else:
         j = i - 6
-        col, row = j // 3, j % 3
+        col, row = j // 2, j % 2
         x, y = COL_X[col], BOT_Y[row]
     return (x, y, x + CELL_W, y + CELL_H)
 
@@ -746,13 +797,18 @@ def draw_cell(base, i, t, state, a_all):
 
 # --- 画面 ---------------------------------------------------------------------------
 YEL = (255, 214, 64)
-HEADER = [('頻脈（幅の狭いQRS）', 1.0, WHITE), ('12', 2.0, YEL), ('パターン', 1.0, WHITE)]
+HEADER = [('頻脈（幅の狭いQRS）', 1.0, WHITE), (str(len(PATTERNS)), 2.0, YEL), ('パターン', 1.0, WHITE)]
 HEADER_BASE = 372                   # 見出しのベースライン（y）
 TITLE_SUB = '心電図で気づく'
 TITLE = '頻脈'
 TITLE_2 = '幅の狭いQRS'
-END_1 = '速い脈を見たら、この12パターン'
+END_1 = f'速い脈を見たら、この{len(PATTERNS)}パターン'
 END_2 = '保存して見返してね'
+END_3 = '何個わかった？コメントで教えてね'
+ASK = f'この{len(PATTERNS)}個、全部わかる？'        # 冒頭0〜1秒の問いかけ
+QUIZ = 'これは？'                                    # 名前の前のクイズ
+QUIZ_T = 1.6                         # 「これは？」を出しておく時間（波形は約0.9秒から見えるので、見えてから約0.7秒）
+ASK_END = 1.0                        # 冒頭の問いかけを消しはじめる時刻
 NOTE1 = '実際の速さ（II誘導・25mm/秒）'
 NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
@@ -791,12 +847,14 @@ _GRID = None
 # ひとことのうしろに、看護師がまずすることを色で。
 # 「まず患者さん」：波形より、原因（痛み・発熱・脱水・出血・低酸素・呼吸の病気など）と患者さんの状態を見る
 # 「すぐ報告」：持続する上室性の頻拍。医師に知らせる（ナレーションでは言わない）
-# 「12誘導で確認」：P波の形・向き・PR・デルタ波は、12誘導で確かめる
+# 「12誘導で確認」：P波の形・向き・位置は、12誘導で確かめる
+# 「数字を見る」：⑧だけ。心拍数カウンターが少しずつ変わるか、1拍で跳ぶか
 ONE_W = 760                         # ひとこと＋色の文字の幅の上限（左右に 160px 以上の余白。端で切れて見えないように）
 TAGS = {
     'patient': ('→ まず患者さん', (120, 232, 160)),
     'report': ('→ すぐ報告', (255, 196, 64)),
     'ecg12': ('→ 12誘導で確認', (120, 196, 255)),
+    'rate': ('→ 数字を見る', (190, 160, 255)),       # ⑧：心拍数カウンターの変わり方を見る
 }
 
 
@@ -820,6 +878,48 @@ def draw_one(im, pat, a):
     x0 = 540 - (w1 + 14 + w2) / 2
     put(im, pat['one'], sz, 500, (226, 232, 231), x=x0, cy=Y_ONE, a=a)
     put(im, tag[0], sz, 800, tag[1], x=x0 + w1 + 14, cy=Y_ONE, a=a)
+
+
+C_HEART = (255, 92, 112)
+
+
+def draw_heart(im, cx, cy, size, col, a):
+    """ハート（2つの円＋三角）。拍ごとに明るくする。"""
+    if a <= 0.004:
+        return
+    ss = 4
+    n = int(size*ss)
+    lay = Image.new('L', (n, n), 0)
+    d = ImageDraw.Draw(lay)
+    r = n*0.27
+    d.ellipse((n*0.5 - 2*r, n*0.12, n*0.5, n*0.12 + 2*r), fill=255)
+    d.ellipse((n*0.5, n*0.12, n*0.5 + 2*r, n*0.12 + 2*r), fill=255)
+    d.polygon([(n*0.5 - 2*r + n*0.02, n*0.12 + r*1.25), (n*0.5 + 2*r - n*0.02, n*0.12 + r*1.25), (n*0.5, n*0.94)], fill=255)
+    lay = lay.resize((int(size), int(size)), Image.LANCZOS)
+    col_im = Image.new('RGBA', lay.size, col + (0,))
+    col_im.putalpha(lay.point(lambda q: int(q*a)))
+    im.alpha_composite(col_im, (int(cx - size/2), int(cy - size/2)))
+
+
+def draw_counter(im, t, cur, a):
+    """心拍数カウンター「♥ 150 /分」を波形の下のまん中に。紹介中のパターンの拍だけを数える。"""
+    h = hr_at(t)
+    if h is None or cur is None or h[1] != cur or a <= 0.004:
+        return
+    bpm, _, since = h
+    flash = math.exp(-since/0.18)                   # 拍の瞬間に明るく、すぐ戻る
+    num = f'{bpm:.0f}'
+    im_n, asc_n = text_img(num, 64, 800, WHITE)
+    w3 = text_img('888', 64, 800, WHITE)[0].size[0] - 8      # 3けたぶんの幅（数字が変わっても位置が動かない）
+    im_u, _ = text_img('/分', 32, 700, GREY)
+    hs, gap = 44, 14
+    total = hs + gap + w3 + 10 + (im_u.size[0] - 8)
+    x0 = 540 - total/2
+    cy = CNT_TOP + CNT_H/2
+    draw_heart(im, x0 + hs/2, cy + 2, hs*(1 + 0.12*flash), C_HEART, a*(0.55 + 0.45*flash))
+    xr = x0 + hs + gap + w3                         # 数字は右ぞろえ
+    put(im, num, 64, 800, WHITE, right=xr, cy=cy + 4, a=a)
+    put(im, '/分', 32, 700, GREY, x=xr + 10, cy=cy + 14, a=a)
 
 
 def frame(t):
@@ -856,8 +956,16 @@ def frame(t):
         a_i, b_i = WINDOWS[cur]
         pat = PATTERNS[cur]
         al = ramp(t, a_i + 0.1, 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
-        put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=al, max_w=820)
+        # クイズ：はじめは「これは？」、波形が見えてから約0.7秒たって名前に変わる（声は特徴 → 名前の順）
+        a_q = ramp(t, a_i + 0.1, 0.25) * (1 - ramp(t, a_i + QUIZ_T - 0.15, 0.15))
+        a_n = ramp(t, a_i + QUIZ_T, 0.25) * (1 - ramp(t, b_i - 0.25, 0.25))
+        put(im, f"{pat['no']} {QUIZ}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=a_q, max_w=820)
+        put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=a_n, max_w=820)
         draw_one(im, pat, al)
+
+    # 冒頭0〜1秒：大きめの問いかけ（見出しが出る前に消す）
+    a_ask = max(1 - ramp(t, ASK_END, 0.3), a_loop)
+    put(im, ASK, 64, 900, YEL, cx=540, cy=ASK_Y, a=a_ask, max_w=820)
 
     # 冒頭：タイトルと、変形中のパターン名
     a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
@@ -877,6 +985,8 @@ def frame(t):
         put(im, END_1, 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end, max_w=820)
         put(im, END_2, 36, 700, GREEN, cx=540, cy=Y_ONE,
             a=ramp(t, T_END + FLY + 1.5, 0.6)*keep)
+        put(im, END_3, 40, 800, YEL, cx=540, cy=CNT_TOP + CNT_H/2 + 4,
+            a=ramp(t, T_END + FLY + 2.0, 0.6)*keep, max_w=820)
 
     # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
     # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
@@ -891,6 +1001,7 @@ def frame(t):
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
+    draw_counter(im, t, cur, a_strip*keep)
 
     put(im, NOTE1, 24, 400, GREY, x=135, cy=NOTE_Y[0], a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, NOTE2, 24, 400, GREY, x=135, cy=NOTE_Y[1], a=0.85*ramp(t, T_GO, 0.5)*keep)
@@ -899,21 +1010,20 @@ def frame(t):
 
 
 # 冒頭のタイトル（小さい字・大きい字・その下）の y。ノート2行の y（字の下が 1600 より上）
-TITLE_Y = (470, 598, 742)
+TITLE_Y = (490, 618, 762)
+ASK_Y = 372                          # 冒頭の問いかけ（見出しの位置。見出しは 2.5秒から）
 NOTE_Y = (1557, 1584)
 
 
 # --- 一覧型のサムネイル（第21弾と同じ作り） ---------------------------------------
 # パターンごとに (見せ始めの時刻, 点線の丸で囲む範囲[周期の中の時刻])。丸のないものは全体が特徴
-THUMB_VIEW = {i: (0.0, []) for i in range(12)}
-THUMB_VIEW[1] = (0.4, [(1.02, 2.42)])                       # PACの連発
-THUMB_VIEW[7] = (1.0, [(ON_PAC - 0.30, ON_PAC + 0.40)])    # PSVTの始まり（PACから）
-THUMB_VIEW[9] = (0.1, [(1.20 - 0.17, 1.20 + 0.04)])        # WPW：短いPRとデルタ波
-THUMB_VIEW[11] = (0.05, [(0.50 + 0.04, 0.50 + 0.38)])      # P波がT波に重なる（T波の下り坂のこぶ）
-THUMB_MAX_MARKS = {1: 1, 7: 1, 9: 1, 11: 1}
-THUMB_NAME = {6: 'PSVT（AVNRT）', 8: '房室回帰性頻拍', 9: 'WPW（洞調律）'}   # サムネイルだけ短い名前
-THUMB_DESC = ['Pがそろう', '3つ続く', '形のちがうP', '3種類以上', 'バラバラ', 'のこぎり状',
-              'Pが見えない', '突然', 'QRSの後にP', 'デルタ波', '直前に逆向きP', 'Pが重なる']
+THUMB_VIEW = {i: (0.0, []) for i in range(len(PATTERNS))}
+THUMB_VIEW[1] = (0.05, [(0.40 + 0.04, 0.40 + 0.38)])       # ② P波がT波に重なる（T波の下り坂のこぶ）
+THUMB_VIEW[7] = (OO_PAC - 1.25, [(OO_PAC - 0.30, OO_PAC + 0.40)])   # ⑧ PACから突然始まる（右に突然止まるところ）
+THUMB_MAX_MARKS = {1: 1, 7: 1}
+THUMB_NAME = {1: '洞頻脈（PがTに重なる）', 6: 'PSVT（AVNRT）', 7: '始まり方', 8: '房室回帰性頻拍'}   # サムネイルだけ短い名前
+THUMB_DESC = ['Pがそろう', 'PSVTに見える', '形のちがうP', '3種類以上', 'バラバラ', 'のこぎり状',
+              'Pが見えない', '突然始まり突然止まる', 'QRSの後にP', '直前に逆向きP']
 
 
 def dashed_ellipse(d, box, col, dash=6, gap=5, width=2):
@@ -971,7 +1081,7 @@ def thumbnail_list():
     d.line([(510, 300), (570, 300)], fill=RED + (255,), width=4)
     put(im, '心電図で気づく', 34, 700, (118, 226, 150), cx=540, cy=342)
     put(im, '頻脈（幅の狭いQRS）', 96, 900, WHITE, cx=568, cy=436, max_w=880)   # 「頻脈」の左の余白と「）」の右の余白をそろえる
-    put(im, '見分けられる？', 60, 900, (255, 196, 64), cx=540, cy=546)
+    put(im, f'{N_PAT}個、全部わかる？', 60, 900, (255, 196, 64), cx=540, cy=546)
     COLS = [(135, 515), (565, 945)]             # 列のあいだは50px あける（線は引かない）
     NR = (N_PAT + 1) // 2                       # 1列の段の数
     Y0, RH = 628, 852 // NR
@@ -1050,8 +1160,9 @@ def check():
               f"（区間の中の RR {rr.min():.2f}〜{rr.max():.2f}s）")
     print('--- 各パターンの数値（モデルから） ---')
     print(f"① 洞頻脈：{rate(0.52):.0f}/分、PR {pr_ms('S'):.0f}ms、QRS {qrs_ms(qrs_115):.0f}ms")
-    print(f"② PACの連発：洞調律 75/分 → PAC 3つ（連結 0.48秒、間隔 0.44秒＝{rate(0.44):.0f}/分、PR {pr_ms('A'):.0f}ms）→ 0.85秒あけて洞調律")
-    print(f"③ 心房頻拍：{rate(0.46):.0f}/分、P'（とがった形）PR {pr_ms('A'):.0f}ms、基線は平ら")
+    rp = 0.40 - KINDS['H'][2]
+    print(f"② 洞頻脈（P波がT波に重なる）：{rate(0.40):.0f}/分、P波の頂点は前のRから {rp:.2f}秒（T波の頂点 0.215秒、T波の終わり 約0.31秒）")
+    print(f"③ 心房頻拍：{rate(0.46):.0f}/分、P'（とがった二相性）PR {pr_ms('A'):.0f}ms、基線は平ら")
     rrs = MAT_RR
     print(f"④ 多源性心房頻拍：平均 {rate(np.mean(rrs)):.0f}/分（{rate(max(rrs)):.0f}〜{rate(min(rrs)):.0f}/分）、P波4種類、"
           f"PR {', '.join(f'{pr_ms(k):.0f}' for k in ('M1', 'M2', 'M3', 'M4'))}ms")
@@ -1063,13 +1174,15 @@ def check():
           f"幅 ±{np.abs(art_af(np.arange(0, sum(AF_RR), 0.002), sum(AF_RR))).max():.2f}mV")
     print(f"⑥ 心房粗動：F波 {rate(FL_CYC):.0f}/分（のこぎり・下向き、{0.24*10:.1f}mm）、2:1で心室 {rate(0.40):.0f}/分")
     print(f"⑦ PSVT：{rate(SVT_RR):.0f}/分、P波なし（QRSの終わりに偽S波）、QRS {qrs_ms(qrs_avnrt):.0f}ms")
-    print(f"⑧ 始まりと終わり：洞調律 80/分 → PAC（連結 0.45秒、PR {pr_ms('B'):.0f}ms）→ PSVT {rate(SVT_RR):.0f}/分 {ON_N}拍 → "
-          f"止まって {ON_RESUME-ON_STOP:.2f}秒後に洞調律")
+    print(f"⑧ 始まり方：洞調律 {' → '.join(f'{rate(r):.0f}' for r in OO_SINUS_RR)}/分（少しずつ）→ PAC（連結 {OO_PAC_C:.2f}秒、"
+          f"PR {pr_ms('B'):.0f}ms）→ PSVT {rate(OO_SVT_RR):.0f}/分 {OO_SVT_N}拍 → 突然止まって {OO_PAUSE:.2f}秒後に洞調律")
     print(f"⑨ 房室回帰性頻拍：{rate(0.30):.0f}/分、R → 逆行性P {AVRT_RP*1000:.0f}ms（LITFL：70ms より長い）")
-    print(f"⑩ WPW：洞調律 {rate(0.75):.0f}/分、PR {pr_ms('X'):.0f}ms（<120）、QRS {qrs_ms(qrs_wpw):.0f}ms（>110）")
-    print(f"⑪ 接合部頻拍：{rate(0.52):.0f}/分、逆向きのP、PR {pr_ms('J'):.0f}ms（<120）")
-    rp = 0.40 - KINDS['H'][2]
-    print(f"⑫ P波が隠れた洞頻脈：{rate(0.40):.0f}/分、P波の頂点は前のRから {rp:.2f}秒（T波の頂点 0.215秒、T波の終わり 約0.31秒）")
+    print(f"⑩ 接合部頻拍：{rate(0.52):.0f}/分、逆向きのP、PR {pr_ms('J'):.0f}ms（<120）")
+    print('--- 心拍数カウンター（拍ごとの表示。パターンの区間の中） ---')
+    for i, pat in enumerate(PATTERNS):
+        vals = [f'{b:.0f}' for r, b, j in STRIP_HR if j == i]
+        print(f"  {pat['no']} " + ' '.join(vals))
+    print(f'  カウンターの位置 x={COUNT_X}（画面の中央から {DT_REF:.2f}秒先）。ピッという音も同じ瞬間')
     tr = [b[0] for b in STRIP if b[0] >= STRIP_END - 1e-9][:8]
     print('うしろの洞調律の間隔', [round(y - x, 3) for x, y in zip(tr, tr[1:])])
     print('--- 字の幅 ---')
@@ -1110,11 +1223,11 @@ def render_chunk(args):
 
 
 def beeps(path, sr=44100):
-    """中部の波形の R が画面の中央を通るときに「ピッ」。この回は全部幅の狭いQRSなので同じ高さ。"""
+    """中部の波形の R がカウンターの位置（COUNT_X）を通るときに「ピッ」。この回は全部幅の狭いQRSなので同じ高さ。"""
     n = int(DUR*sr)
     a = np.zeros(n, dtype=np.float32)
     for r, k, i in STRIP:
-        ts = t_of(r)
+        ts = t_of(r - DT_REF)                # カウンターが変わる瞬間（帯の右のほう）
         if KINDS[k][0] is None:
             continue
         if not (0.0 <= ts <= DUR - 0.3) or (T_STOP <= ts < T_GO):

@@ -314,7 +314,7 @@ def hl_mask(pat, rel):
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
 T_TITLE = 5.2                     # 冒頭の1文（仮 5.2秒：「高カリウム血症とQT。まず覚えたいのは、この11パターン。」）
-END_HOLD = 6.4                    # 11個そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
+END_HOLD = 7.2                    # 11個そろってからの時間（まとめ・保存の2文、「何個わかった？」を読む時間と、冒頭へ戻る時間）
 HOOK = [1, 3, 5, 7, 9]            # ②テント状T → ④P波消失 → ⑥サイン波 → ⑧低K（高度）→ ⑩QT延長
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
@@ -420,10 +420,12 @@ def cell_rect(i):
     if i < 6:
         col, row = i // 3, i % 3
         x, y = COL_X[col], TOP_Y[row]
-    else:
+    elif i < 10:                       # ⑦⑧は左の列、⑨⑩は右の列（2段）
         j = i - 6
-        col, row = j // 3, j % 3
+        col, row = j // 2, j % 2
         x, y = COL_X[col], BOT_Y[row]
+    else:                              # ⑪は3段目のまん中（空きが左右に片寄らないように）
+        x, y = (W - CELL_W) // 2, BOT_Y[2]
     return (x, y, x + CELL_W, y + CELL_H)
 
 
@@ -618,6 +620,27 @@ def draw_wave(v, cid, base_col, a):
     return out
 
 
+GHOST_COL = (226, 236, 236)        # 基準のゴースト：白っぽく、うすく、細く（主役の波形より目立たない）
+GHOST_A = 0.40
+GHOST_W = 2.6
+
+
+def ghost_arrays(tau_center, cur):
+    """パターン cur の拍と同じR頂点の位置に置いた、①基準の拍。cur の区間の中だけ（mask）。"""
+    tau = tau_center + (FX - XC) / F_PXS
+    s0, s1 = SEGS[cur]
+    gb = [(r, 'N') for r, k, i in STRIP if i == cur]
+    return wave_from(gb, tau), (tau >= s0 - 0.30) & (tau < s1)
+
+
+def draw_ghost(v, m, a):
+    h = F_Y1 - F_Y0
+    ys = F_BASE - F_Y0 - v*F_MV
+    idx = np.where(m)[0]
+    runs = [list(zip(FX[r], ys[r])) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
+    return glow_line((W, h), runs, GHOST_COL, GHOST_W, a*GHOST_A, blur=(3, 7))
+
+
 def featured(t, base_col, a, cur=None):
     """中部の帯。色を付けるのは、いま紹介中のパターン cur の拍だけ（前のパターンの色つきの波形が、
     新しい名前の下に残らないように。ほかはふつうの緑）。冒頭のフックは変形中のパターンの色。"""
@@ -626,7 +649,12 @@ def featured(t, base_col, a, cur=None):
         return draw_wave(v0 + (v1 - v0)*u, c1 if u >= 0.5 else c0, base_col, a)
     v, cid = strip_arrays(tau_c(t))
     cid = np.where(cid == (-2 if cur is None else cur), cid, -1)
-    return draw_wave(v, cid, base_col, a)
+    out = draw_wave(v, cid, base_col, a)
+    if cur is not None and cur >= 1:          # ②〜⑪：①基準をうすく下に重ねる
+        lay = draw_ghost(*ghost_arrays(tau_c(t), cur), a)
+        lay.alpha_composite(out)
+        out = lay
+    return out
 
 
 STRIP_W, STRIP_H, STRIP_BASE = CELL_W - 20, 76, 50     # ミニ波形の帯（枠の中）
@@ -713,8 +741,12 @@ def draw_cell(base, i, t, state, a_all):
                             outline=CARD_EDGE + (int(255*a_all),), width=2)
     base.alpha_composite(lay)
     if state in ('done', 'landing'):
-        put(base, f"{pat['no']} {pat['name']}", 22, 700, pat['col'], x=x0 + 14, cy=y0 + 17,
-            a=a_all, max_w=CELL_W - 30)
+        name = f"{pat['no']} {pat['name']}"
+        put(base, name, 22, 700, pat['col'], x=x0 + 14, cy=y0 + 17, a=a_all, max_w=CELL_W - 30)
+        if i == 0:                           # ゴーストを出しているあいだ、①の名前のうしろに「＝うすい線」
+            a_g = ramp(t, WINDOWS[1][0], 0.4) * (1 - ramp(t, T_END + FLY - 0.4, 0.4))
+            nw = text_img(name, 22, 700, pat['col'], max_w=CELL_W - 30)[0].size[0] - 8
+            put(base, '＝うすい線', 22, 700, GHOST_COL, x=x0 + 14 + nw + 4, cy=y0 + 17, a=a_all*a_g*0.85)
     elif state == 'now':
         put(base, pat['no'], 30, 700, pat['col'], x=x0 + 16, cy=y0 + CELL_H/2, a=min(1.0, a_all*2))
     else:
@@ -732,6 +764,8 @@ NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
 END_LINE = '高カリウムは、軽く見えても急変しうる'
 SAVE_LINE = '保存して見返してね'
+COMMENT_LINE = '何個わかった？コメントで教えてね'
+HOOK_Q = 'この変化、気づける？'
 
 
 def current(t):
@@ -801,6 +835,46 @@ def one_size(pat):
         sz -= 1
 
 
+# 高Kの進み具合ゲージ（②〜⑥）。左の余白（ミニ波形の枠の左、x 72〜128）に縦に。Kの数値は書かない
+GAUGE_X, GAUGE_W = 101, 16
+GAUGE_Y0, GAUGE_Y1 = 420, 722          # 上（重い）〜 下（軽い）
+K_STAGES = [1, 2, 3, 4, 5]             # ②〜⑥ のパターン番号（0始まり）
+
+
+def gauge_level(t):
+    """(高さ 0〜1, 色)。段階が進むごとに 1/5 ずつ上がる（名前が出るのと同時に 0.6秒で）。"""
+    lev, col = 0.0, PATTERNS[K_STAGES[0]]['col']
+    for n, i in enumerate(K_STAGES, 1):
+        a_i = WINDOWS[i][0] + 0.5
+        if t >= a_i:
+            lev = (n - 1 + ease((t - a_i) / 0.6)) / len(K_STAGES)
+            col = PATTERNS[i]['col']
+    return lev, col
+
+
+def draw_gauge(im, t, a):
+    if a <= 0.004:
+        return
+    lev, col = gauge_level(t)
+    lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lay)
+    x0, x1 = GAUGE_X - GAUGE_W/2, GAUGE_X + GAUGE_W/2
+    d.rounded_rectangle((x0, GAUGE_Y0, x1, GAUGE_Y1), radius=8, fill=CARD_FILL + (int(230*a),),
+                        outline=CARD_EDGE + (int(255*a),), width=2)
+    if lev > 0.005:
+        yf = GAUGE_Y1 - lev*(GAUGE_Y1 - GAUGE_Y0)
+        d.rounded_rectangle((x0 + 3, yf + 3, x1 - 3, GAUGE_Y1 - 3), radius=5, fill=col + (int(255*a),))
+    for k in range(1, len(K_STAGES)):        # 段階の目盛り
+        y = GAUGE_Y1 - k*(GAUGE_Y1 - GAUGE_Y0)/len(K_STAGES)
+        d.line([(x0 - 5, y), (x0 - 1, y)], fill=CARD_EDGE + (int(255*a),), width=2)
+    if lev > 0.999:                          # ⑥：いちばん上で、赤く光る
+        glow = lay.filter(ImageFilter.GaussianBlur(6))
+        im.alpha_composite(glow)
+    im.alpha_composite(lay)
+    put(im, '重い', 22, 700, C_K3 if lev > 0.999 else GREY, cx=GAUGE_X, cy=GAUGE_Y0 - 22, a=a)
+    put(im, '軽い', 22, 700, GREY, cx=GAUGE_X, cy=GAUGE_Y1 + 24, a=a)
+
+
 def frame(t):
     global _GRID
     if _GRID is None:
@@ -840,9 +914,13 @@ def frame(t):
         put(im, f"{pat['no']} {pat['name']}", 54, 900, pat['col'], cx=540, cy=Y_NAME, a=al, max_w=820)
         draw_one(im, pat, al)
 
-    # 冒頭：タイトルと、変形中のパターン名
+    # 高Kの進み具合ゲージ：②の名前が出るころから、⑥が縮んで枠に入るまで
+    draw_gauge(im, t, ramp(t, WINDOWS[1][0] + 0.3, 0.4) * (1 - ramp(t, WINDOWS[5][1] + 0.3, 0.5)) * keep)
+
+    # 冒頭：問いかけ・タイトルと、変形中のパターン名
     a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
     if a_t > 0:
+        put(im, HOOK_Q, 66, 900, (255, 214, 64), cx=540, cy=420, a=a_t, max_w=880)
         put(im, '心電図で気づく電解質', 36, 500, PURPLE, cx=540, cy=560, a=a_t)
         put(im, TITLE, 150, 900, WHITE, cx=540, cy=690, a=a_t, max_w=880)
         if T_STOP <= t < T_GO:
@@ -854,9 +932,11 @@ def frame(t):
 
     a_end = ramp(t, T_END + FLY, 0.6)*keep
     if a_end > 0:
-        put(im, END_LINE, 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end, max_w=820)
-        put(im, SAVE_LINE, 36, 700, GREEN, cx=540, cy=Y_ONE,
+        put(im, END_LINE, 42, 800, WHITE, cx=540, cy=Y_NAME - 36, a=a_end, max_w=820)
+        put(im, SAVE_LINE, 34, 700, GREEN, cx=540, cy=Y_NAME + 16,
             a=ramp(t, T_END + FLY + 1.8, 0.6)*keep)
+        put(im, COMMENT_LINE, 32, 700, (255, 214, 64), cx=540, cy=Y_NAME + 62,
+            a=ramp(t, T_END + FLY + 2.4, 0.6)*keep)
 
     # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
     # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
@@ -959,7 +1039,8 @@ def thumb_row_wave(i, x0, x1, base_y, mv, span=4.0):
 
 def thumbnail_list():
     """サムネイル（透かしなし）。第17弾の一覧型と同じ作り：
-    タイトル → 12パターンを2列×6段（色つきの名前・ひとこと・波形・点線の丸）→ 下の枠。
+    タイトル → 11パターンを2列（左：①〜⑥の6段、右：⑦〜⑪の5段。列の高さはそろえる）
+    （色つきの名前・ひとこと・波形・点線の丸）→ 下の枠。
     プロフィールのグリッド（中央 1080×1350、y 285〜1635）に要素が収まる。"""
     im = grid()
     d = ImageDraw.Draw(im, 'RGBA')
@@ -970,12 +1051,16 @@ def thumbnail_list():
     put(im, TITLE, 112, 900, WHITE, cx=540, cy=436, max_w=880)
     put(im, '見分けられる？', 60, 900, YEL, cx=540, cy=546)
     COLS = [(135, 515), (565, 945)]             # 列のあいだは50px あける（線は引かない）
-    NR = (N_PAT + 1) // 2                       # 1列の段の数
-    Y0, RH = 628, 852 // NR
+    NRS = [6, N_PAT - 6]                        # 列ごとの段の数（左：高Kの道 ①〜⑥、右：⑦〜⑪）
+    Y0, RH = 628, 852 // 6
+    TOT = RH*6                                  # 2列とも同じ高さに収める
     for i, pat in enumerate(PATTERNS):
-        c, r = divmod(i, NR)
+        c = 0 if i < 6 else 1
+        r = i if c == 0 else i - 6
+        rh = TOT / NRS[c]
         x0, x1 = COLS[c]
-        y = Y0 + r*RH
+        y_row = Y0 + r*rh
+        y = y_row + (rh - RH)/2                 # 段が高い列は、名前と波形を段のまん中に
         name = f"{pat['no']} {pat['name']}"
         im_n, _ = text_img(name, 26, 800, pat['col'], max_w=x1 - x0)
         put(im, name, 26, 800, pat['col'], x=x0, cy=y + 24, max_w=x1 - x0)
@@ -986,9 +1071,9 @@ def thumbnail_list():
             put(im, THUMB_DESC[i], 18, 500, (176, 186, 186), x=nx, cy=y + 26)
         lay, pos = thumb_row_wave(i, x0, x1, y + 24 + (RH - 24)*0.64, 38.0)   # 低い波（U波・平たいP波）も見えるよう、第21弾（30）より大きく
         im.alpha_composite(lay, pos)
-        if r < NR - 1:
-            d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
-    by = Y0 + NR*RH + 24
+        if r < NRS[c] - 1:
+            d.line([(x0, y_row + rh - 1), (x1, y_row + rh - 1)], fill=(38, 54, 48, 255), width=1)
+    by = Y0 + TOT + 24
     d.rounded_rectangle([(230, by), (850, by + 96)], radius=18, fill=(16, 22, 21, 255),
                         outline=(70, 84, 80, 255), width=2)
     parts = [('まず覚えたい', 40, WHITE), (str(N_PAT), 72, YEL), ('パターン', 40, WHITE)]
