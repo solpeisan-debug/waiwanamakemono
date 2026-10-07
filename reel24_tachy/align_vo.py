@@ -6,11 +6,10 @@
 - 効果音は声の下で最大 8dB 下げる（サイドチェイン）
 
 使い方:
-    cp 録音.mp3 out/vo/narration_raw.mp3
-    python3 align_vo.py out/vo/narration_raw.mp3            # out/vo/mix.wav と配置表を作る
-    python3 align_vo.py out/vo/narration_raw.mp3 --mux      # 映像（out/reel24_tachy.mp4）に入れる
-    python3 align_vo.py out/vo/narration_raw.mp3 --mux --hq # 高画質版（out/reel24_tachy_hq.mp4）に入れる
-    python3 align_vo.py out/vo/narration_raw.mp3 --fix out/vo/narration_fix.mp3 --mux
+    python3 align_vo.py out/vo/narration_raw.wav            # out/vo/mix.wav と配置表を作る
+    python3 align_vo.py out/vo/narration_raw.wav --mux      # 映像（out/reel24_tachy.mp4）に入れる
+    python3 align_vo.py out/vo/narration_raw.wav --mux --hq # 高画質版（out/reel24_tachy_hq.mp4）に入れる
+    python3 align_vo.py out/vo/narration_raw.wav --fix out/vo/narration_fix.mp3 --mux
         # 録り直した文（FIX_LINES）だけ、--fix のファイルから差し替える
 """
 import argparse
@@ -26,15 +25,23 @@ import make_reel24 as m
 HERE = os.path.dirname(os.path.abspath(__file__))
 SR = 44100
 
-# 通し読みの「声のかたまり」（無音 0.25秒以上で区切ったもの）を、台本の文にまとめる。
-# 番号は 1 から。録音が届いたら、Whisper の書き起こしで順番と中身を確かめて直す
-# （読点で 0.25秒以上の間があると、1つの文が2つ以上のかたまりになる）。
+# 通し読みの「声のかたまり」（無音 0.25秒以上で区切ったもの）を、台本の文にまとめる。番号は 1 から。
+# 2026-10-07 の録音（Ren – Smooth & Soothing、atempo=1.2 で1.2倍速、51.20秒）は 25 かたまり。
+# 文の中の読点・句点で分かれたところがある（faster-whisper の書き起こしで、順番と中身を確かめた）。
 LINES = [
-    ('冒頭', [1]),             # 幅の狭いQRSの頻脈。まず覚えたいのは、この10パターン。（仮：録音が届いたら直す）
-    ('①', [2]), ('②', [3]), ('③', [4]), ('④', [5]), ('⑤', [6]), ('⑥', [7]),
-    ('⑦', [8]), ('⑧', [9]), ('⑨', [10]), ('⑩', [11]),
-    ('まとめ', [12]),          # 規則正しいか、P波はどこか。まずこの2つ。
-    ('保存', [13]),            # 保存して、見返してね
+    ('冒頭', [1, 2]),          # 幅の狭いQRSの頻脈。／まず覚えたいのは、この10パターン。
+    ('①', [3, 4]),            # どの拍にも、ふつうのP波。／洞頻脈。
+    ('②', [5, 6]),            # PSVTに見えても、／P波がT波に重なる洞頻脈。
+    ('③', [7, 8]),            # いつもと違うP波が、規則正しく。／心房頻拍。
+    ('④', [9, 10]),           # P波の形が3種類以上で、不規則。／多源性心房頻拍。
+    ('⑤', [11, 12]),          # P波がなく、バラバラ。／速い心房細動。
+    ('⑥', [13]),              # のこぎりの波が隠れる、心房粗動の2対1。
+    ('⑦', [14, 15, 16]),      # 規則正しく速く、／P波が見えない。／PSVT。
+    ('⑧', [17, 18]),          # 突然始まり、突然止まるのはPSVT。／少しずつ変わるなら、洞頻脈が多い。
+    ('⑨', [19, 20]),          # QRSのすぐあとに逆向きのP波。／房室回帰性頻拍。
+    ('⑩', [21, 22]),          # QRSの直前に逆向きのP。／接合部頻拍。
+    ('まとめ', [23, 24]),      # 規則正しいか、P波はどこか。／まずこの2つ。
+    ('保存', [25]),            # 保存して、見返してね
 ]
 # 録り直した文（--fix のファイルの声のかたまり番号。0.05秒未満のかたまり＝雑音は数えない）
 FIX_LINES = {}
@@ -115,6 +122,11 @@ def plan(lines_len):
         starts[pat['no']] = m.WINDOWS[i][0] + LEAD
     # ①は冒頭のあと。①の区間は縮み始めが 0.35秒早いぶん短いので、名前が出たらすぐ（0.3秒）話し始める
     starts['①'] = max(m.WINDOWS[0][0] + 0.30, starts['冒頭'] + lines_len['冒頭'] + GAP_MIN)
+    # ⑧ は区間が長い（9.6秒）。「突然始まり…PSVT」がカウンターの跳ぶところ（PAC がカウンターの位置を通る時刻）に、
+    # 「少しずつ変わるなら…」が洞調律の少しずつ変わるところに重なるよう、PAC の 0.5秒前から話し始める
+    i8 = [k for k, p in enumerate(m.PATTERNS) if p['no'] == '⑧'][0]
+    r_pac = [r for r, k, i in m.STRIP if i == i8 and k == 'B'][0]
+    starts['⑧'] = max(starts['⑧'], m.t_of(r_pac - m.DT_REF) - 0.5)
     starts['まとめ'] = m.T_END + 0.15
     starts['保存'] = starts['まとめ'] + lines_len['まとめ'] + 0.30
     return starts
