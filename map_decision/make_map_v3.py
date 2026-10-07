@@ -114,29 +114,35 @@ MAPS = {
     ),
     3: dict(
         title=('見分けマップ③', ' 幅の広いQRS'),
-        tree=Q('', 'スパイクが\nある？', [
+        # 箱の字は2〜3行にして箱を細くし、カードの答えを 22px で入れる（AI専門医レビュー 2026-10-07）
+        tree=Q('', 'スパイク\nがある？', [
             L('ある・あとに広いQRS', 'ペースメーカー調律', C_BLUE, 'pace'),
-            Q('ない', '心拍数は？', [
+            Q('ない', '心拍数\nは？', [
                 Q('100以上', 'リズム\nは？', [
-                    L('規則的・迷ったらこれ', '心室頻拍（VT）', C_RED, 'vt'),
-                    L('規則的・前から脚ブロック', 'SVT＋変行伝導', C_ORANGE, 'svtbbb'),
+                    L('規則的・迷ったらこれ', '心室頻拍（VT）', C_RED, 'vt3'),
+                    L('規則的・前と同じ脚ブロック', 'SVT＋変行伝導', C_RED, 'svtbbb'),
                     L('規則的・前からWPW', '逆方向性AVRT', C_RED, 'avrtw'),
                     L('不規則・ねじれる', '多形性VT・トルサード', C_RED, 'tdp'),
                     L('不規則・同じ形', '心房細動＋脚ブロック', C_ORANGE, 'afbbb3'),
-                    L('不規則・とても速い', '心房細動＋WPW', C_RED, 'afwpw'),
+                    L('不規則・200以上・形がばらつく', '心房細動＋WPW', C_RED, 'afwpw'),
                 ]),
-                Q('60〜100', 'P波は？', [
+                Q('60〜100', 'P波\nは？', [
                     L('あり・PRふつう', '脚ブロック', C_YEL, 'bbb'),
-                    L('あり・PR短い・デルタ波', 'WPW', C_YEL, 'wpw'),
-                    L('なし', '促進心室固有調律（AIVR）', C_YEL, 'aivr'),
+                    L('あり・PR短い・デルタ波', 'WPW型（早期興奮）', C_YEL, 'wpw'),
+                    L('なし・または別々', '促進心室固有調律（AIVR）', C_YEL, 'aivr'),
                 ]),
-                Q('60未満', 'P波と\nT波は？', [
+                Q('60未満', 'P波と\nT波\nは？', [
                     L('P波なし', '心室補充調律', C_RED, 'vesc'),
                     L('P波平ら・T波とがる', '高カリウム血症', C_RED, 'hyperk'),
                 ]),
             ]),
         ]),
-        notes=['※幅の広い速い頻拍は、迷ったらVT。まず患者さん', '※II誘導の一例。右脚・左脚の区別は12誘導で'],
+        # 注意書き（③は3行・24px・白。1行めの「迷ったらVT」は黄の太字）。部品：(字, 太さ, 色)
+        notes=['※幅の広い速い頻拍は、迷ったらVT。まず患者さん', '※II誘導の一例。右脚・左脚の区別は12誘導で',
+               '※T波がとがる・QRSが広がるなら、どの心拍数でも高カリウム血症を疑う'],
+        note_parts=[[('※幅の広い速い頻拍は、', 500, 'w'), ('迷ったらVT', 900, 'y'), ('。まず患者さん', 500, 'w')],
+                    [('※II誘導の一例。右脚・左脚の区別は12誘導で', 500, 'w')],
+                    [('※T波がとがる・QRSが広がるなら、どの心拍数でも高カリウム血症を疑う', 500, 'w')]],
     ),
 }
 MAP = int(os.environ.get('MAP_NO', '1'))
@@ -145,10 +151,18 @@ CFG = MAPS[MAP]
 # --- 配置 ---------------------------------------------------------------------------------
 X0, X_END = 72, 1000                # 左72px・右80px（右下はリールのボタンがかかるので少し広め）
 Y_FIRST, Y_LAST = 494, 1500       # 1枚目と最後のカードのまん中（見出しとの間を約60px空ける）
-GAP_X = 30                        # 箱の右 → 縦の線 14px → 子 16px
+BAR_DX, KID_DX = 14, 16           # 箱の右 → 縦の線 14px → 子 16px
 SZ_Q, SZ_A = 25, 19
 CARD_H = 86
 PAD = 12
+SA0 = 21                          # カードの答えの字の大きさ（入らなければ ANS_MIN まで縮める）
+if MAP == 3:
+    # ③：答えを 22px 以上にし、下に3行の注意書き（24px）を入れるため、カードを少し低く・線のすき間を詰める
+    Y_FIRST, Y_LAST = 478, 1449
+    BAR_DX, KID_DX = 9, 11
+    CARD_H = 82
+    SA0 = 22
+GAP_X = BAR_DX + KID_DX
 
 
 def tw(s, size, weight):
@@ -198,15 +212,15 @@ _y(CFG['tree'])
 _max_d = max(n['depth'] for n in NODES)
 COL_W = [max(node_size(n)[0] for n in NODES if n['depth'] == d) for d in range(_max_d + 1)]
 COL_X = [X0 + sum(COL_W[:d]) + d*GAP_X for d in range(_max_d + 1)]
-SNAP_W = 8 if MAP == 3 else 0    # ③：同じ列で幅の差が 8px 以内の箱は、列でいちばん広い幅にそろえる（カードの左端をそろえる）
+SNAP_W = 10 if MAP == 3 else 0   # ③：同じ列で幅の差が 10px 以内の箱は、列でいちばん広い幅にそろえる（カードの左端をそろえる）
 for _n in NODES:
     _n['w'], _n['h'] = node_size(_n)
     if SNAP_W and _n['w'] >= COL_W[_n['depth']] - SNAP_W:
         _n['w'] = COL_W[_n['depth']]
     _n['x'] = COL_X[_n['depth']]
-    _n['bar'] = _n['x'] + _n['w'] + 14
+    _n['bar'] = _n['x'] + _n['w'] + BAR_DX
 for _n in LEAVES:
-    _n['x'] = _n['parent']['bar'] + 16
+    _n['x'] = _n['parent']['bar'] + KID_DX
     _n['w'] = X_END - _n['x']
 SLOT = DUR / N
 
@@ -244,12 +258,12 @@ def wave_geom(c):
     return x0, x1, base, s
 
 
-ANS_MIN = 18 if MAP == 3 else 15   # ③は答えの字を 18px より小さくしない（①②は前のまま）
+ANS_MIN = 22 if MAP == 3 else 15   # ③は答えの字を 22px より小さくしない（①②は前のまま）
 
 
 def fit_line(ans, name, wmax):
     """答え（小）と名前を1行に。入らなければ、まず答えの字を小さく（ANS_MIN まで）、それでも入らなければ名前を小さく"""
-    sa, sn = 21, 26
+    sa, sn = SA0, 26
     while True:
         wa, wn = tw(ans, sa, 700), tw(name, sn, 900)
         if wa + 12 + wn <= wmax or sn <= 17:
@@ -390,7 +404,20 @@ def draw_title(im):
 
 
 # 注意書きと透かしの高さ。③は注意書き2行目の字の下端が 1600 を超えないよう 3px 上げる（①②は前のまま）
-NOTE_CY, WM_CY = ((1563, 1589), 1574) if MAP == 3 else ((1566, 1592), 1576)
+NOTE_CY, WM_CY = ((1566, 1592), 1576)
+# ③：注意書き3行（24px・白、「迷ったらVT」は黄の太字）。左は箱と同じ 72px。透かしは2行め（いちばん短い行）の右
+NOTE3_SZ, NOTE3_CY = 24, (1522, 1553, 1584)
+if MAP == 3:
+    WM_CY = NOTE3_CY[1]
+
+
+def draw_notes3(im):
+    for parts, cy in zip(CFG['note_parts'], NOTE3_CY):
+        x = X0
+        for s_, wt, c_ in parts:
+            col = YEL if c_ == 'y' else WHITE
+            put(im, s_, NOTE3_SZ, wt, col, x=x, cy=cy)
+            x += tw(s_, NOTE3_SZ, wt)
 
 
 def frame(t, wm=True, highlight=True):
@@ -419,8 +446,11 @@ def frame(t, wm=True, highlight=True):
         draw_node(im, n, on_node[id(n)])
     for c in LEAVES:
         draw_card(im, c, t, glow_leaf[c['i']])
-    put(im, CFG['notes'][0], 20, 400, (150, 160, 162), x=135, cy=NOTE_CY[0], max_w=470)
-    put(im, CFG['notes'][1], 20, 400, (150, 160, 162), x=135, cy=NOTE_CY[1], max_w=470)
+    if MAP == 3:
+        draw_notes3(im)
+    else:
+        put(im, CFG['notes'][0], 20, 400, (150, 160, 162), x=135, cy=NOTE_CY[0], max_w=470)
+        put(im, CFG['notes'][1], 20, 400, (150, 160, 162), x=135, cy=NOTE_CY[1], max_w=470)
     if wm:
         put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=WM_CY, a=0.42)
     return im.convert('RGB')
