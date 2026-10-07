@@ -15,6 +15,7 @@ import json
 import mimetypes
 import os
 import sys
+import time
 
 import requests
 
@@ -23,8 +24,13 @@ CHUNK = 32 * 256 * 1024          # 8MB（256KB の倍数）
 
 def call(action, **kw):
     url, key = os.environ['GDRIVE_UP_URL'], os.environ['GDRIVE_UP_KEY']
-    r = requests.post(url, data=json.dumps(dict(key=key, action=action, **kw)),
-                      headers={'Content-Type': 'application/json'}, timeout=120)
+    for k in range(4):                    # 窓口はときどき 404 の HTML を返す（一時的）。少し待って出し直す
+        r = requests.post(url, data=json.dumps(dict(key=key, action=action, **kw)),
+                          headers={'Content-Type': 'application/json'}, timeout=120)
+        if r.ok and r.headers.get('content-type', '').startswith('application/json'):
+            break
+        print(f'  窓口が {r.status_code} を返したので出し直す（{k+1}回目）', flush=True)
+        time.sleep(10 * (k + 1))
     r.raise_for_status()
     out = r.json()
     if 'error' in out:
