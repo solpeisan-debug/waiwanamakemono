@@ -36,8 +36,8 @@ W, H = 1080, 1920
 SLOW = 1.0                        # 実際の速さ
 
 BG = (2, 7, 6)
-G_MINOR = (13, 26, 21)
-G_MAJOR = (34, 56, 46)
+G_MINOR = (8, 17, 14)            # 方眼の細い線（1mm＝14px）。線が多くなったぶん、前（31.5px間隔）より薄く
+G_MAJOR = (27, 46, 38)           # 方眼の太い線（5mm＝70px＝0.2秒）
 WHITE = (236, 241, 240)
 GREY = (150, 160, 162)
 DIM = (70, 82, 82)
@@ -114,7 +114,7 @@ def _preex(w, a, with_t=True):
     return f
 
 
-PREEX = {'D1': (0.90, 0.80), 'D2': (1.00, 1.00), 'D3': (1.15, 1.10)}   # (幅, 大きさ)
+PREEX = {'D1': (0.92, 0.80), 'D2': (1.00, 1.00), 'D3': (1.15, 1.10)}   # (幅, 大きさ)
 
 
 KINDS = {
@@ -214,7 +214,7 @@ RR_WPW = [0.26, 0.21, 0.32, 0.24, 0.20, 0.29, 0.34, 0.23, 0.27, 0.22, 0.30, 0.25
 K_WPW = ['D2', 'D1', 'D3', 'D2', 'D1', 'D3', 'D2', 'D3', 'D1', 'D2', 'D3', 'D1']
 RR_VAR = [0.4, 0.8, 0.4, 0.6, 0.8, 0.4]                     # ⑬ 2:1・4:1・2:1・3:1・4:1・2:1（F-F 0.2秒の倍数）
 
-# ① 発作性心房細動の始まり：洞調律（75/分）3拍 → T波の終わりにPAC（早いP'）→ そこから R-R がバラバラ（平均約125/分）
+# ① 心房細動の始まり：洞調律（75/分）3拍 → T波の終わりにPAC（早いP'）→ そこから R-R がバラバラ（平均約125/分）
 PAF_SINUS = [0.0, 0.8, 1.6]
 PAF_PAC = 2.06                                              # PAC の R（P' は 0.14秒前、直前の拍のT波の終わり）
 RR_PAF = [0.42, 0.64, 0.38, 0.70, 0.44, 0.58]               # PAC のあとの心房細動（ものさしでバラバラが見えるよう、ばらつきを大きめに）
@@ -272,14 +272,14 @@ def art_f_part(amp, seed, a, b):
 
 # 14パターン：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、連続した波形 art、色を付ける範囲 hl
 PATTERNS = [
-    dict(no='①', name='発作性心房細動の始まり', col=C_AF, hint='急にバラバラ',
+    dict(no='①', name='心房細動の始まり', col=C_AF, hint='急にバラバラ',
          one='洞調律から、急にR-Rがバラバラ', tag='new',
          ev=EV_PAF, L=L_PAF, art=art_f_part(F_MID, 30, PAF_F0, L_PAF + 0.2), hl=[(PAF_F0 - 0.05, L_PAF + 0.3)]),
     dict(no='②', name='心房細動（f波が粗い）', col=C_AF, hint='f波が大きい',
          one='P波なし、R-Rがバラバラ', tag='new',
          ev=EV_COARSE, L=L_COARSE, art=art_f(F_COARSE, 31), hl=ALL),
     dict(no='③', name='心房細動（f波が細かい）', col=C_AF, hint='ほぼ平ら',
-         one='基線はほぼ平ら。R-Rで判断', tag='new',
+         one='P波なし・基線は平ら。R-Rで判断', tag='new',
          ev=EV_FINE, L=L_FINE, art=art_f(F_FINE, 32), hl=ALL),
     dict(no='④', name='頻脈性の心房細動', col=C_AF, hint='速くバラバラ',
          one='バラバラで速い（100/分超）', tag='vital',
@@ -582,17 +582,26 @@ def put(base, s, size, weight, col, cx=None, cy=None, x=None, a=1.0, max_w=None,
 
 
 def grid():
+    """心電図用紙の方眼：細い線 14px（1mm＝0.04秒・0.1mV）、太い線 70px（5mm＝0.2秒・0.5mV）。
+    太い線が、画面の中央（x=540）と中部の波形の基線（F_BASE）を通るように置く。"""
     im = Image.new('RGBA', (W, H), BG + (255,))
     d = ImageDraw.Draw(im)
-    pm = 31.5
-    for i in range(int(W/pm) + 2):
-        x = round(i*pm)
-        d.line([(x, 0), (x, H)], fill=(G_MAJOR if i % 5 == 0 else G_MINOR) + (255,),
-               width=2 if i % 5 == 0 else 1)
-    for k in range(int(H/pm) + 2):
-        y = round(k*pm)
-        d.line([(0, y), (W, y)], fill=(G_MAJOR if k % 5 == 0 else G_MINOR) + (255,),
-               width=2 if k % 5 == 0 else 1)
+    pm = F_PXMM                                     # 1mm＝14px（波形と同じ目盛り。25mm/秒・10mm/mV）
+    x0 = (XC % (5*pm)) - 5*pm                       # 太い線が x=540 を通る
+    y0 = (round(F_BASE) % (5*pm)) - 5*pm            # 太い線が基線を通る
+    for major in (False, True):                     # 細い線 → 太い線の順（太い線を上に）
+        i = 0
+        while x0 + i*pm <= W + 1:
+            if (i % 5 == 0) == major:
+                x = round(x0 + i*pm)
+                d.line([(x, 0), (x, H)], fill=(G_MAJOR if major else G_MINOR) + (255,), width=2 if major else 1)
+            i += 1
+        k = 0
+        while y0 + k*pm <= H + 1:
+            if (k % 5 == 0) == major:
+                y = round(y0 + k*pm)
+                d.line([(0, y), (W, y)], fill=(G_MAJOR if major else G_MINOR) + (255,), width=2 if major else 1)
+            k += 1
     return im
 
 
@@ -836,7 +845,7 @@ HEADER_BASE = 348                   # 見出しのベースライン（y）
 NOTE1 = '実際の速さ（前後のふつうの拍は75/分）'
 NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
-END_LINE = 'R-Rバラバラは細動、のこぎりは粗動'     # 最後の画面（見分けのポイント）
+END_LINE = 'のこぎりは粗動、R-Rバラバラは細動'     # 最後の画面（見分けのポイント）
 
 
 def current(t):
@@ -976,6 +985,11 @@ def draw_ruler(im, t, cur, a):
                 if RULER_X0 - 2 <= xt <= W:
                     d.line([(xt, yc - 9), (xt, yc + 9)], fill=C_STOP + (int(235*a),), width=3)
             continue
+        if cur == I_ASH and i == I_ASH and x0 < RULER_X0 and RULER_X0 + 30 < x1 <= W - 4:
+            # ⑥：長い R-R が左端で切れても、棒は左端まで描く（長い → 短い を、名前が出ているあいだ見せる）
+            d.rounded_rectangle((RULER_X0, yc - RULER_H/2, x1 - 5, yc + RULER_H/2), radius=3, fill=col + (int(235*a),))
+            d.line([(x1, yc - 9), (x1, yc + 9)], fill=col + (int(235*a),), width=3)
+            continue
         if x0 < RULER_X0 or x1 > W - 4:
             for xt in (x0, x1):                   # 目盛りは描く
                 if RULER_X0 - 2 <= xt <= W:
@@ -987,6 +1001,27 @@ def draw_ruler(im, t, cur, a):
             d.line([(xt, yc - 9), (xt, yc + 9)], fill=col + (int(235*a),), width=3)
     im.alpha_composite(lay, (0, int(RULER_Y - yc)))
     put(im, 'R-R', 22, 700, GREY, x=72, cy=RULER_Y + 1, a=0.9*a)
+    if cur == I_ASH:
+        draw_ash_labels(im, t, a)
+
+
+ASH_LABEL_SIZE = 20
+
+
+def draw_ash_labels(im, t, a):
+    """⑥：変行伝導の拍の直前の「長い」R-R と、その拍までの「短い」R-R の棒の下に小さく名札。値はモデルの R の時刻から。"""
+    s0 = SEGS[I_ASH][0]
+    tc = tau_c(t)
+    ev = PATTERNS[I_ASH]['ev']
+    r_a, r_b, r_c = (s0 + ev[ASH_K - 2][0], s0 + ev[ASH_K - 1][0], s0 + ev[ASH_K][0])   # 長い：a→b、短い：b→c
+    xs = [XC + (r - tc)*F_PXS for r in (r_a, r_b, r_c)]
+    if not (RULER_X0 + 30 < xs[1] and xs[2] <= W - 4):
+        return
+    col = PATTERNS[I_ASH]['col']
+    for lab, xa, xb in (('長い', max(xs[0], RULER_X0), xs[1]), ('短い', xs[1], xs[2])):
+        tw = text_img(lab, ASH_LABEL_SIZE, 700, col)[0].size[0] - 8
+        cx = min(max((xa + xb) / 2, 72 + tw/2), W - 72 - tw/2)
+        put(im, lab, ASH_LABEL_SIZE, 700, col, cx=cx, cy=RULER_Y + 24, a=a)
 
 
 TIMER_SIZE = 46
@@ -1127,7 +1162,7 @@ def thumbnail():
 # --- 一覧型のサムネイル（第17弾と同じ作り） ---------------------------------------
 # パターンごとに (見せ始めの時刻, 点線の丸で囲む範囲[周期の中の時刻])。丸のないものは全体が特徴
 THUMB_VIEW = {i: (0.0, []) for i in range(N_PAT)}
-THUMB_VIEW[0] = (0.6, [])                                    # 発作性：洞調律から心房細動へ
+THUMB_VIEW[0] = (0.6, [])                                    # 始まり：洞調律から心房細動へ
 THUMB_VIEW[I_ASH] = (0.3, [(T_ASH - 0.10, T_ASH + 0.36)])    # アシュマン現象：幅の広い1拍
 THUMB_VIEW[I_TB] = (1.25, [])                                # 徐脈頻脈：細動 → 長い休み → 回復した洞調律（心停止に見えないよう）
 THUMB_MAX_MARKS = {I_ASH: 1}
