@@ -25,5 +25,7 @@
   - 渡すもの：依頼文（`review_request.md`）と等倍フレーム（`out/review_frames/*.png` または PDF）。根拠は LITFL の本文を curl で確かめる
   - 返す形はこれまでの Gemini と同じ：パターンごと・「とくに見てほしい点」ごとに 判定（OK／要修正／推奨）・理由・直し方（言い換えまで）。LITFL 以外の根拠は出典名を書く
   - 結果は各回の `review_result_MMDD-HHMM.md` に残し、ユーザーに要点を伝えてから直す
-  - **別会社のAI（Gemini）でのダブルチェックは続ける**：Claude のレビューで直したあと、直した版の PDF と依頼文を送り、
-    ユーザーが Gemini に見せる。依頼文には Claude のレビュー結果を入れない（先入観を与えず、別の目で見てもらうため）
+  - **別会社のAI（Gemini Pro Deep Think）でのダブルチェックも Claude がやる**：Claude のレビューで直したあと、
+    直した版の PDF と依頼文を、Claude が Chrome で Gemini に渡して結果をもらう（ユーザーにはさせない）。
+    依頼文には Claude のレビュー結果を入れない（先入観を与えず、別の目で見てもらうため）。
+    Chrome はユーザーの Mac のセッションでしか使えない。クラウドのセッションでは使えないので、手順は `docs/handoff_mac.md`
