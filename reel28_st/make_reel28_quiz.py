@@ -448,8 +448,16 @@ def pre_of(i):
     return PRE_OF.get(i, PRE)
 
 
+# 録音した声の、各文の長さ（秒。align_vo.py で切り出したあと＝前 0.06秒・うしろ 0.15秒の無音をふくむ）。
+# 2026-10-07 の録音（Ren – Smooth & Soothing・eleven_v4、1.2倍速）。`python3 align_vo.py out/vo/narration_raw.wav --lens` の値。
+# 答えのあとの長さ（声 ＋ 0.45秒）はこれに合わせる。考える時間 7秒は変えない
+VO_LEN = {'冒頭': 2.720, 'Q1': 3.353, 'Q2': 3.176, 'Q3': 3.270, 'Q4': 2.981, 'Q5': 4.351, 'Q6': 3.216, 'Q7': 2.829,
+          'Q8': 3.080, 'Q9': 3.600, 'Q10': 1.928, 'まとめ': 2.003, '保存': 1.388}
+
+
 def say_len(i):
-    return len(PATTERNS[i]['say']) / SAY_CPS
+    no = PATTERNS[i]['no']
+    return VO_LEN[no] if no in VO_LEN else len(PATTERNS[i]['say']) / SAY_CPS
 
 
 WINDOWS, T_REV, T_HINT = [], [], []

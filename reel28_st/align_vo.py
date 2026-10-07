@@ -6,11 +6,11 @@
 - 効果音は声の下で最大 8dB 下げる（サイドチェイン）
 
 使い方:
-    cp 録音.mp3 out/vo/narration_raw.mp3
-    python3 align_vo.py out/vo/narration_raw.mp3            # out/vo/mix.wav と配置表を作る
-    python3 align_vo.py out/vo/narration_raw.mp3 --mux      # 映像（out/reel28_quiz.mp4）に入れる
-    python3 align_vo.py out/vo/narration_raw.mp3 --mux --hq # 高画質版（out/reel28_quiz_hq.mp4）に入れる
-    python3 align_vo.py out/vo/narration_raw.mp3 --fix out/vo/narration_fix.mp3 --mux
+    python3 align_vo.py out/vo/narration_raw.wav            # out/vo/mix.wav と配置表を作る
+    python3 align_vo.py out/vo/narration_raw.wav --mux      # 映像（out/reel28_quiz.mp4）に入れる
+    python3 align_vo.py out/vo/narration_raw.wav --mux --hq # 高画質版（out/reel28_quiz_hq.mp4）に入れる
+    python3 align_vo.py out/vo/narration_raw.wav --lens     # 各文の長さ（make_reel28_quiz.py の VO_LEN に入れる）
+    python3 align_vo.py out/vo/narration_raw.wav --fix out/vo/narration_fix.mp3 --mux
         # 録り直した文（FIX_LINES）だけ、--fix のファイルから差し替える
 """
 import argparse
@@ -26,12 +26,12 @@ import make_reel28_quiz as m
 HERE = os.path.dirname(os.path.abspath(__file__))
 SR = 44100
 
-# 通し読みの「声のかたまり」（無音 0.25秒以上で区切ったもの）を、台本の文にまとめる。
-# 番号は 1 から。録音が届いたら、Whisper の書き起こしで順番と中身を確かめて直す
-# （読点で 0.25秒以上の間があると、1つの文が2つ以上のかたまりになる）。
-LINES = [('冒頭', [1])] + [(p['no'], [k + 2]) for k, p in enumerate(m.PATTERNS)] + [
-    ('まとめ', [len(m.PATTERNS) + 2]),         # 何問わかったか、コメントで教えてね。
-    ('保存', [len(m.PATTERNS) + 3]),           # 保存して、見返してね
+# 通し読みの「声のかたまり」（無音 0.25秒以上で区切ったもの）を、台本の文にまとめる。番号は 1 から。
+# 2026-10-07 の録音（Ren – Smooth & Soothing・eleven_v4、atempo=1.2 で 1.2倍速、40.27秒）は 24 かたまり：
+# 冒頭は「心電図クイズ。」「この10問、全部わかる？」、各問は「答えは、〇〇。」「特徴。」の2つずつ（Whisper で順番を確かめた）
+LINES = [('冒頭', [1, 2])] + [(p['no'], [2*k + 3, 2*k + 4]) for k, p in enumerate(m.PATTERNS)] + [
+    ('まとめ', [2*len(m.PATTERNS) + 3]),       # 何問わかったか、コメントで教えてね。
+    ('保存', [2*len(m.PATTERNS) + 4]),         # 保存して、見返してね
 ]
 # 録り直した文（--fix のファイルの声のかたまり番号。0.05秒未満のかたまり＝雑音は数えない）
 FIX_LINES = {}
@@ -109,6 +109,7 @@ def main():
     ap.add_argument('--fix', help='録り直した文のファイル（FIX_LINES の文を差し替える）')
     ap.add_argument('--mux', action='store_true')
     ap.add_argument('--hq', action='store_true', help='高画質版（out/reel28_quiz_hq.mp4）に入れる。音声 320k')
+    ap.add_argument('--lens', action='store_true', help='各文の長さ（切り出したあと）を書き出すだけ')
     o = ap.parse_args()
 
     blocks = speech_blocks(o.src)
@@ -127,6 +128,11 @@ def main():
         for name, ix in FIX_LINES.items():
             segs[name] = cut(fa, fb, ix, GAP_CAP.get(name))
             lens[name] = len(segs[name]) / SR
+    if o.lens:
+        print('VO_LEN = {' + ', '.join(f"'{n}': {lens[n]:.3f}" for n, _ in LINES) + '}')
+        return
+    for n, v in m.VO_LEN.items():
+        assert abs(v - lens[n]) < 0.002, f'{n} の長さが VO_LEN とちがう（{lens[n]:.3f} / {v}）。--lens の値を make_reel28_quiz.py に入れる'
     starts = plan(lens)
 
     # 検算：重なりと、言い終わりが次の場面に食いこまないか
