@@ -104,6 +104,7 @@ def qrs_rate(tc, ta=0.27):
 qrs_normal = qrs_rate(0.27)                 # 75〜80/分
 qrs_115 = qrs_rate(0.235)                   # 115〜120/分
 qrs_150 = qrs_rate(0.215, 0.25)             # 130〜150/分
+qrs_150h = qrs_rate(0.195, 0.25)            # ② 150/分の洞頻脈：T波を少し早く（QTが短くなる）して、T波の肩のP波のこぶを見やすく
 qrs_180 = qrs_rate(0.195, 0.22)             # 180〜200/分
 qrs_flut = qrs_rate(0.215, 0.08)            # 心房粗動：T波を小さめにして、粗動波が見えるように
 qrs_200 = qrs_rate(0.205, 0.17)             # 房室回帰性頻拍：T波の始まりに逆行性Pの切れこみ
@@ -140,7 +141,7 @@ def avrt_rp_ms():
 KINDS = {
     'N': (qrs_normal, p_sinus, 0.16),       # 前後の洞調律（75/分）
     'S': (qrs_115, p_sinus, 0.15),          # 洞頻脈（⑧の少しずつ変わる洞調律も）
-    'H': (qrs_150, p_sinus, 0.12),          # 速い洞頻脈（P波がT波に重なる）
+    'H': (qrs_150h, p_sinus, 0.12),         # 速い洞頻脈（P波がT波の下り坂に重なる。PRは変えない）
     'A': (qrs_150, p_ect, 0.14),            # 心房頻拍（形のちがうP'）
     'B': (qrs_150, p_ect, 0.22),            # ⑧ PSVTのきっかけのPAC（遅い道を通るのでPRが長い）
     'M1': (qrs_115, p_sinus, 0.16),         # 多源性心房頻拍：4つの形のP波・PRもばらばら
@@ -253,7 +254,7 @@ PATTERNS = [
          one='規則正しく速い。P波が見えない', tag='report',
          ev=[(k*SVT_RR, 'R') for k in range(12)], L=12*SVT_RR, hl=ALL),
     dict(no='⑧', name='始まり方：PSVTと洞頻脈', col=C_AVN, hint='突然か、少しずつか',
-         one='突然ならPSVT、少しずつなら洞頻脈', tag='rate',
+         one='突然はPSVT、少しずつは洞頻脈が多い', tag='rate',
          ev=OO_EV, L=OO_L, hl=ALL),
     dict(no='⑨', name='房室回帰性頻拍（順方向性）', col=C_AVN, hint='QRSの後にP',
          one='QRSのすぐあとに、逆向きのP波', tag='report',
@@ -592,15 +593,19 @@ def put(base, s, size, weight, col, cx=None, cy=None, x=None, a=1.0, max_w=None,
 
 
 def grid():
+    """背景のマス目：心電図用紙と同じ。波形と同じ 1mm＝14px（25mm/秒・10mm/mV）なので、
+    小さいマス 14px＝0.04秒・0.1mV、大きいマス 70px（5マスごとの太い線）＝0.2秒・0.5mV。
+    中部の帯の基線（F_BASE）が太い線に乗るように、横の線の位置をそろえる。"""
     im = Image.new('RGBA', (W, H), BG + (255,))
     d = ImageDraw.Draw(im)
-    pm = 31.5
+    pm = F_PXMM
+    y0 = F_BASE % (5*pm)
     for i in range(int(W/pm) + 2):
         x = round(i*pm)
         d.line([(x, 0), (x, H)], fill=(G_MAJOR if i % 5 == 0 else G_MINOR) + (255,),
                width=2 if i % 5 == 0 else 1)
-    for k in range(int(H/pm) + 2):
-        y = round(k*pm)
+    for k in range(-1, int(H/pm) + 2):
+        y = round(y0 + k*pm)
         d.line([(0, y), (W, y)], fill=(G_MAJOR if k % 5 == 0 else G_MINOR) + (255,),
                width=2 if k % 5 == 0 else 1)
     return im
@@ -846,7 +851,7 @@ HEADER_BASE = 372                   # 見出しのベースライン（y）
 TITLE_SUB = '心電図で気づく'
 TITLE = '頻脈'
 TITLE_2 = '幅の狭いQRS'
-END_1 = f'速い脈を見たら、この{len(PATTERNS)}パターン'
+END_1 = f'幅の狭い速い脈は、この{len(PATTERNS)}パターン'
 END_2 = '保存して見返してね'
 END_3 = '何個わかった？コメントで教えてね'
 ASK = f'この{len(PATTERNS)}個、全部わかる？'        # 冒頭0〜1秒の問いかけ
@@ -925,6 +930,8 @@ def draw_one(im, pat, a):
 
 
 C_HEART = (255, 92, 112)
+CNT_SUB_IRREG = '1拍ごとの値（モニターは平均）'
+CNT_SUB_GRAD = '別の場面の例・実際はもっとゆっくり'
 
 
 def draw_heart(im, cx, cy, size, col, a):
@@ -969,6 +976,14 @@ def draw_counter(im, t, cur, a):
     note = hr_note(k)
     if note:
         put(im, note, 26, 700, TAGS['rate'][1], x=xu + 22, cy=cy + 12, a=a)
+    # カウンターの下に小さく（まん中ぞろえ）：④⑤は拍ごとの値であること、⑧の洞調律は別の場面の例であること
+    sub = None
+    if PATTERNS[cur]['no'] in ('④', '⑤'):
+        sub = CNT_SUB_IRREG
+    elif PATTERNS[cur]['no'] == '⑧' and note and '少しずつ' in note:
+        sub = CNT_SUB_GRAD
+    if sub:
+        put(im, sub, 24, 600, GREY, cx=540, cy=cy + CNT_H/2 + 30, a=a, max_w=820)
 
 
 def frame(t):
@@ -1213,7 +1228,8 @@ def check():
     print('--- 各パターンの数値（モデルから） ---')
     print(f"① 洞頻脈：{rate(0.52):.0f}/分、PR {pr_ms('S'):.0f}ms、QRS {qrs_ms(qrs_115):.0f}ms")
     rp = 0.40 - KINDS['H'][2]
-    print(f"② 洞頻脈（P波がT波に重なる）：{rate(0.40):.0f}/分、P波の頂点は前のRから {rp:.2f}秒（T波の頂点 0.215秒、T波の終わり 約0.31秒）")
+    print(f"② 洞頻脈（P波がT波に重なる）：{rate(0.40):.0f}/分、PR {pr_ms('H'):.0f}ms、P波の頂点は前のRから {rp:.2f}秒"
+          f"（T波の頂点 0.195秒。P波の頂点まで {rp - 0.195:.3f}秒）")
     print(f"③ 心房頻拍：{rate(0.46):.0f}/分、P'（とがった二相性）PR {pr_ms('A'):.0f}ms、基線は平ら")
     rrs = MAT_RR
     print(f"④ 多源性心房頻拍：平均 {rate(np.mean(rrs)):.0f}/分（{rate(max(rrs)):.0f}〜{rate(min(rrs)):.0f}/分）、P波4種類、"

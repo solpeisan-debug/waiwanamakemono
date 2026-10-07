@@ -245,15 +245,15 @@ PATTERNS = [
     _pat('⑤', '高K：QRS幅の拡大', C_K2, '幅広いQRS',
          'QRSが幅広く、Tとつながる', 'report', RR_K4, 4, 'K4', ALL),
     _pat('⑥', '高K：サイン波', C_K3, 'なめらかな波',
-         'QRSとTが溶け合い、波打つ', 'arrest', RR_SW, 5, 'SW', ALL),
+         'QRSとTが溶けて波打つ', 'arrest', RR_SW, 5, 'SW', ALL),
     _pat('⑦', '低K：T波平低・U波', C_LOWK, 'U波が出る',
          'T波が低く、うしろにU波', 'lab', RR, 5, 'L1', (0.36, 0.60)),
     _pat('⑧', '低K（高度）', C_LOWK, 'ST低下・大きなU',
-         'STが下がり、U波がTより大きい', 'report', RR, 4, 'L2', (0.05, 0.62)),
+         'STが下がり、TとU波がつながる', 'report', RR, 4, 'L2', (0.05, 0.62)),
     _pat('⑨', '低Ca：ST延長', C_LONG, 'STが長い',
-         f'STが長い。QTc {QTC_C1}ms', 'lab', RR, 5, 'C1', (0.05, 0.50)),
+         f'STが長い。QTc {QTC_C1}ms', 'lab_report', RR, 5, 'C1', (0.05, 0.50)),
     _pat('⑩', 'QT延長（薬剤など）', C_LONG, 'T波が遅く広い',
-         f'T波が遅く広い。QTc {QTC_D1}ms', 'qtc', RR, 4, 'D1', (0.06, 0.55)),
+         f'T波が遅く広い。QTc {QTC_D1}ms', 'qtc_report', RR, 4, 'D1', (0.06, 0.55)),
     _pat('⑪', '高Ca：QT短縮', C_SHORT, 'STがほぼない',
          f'STがほぼない。QTc {QTC_C2}ms', 'lab', RR, 4, 'C2', (0.04, 0.30)),
 ]
@@ -626,6 +626,15 @@ GHOST_A = 0.40
 GHOST_W = 2.6
 
 
+def legend_alpha(t):
+    """帯の下の「うすい線＝①基準」：②〜⑪（⑥を除く）。⑥のサイン波の谷が字の位置（x 135〜330）を
+    通りすぎてから（区間の終わりが x 120 より左へ行ってから）また出す。"""
+    a = ramp(t, WINDOWS[1][0] + 0.5, 0.3) * (1 - ramp(t, T_END + FLY - 0.4, 0.4))
+    a6 = WINDOWS[SINE_I][0]
+    back = t_of(SEGS[SINE_I][1] + (XC - 120) / F_PXS)
+    return a * (1 - ramp(t, a6, 0.3) * (1 - ramp(t, back, 0.3)))
+
+
 def ghost_alpha(t):
     """ゴーストを出す濃さ（0〜1）：②から最後のパターンまで。⑥のあいだは 0。"""
     a = ramp(t, WINDOWS[1][0], 0.4) * (1 - ramp(t, T_END + FLY - 0.4, 0.4))
@@ -772,7 +781,7 @@ HEADER_BASE = 372                   # 見出しのベースライン（y）
 NOTE1 = '実際の速さ（基準の拍は60/分）'
 NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
-END_LINE = '高カリウムは、軽く見えても急変しうる'
+END_LINE = '高カリウムは、波形が軽く見えても急変しうる'
 SAVE_LINE = '保存して見返してね'
 COMMENT_LINE = '何個わかった？コメントで教えてね'
 HOOK_Q = 'この変化、気づける？'
@@ -817,9 +826,10 @@ ONE_W = 760                         # ひとこと＋色の文字の幅の上限
 TAGS = {
     'base': ('→ くらべる基準', (130, 232, 172)),
     'report': ('→ すぐ報告', (255, 196, 64)),
-    'arrest': ('→ 心停止に備える', (255, 96, 96)),
+    'arrest': ('→ 脈を確認・応援を呼ぶ', (255, 96, 96)),
     'lab': ('→ 採血の値も確認', (110, 200, 255)),
-    'qtc': ('→ 12誘導でQTc確認', (196, 170, 255)),
+    'lab_report': ('→ 報告・採血も確認', (110, 200, 255)),      # QTc 500ms 超（⑨）
+    'qtc_report': ('→ 12誘導で確認・報告', (196, 170, 255)),    # QTc 500ms 超（⑩）
 }
 
 
@@ -851,7 +861,7 @@ def one_size(pat):
 
 # 高Kの進み具合ゲージ（②〜⑥）。左の余白（ミニ波形の枠の左、x 72〜128）に縦に。Kの数値は書かない
 GAUGE_X, GAUGE_W = 96, 16
-GAUGE_Y0, GAUGE_Y1 = 420, 722          # 上（重い）〜 下（軽い）
+GAUGE_Y0, GAUGE_Y1 = 420, 736          # 上（進む）〜 下（はじめ）。下の字は③の枠の下端（746）より下に置く
 K_STAGES = [1, 2, 3, 4, 5]             # ②〜⑥ のパターン番号（0始まり）
 
 
@@ -887,8 +897,10 @@ def draw_gauge(im, t, a):
         im.alpha_composite(glow)
     im.alpha_composite(lay)
     put(im, '高K', 21, 800, C_K1, cx=GAUGE_X, cy=GAUGE_Y0 - 54, a=a)
-    put(im, '重い', 20, 700, C_K3 if lev > 0.999 else GREY, cx=GAUGE_X, cy=GAUGE_Y0 - 22, a=a)
-    put(im, '軽い', 20, 700, GREY, cx=GAUGE_X, cy=GAUGE_Y1 + 24, a=a)
+    put(im, '進む', 20, 700, C_K3 if lev > 0.999 else GREY, cx=GAUGE_X, cy=GAUGE_Y0 - 22, a=a)
+    # 「はじめ」は3字で幅があるので、左72px以上・枠の下（y 750 より下）に置く
+    w0 = text_img('はじめ', 19, 700, GREY)[0].size[0] - 8
+    put(im, 'はじめ', 19, 700, GREY, cx=max(GAUGE_X, 73 + w0/2), cy=GAUGE_Y1 + 28, a=a)
 
 
 def frame(t):
@@ -931,7 +943,7 @@ def frame(t):
         draw_one(im, pat, al)
 
     # ②③のあいだ、帯の下に「うすい線＝①基準」
-    a_leg = ramp(t, WINDOWS[1][0] + 0.5, 0.3) * (1 - ramp(t, WINDOWS[2][1] - 0.25, 0.25)) * keep
+    a_leg = legend_alpha(t) * keep
     put(im, GHOST_LEGEND, 24, 700, GHOST_COL, x=135, cy=LEGEND_Y, a=a_leg*0.9)
 
     # 高Kの進み具合ゲージ：②の名前が出るころから、⑥が縮んで枠に入るまで
@@ -1010,7 +1022,7 @@ THUMB_VIEW[8] = (-0.45, [(0.05, 0.47)])                  # 長いST
 THUMB_VIEW[10] = (-0.45, [(0.04, 0.27)])                 # 短いST-T
 THUMB_MAX_MARKS = {}
 THUMB_DESC = ['くらべる基準', 'Tがとがる', '', '遅い', '幅広いQRS', '波打つ',
-              'U波が出る', 'ST低下・大きなU', 'STが長い', 'Tが遅い', 'STがほぼない']
+              'U波が出る', 'ST低下・大きなU', 'STが長い', 'Tが広い', 'STがほぼない']
 
 
 def dashed_ellipse(d, box, col, dash=6, gap=5, width=2):
