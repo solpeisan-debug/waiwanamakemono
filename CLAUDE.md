@@ -10,6 +10,13 @@
 - チャットで送れるのは30MBまで。高画質版はGitHubの各回の `release/` に置いてリンクを渡す
   - チャットで映像を送るときは、それが「通常版（高画質版ではない）」ことと、高画質版がいつ・どこに届くかを必ず書く。
     投稿に使ってよいかも一言そえる（高画質版を待つか、通常版で出してよいか）
+- **完成素材は Google ドライブにも入れる**（2026-10-07 から）：`【みんなの看護】③シームレス波形リール案`（id `1Tcbidrst1CHnU3sXjVJi16xPWq92_tNH`）
+  - `01_投稿待ち`（`1tr33xschDUEE2WhmDcztXQQfuWPE17TA`）に回ごとのフォルダ `第◯弾_テーマ`：`第◯弾_テーマ_投稿用_高画質.mp4`・`第◯弾_テーマ_サムネイル.png`・`第◯弾_テーマ_キャプション`（Googleドキュメント）
+  - `02_投稿済み`（`1DK_71QI_3x3OB0_wK4_d5R0uv9ylJZDK`）、`03_サムネイル（全回）`（`1wBN6ltemc0Fa7J-2hg9HecwM4ZCssX-Y`）にもサムネイル
+  - 動画・画像は `tools/drive_upload.py`（ユーザーの Apps Script 窓口経由の再開可能アップロード。50MB 超も可）。
+    窓口URL：`https://script.google.com/macros/s/AKfycbwz-Bfs64tE-NLql3GdvR0e1t9cb5wiMZZIAvbBHcsGOwrtfYyCx5zYbrkjJEbO9YA/exec`。
+    合言葉（KEY）は Drive の `99_Claude用アップロード設定（消さないでください）` を Drive コネクタで読み、環境変数 `GDRIVE_UP_KEY` で渡す（リポジトリ・チャットに書かない）
+  - キャプションは Drive コネクタの `create_file`（textContent・text/plain → Googleドキュメントに変換）。`read_file_content` では絵文字が化けて見えるが、中身は正しい（`download_file_content` の text/plain 書き出しで確かめる）
 - ナレーションでは「すぐ報告」と言わない（画面の赤い「→ すぐ報告」とキャプションで伝える）
 - 医学的な根拠は LITFL が第一。LITFL以外を使うときは、出典を確認して書く
 - 専門医レビューには「等倍フレームPDF＋依頼文（台本・キャプション入り）」を渡す（各回の `make_review_pdf.py`）
