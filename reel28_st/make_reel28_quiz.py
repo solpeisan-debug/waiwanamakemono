@@ -47,8 +47,8 @@ W, H = 1080, 1920
 SLOW = 1.0                        # 実際の速さ
 
 BG = (2, 7, 6)
-G_MINOR = (13, 26, 21)
-G_MAJOR = (34, 56, 46)
+G_MINOR = (8, 17, 14)             # 方眼の細い線（1mm＝14px）。線が多くなったぶん、前（31.5px間隔）より薄く（第26弾と同じ）
+G_MAJOR = (27, 46, 38)            # 方眼の太い線（5mm＝70px＝0.2秒）
 WHITE = (236, 241, 240)
 GREY = (150, 160, 162)
 DIM = (70, 82, 82)
@@ -726,15 +726,19 @@ def put(base, s, size, weight, col, cx=None, cy=None, x=None, a=1.0, max_w=None,
 
 
 def grid():
+    """背景のマス目：心電図用紙と同じ。波形と同じ 1mm＝14px（25mm/秒・10mm/mV）なので、
+    小さいマス 14px＝0.04秒・0.1mV、大きいマス 70px（5マスごとの太い線）＝0.2秒・0.5mV（第24〜26弾と同じ）。
+    中部の帯の基線（F_BASE）が太い線に乗るように、横の線の位置をそろえる。"""
     im = Image.new('RGBA', (W, H), BG + (255,))
     d = ImageDraw.Draw(im)
-    pm = 31.5
+    pm = F_PXMM
+    y0 = F_BASE % (5*pm)
     for i in range(int(W/pm) + 2):
         x = round(i*pm)
         d.line([(x, 0), (x, H)], fill=(G_MAJOR if i % 5 == 0 else G_MINOR) + (255,),
                width=2 if i % 5 == 0 else 1)
-    for k in range(int(H/pm) + 2):
-        y = round(k*pm)
+    for k in range(-1, int(H/pm) + 2):
+        y = round(y0 + k*pm)
         d.line([(0, y), (W, y)], fill=(G_MAJOR if k % 5 == 0 else G_MINOR) + (255,),
                width=2 if k % 5 == 0 else 1)
     return im
