@@ -53,3 +53,4 @@ for d in reel24_tachy reel25_lytes reel26_afl reel28_st; do cp -R reel21_arrest/
 - 01_投稿待ち `1tr33xschDUEE2WhmDcztXQQfuWPE17TA` ／ 02_投稿済み `1DK_71QI_3x3OB0_wK4_d5R0uv9ylJZDK` ／ 03_サムネイル（全回） `1wBN6ltemc0Fa7J-2hg9HecwM4ZCssX-Y`
 - 第24弾 `1PXFG0OVqdCEZti64gzagv8plKFOhSymA` ／ 第25弾 `1hdIg3psLaTX4MKsH3v7NQ28r0OuwpM4r` ／ 第26弾 `1ChqPMe-oeffB5reczB5Bd5GRE0nycrht`
 - 第27弾 `1nJc966AV1YmV3akCadweP3dYesCMw4e2` ／ 第28弾 `1pfAssCPgoKcDBVu9s5xNgZ34ZDw8I2TF`
+- 第21弾v2_致死性不整脈 `1_X_-znWpjeNyjaVtp6VdIRFyV8Oy3yx_`（高画質・サムネイル・キャプション入り。Gemini チェックはまだ）
