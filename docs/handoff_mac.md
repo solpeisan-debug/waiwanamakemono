@@ -32,6 +32,10 @@ for d in reel24_tachy reel25_lytes reel26_afl reel28_st; do cp -R reel21_arrest/
 | 第25弾 高Kと電解質 | `reel25_lytes/release/review_reel25_frames.pdf` | `reel25_lytes/review_request.md` |
 | 第26弾 心房細動・粗動 | `reel26_afl/release/review_reel26_frames.pdf` | `reel26_afl/review_request.md` |
 | 第27弾 見分けマップ③ | `map_decision/release/review_map3_frames.pdf` | `map_decision/review_request_map3.md` |
+| 第21弾v2 致死性不整脈 見るのは5か所（作り直し） | `reel21_v2/release/review_reel21v2_frames.pdf` | `reel21_v2/review_request.md` |
+
+- 第21弾v2 は、Claude のレビュー（`reel21_v2/review_result_1009.md`）で直した版を渡す。依頼文に Claude のレビュー結果は入れない
+- 第21弾v2 の画面とキャプションには「報告」を書かない（ユーザーの方針。看護師の仕事は報告だけではないため）。Gemini が「報告を足す」と言っても、そこは直さずユーザーに伝えるだけにする
 
 3. 返ってきた全文を `review_result_gemini_MMDD.md`（第27弾は `map_decision/review_result_map3_gemini_MMDD.md`）に保存
 4. 要修正・推奨をユーザーに短く伝え、`CLAUDE.md` の流れで直す（Claude のレビューと食いちがう点は、どちらの根拠が LITFL に合うかで決める）
