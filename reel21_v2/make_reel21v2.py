@@ -87,6 +87,14 @@ def qrs_pvc(t):                   # PVC（形A）：幅の広いQRS、逆向き�
             - 0.38*_ga(t, 0.25, 0.058, 0.045))
 
 
+def qrs_vt_rs(t):                 # 単形性VTのQRS（R＋S）。幅 約190ms（LITFL：VTはふつう 160ms をこえる。専門医レビュー 2026-10-09）
+    return 0.95*_ga(t, 0.0, 0.026, 0.021) - 0.55*_g(t, 0.070, 0.025)
+
+
+def qrs_vt(t):                    # 単形性VTの1拍：幅の広いQRS＋逆向きのST-T
+    return qrs_vt_rs(t) - 0.38*_ga(t, 0.27, 0.058, 0.045)
+
+
 def qrs_pvc2(t):                  # PVC（形B）：下向きのQRS、上向きのT（多形性VT用）
     return (-0.80*_ga(t, 0.01, 0.022, 0.026) + 0.25*_g(t, 0.075, 0.020)
             + 0.36*_ga(t, 0.26, 0.060, 0.045))
@@ -105,7 +113,8 @@ def qrs_escape(t):                # 遅く幅の広いQRS（120ms以上）、逆
 KINDS = {
     'N': (qrs_normal, p_sinus, PR),         # 洞調律の1拍（PEAでも同じ形）
     'Q': (qrs_longqt, p_sinus, PR),         # QT延長の洞調律
-    'V': (qrs_pvc, None, 0.0),              # 心室頻拍の1拍（幅の広いQRS）
+    'V': (qrs_pvc, None, 0.0),              # PVC（幅の広いQRS。ショートラン・R on T）
+    'X': (qrs_vt, None, 0.0),               # 単形性VTの1拍（もっと幅の広いQRS）
     'W': (qrs_escape, None, 0.0),           # 遅く幅の広いQRS
     'P': (None, p_sinus, 0.0),              # P波だけ
 }
@@ -187,6 +196,10 @@ def art_asys(rel, L):                      # 心静止：ほぼまっすぐ（�
     return band_noise(rel, L, 0.25, 1.5, 0.012, 26)
 
 
+SR_SHIFT = 1.2                    # ショートランの拍の並びをずらす長さ（秒）
+RONT_C = 0.36                     # R on T：直前のRから PVC の頂点まで（秒）。T波（頂点 0.27秒・終わり 約0.42秒）の下りに乗る
+
+
 # --- 12パターン（見る場所の順） --------------------------------------------------
 # key：中の呼び名（画面には出さない）。place：見る場所（PLACES の番号）。
 # act：次の対応（docs/reel21_v2_spec.md の文言そのまま。「 ／ 」で2つの対応）。
@@ -196,44 +209,49 @@ def art_asys(rel, L):                      # 心静止：ほぼまっすぐ（�
 # 波形：1周期ぶんの拍（R頂点の時刻, 種類）と周期の長さ L、連続した波形 art・倍率 gain、色を付ける範囲 hl（第21弾と同じ）
 PATTERNS = [
     dict(key='モビッツII', place=0, name='モビッツII型',
-         act='→ 意識・血圧・胸痛・息苦しさ等確認。要すればペーシングのパッド着用',
-         lines=[('→ 意識・血圧・胸痛・息苦しさ等確認。', False), ('要すればペーシングのパッド着用', True)],
-         narr='PとQRSのつながり。突然QRSが抜ける、モビッツII型。',
+         act='→ 意識・血圧・胸痛・息苦しさ等確認。ペーシングに備えてパッド装着',
+         lines=[('→ 意識・血圧・胸痛・息苦しさ等確認。', False), ('ペーシングに備えてパッド装着', True)],
+         narr='PとQRSのつながり。PRは一定のまま、突然QRSが抜ける、モビッツII型。',
          ev=[(0.16, 'N'), (0.96, 'N'), (1.76, 'N'), (2.4, 'P')], L=3.2, hl=[(2.30, 2.52)]),
     dict(key='完全房室ブロック', place=0, name='完全房室ブロック',
-         act='→ 意識・血圧・胸痛・息苦しさ等確認。要すればペーシングのパッド着用',
-         lines=[('→ 意識・血圧・胸痛・息苦しさ等確認。', False), ('要すればペーシングのパッド着用', True)],
+         act='→ 意識・血圧・胸痛・息苦しさ等確認。ペーシングに備えてパッド装着',
+         lines=[('→ 意識・血圧・胸痛・息苦しさ等確認。', False), ('ペーシングに備えてパッド装着', True)],
          narr='PとQRSが別々に動く、完全房室ブロック。',
-         ev=[(k*0.68, 'P') for k in range(10)] + [(0.3 + k*1.7, 'W') for k in range(4)], L=6.8, hl=ALL,
-         trim=0.2),
+         ev=[(k*0.68, 'P') for k in range(10)] + [(0.3 + k*1.7, 'W') for k in range(4)], L=6.8, hl=ALL),
     dict(key='ショートラン', place=1, name='ショートラン',
          act='→ 症状を見て、12誘導。QT、K・Mgなどを確認',
          lines=[('→ 症状を見て、12誘導。QT、K・Mgなどを確認', False)],
-         narr='次は、QRSの幅と形。幅広いQRSが3つ以上、ショートラン。',
-         ev=[(0, 'N'), (0.8, 'N'), (1.28, 'V'), (1.66, 'V'), (2.04, 'V'), (3.2, 'N')], L=4.0, hl=[(1.19, 2.46)]),
+         narr='次は、QRSの幅と形。幅広いQRSが3つ以上続いて、自然に止まる。ショートラン。',
+         # 第21弾と同じ拍の並び（周期 4.0秒）を 1.2秒うしろへずらしたもの（洞調律3拍 → PVC 3連）。
+         # 区間を長くしても、縮んで枠へ移るときに3連が見えている範囲に入るように
+         ev=sorted(((r + SR_SHIFT) % 4.0, k) for r, k in
+                   [(0, 'N'), (0.8, 'N'), (1.28, 'V'), (1.66, 'V'), (2.04, 'V'), (3.2, 'N')]),
+         L=4.0, hl=[(1.19 + SR_SHIFT, 2.46 + SR_SHIFT)]),
     dict(key='単形性VT', place=1, name='単形性VT',
-         act='→ 脈あり：意識・血圧・胸痛・息苦しさ等確認。要すればパッド着用 ／ → 脈なしなら人を呼ぶ。CPR＋電気ショック',
-         lines=[('→ 脈あり：意識・血圧・胸痛・息苦しさ等確認。', False), ('要すればパッド着用', True),
+         act='→ 脈あり：意識・血圧・胸痛・息苦しさ等確認。パッド装着 ／ → 脈なしなら人を呼ぶ。CPR＋電気ショック',
+         lines=[('→ 脈あり：意識・血圧・胸痛・息苦しさ等確認。', False), ('パッド装着', True),
                 ('→ 脈なしなら人を呼ぶ。CPR＋電気ショック', False)],
          narr='速く、幅広く、同じ形。単形性VT。脈のあるなしで、動きが分かれる。',
-         ev=[(k*0.32, 'V') for k in range(15)], L=4.8, hl=ALL),
+         ev=[(k*0.32, 'X') for k in range(15)], L=4.8, hl=ALL),
     dict(key='多形性VT', place=1, name='多形性VT',
-         act='→ 脈なし：CPR＋電気ショック ／ → 脈あり：人を呼び、要すればパッド着用（続けば脈があってもショック）',
-         lines=[('→ 脈なし：CPR＋電気ショック', False), ('→ 脈あり：人を呼び、要すればパッド着用', False),
+         act='→ 脈なし：CPR＋電気ショック ／ → 脈あり：人を呼び、パッド装着（続けば脈があってもショック）',
+         lines=[('→ 脈なし：CPR＋電気ショック', False), ('→ 脈あり：人を呼び、パッド装着', False),
                 ('（続けば脈があってもショック）', True)],
          narr='形が毎回変わる、多形性VT。',
          ev=[], L=POLY_L, art=art_poly, hl=ALL),
     dict(key='トルサード', place=1, name='トルサード・ド・ポワント',
          act='→ 脈なし：CPR＋電気ショック ／ → 止まっても12誘導。QT、K・Mgなどを確認',
          lines=[('→ 脈なし：CPR＋電気ショック', False), ('→ 止まっても12誘導。QT、K・Mgなどを確認', False)],
-         narr='ねじれる、トルサード。止まっても、QTを確認。',
+         narr='ねじれる、トルサード。止まっても、くり返す。',
          ev=[(0, 'Q'), (1.0, 'Q'), (4.6, 'Q')], L=5.6, art=art_tdp, gain=gain_tdp,
          hl=[(TDP_A - 0.1, TDP_B + 0.1)]),
     dict(key='R on T', place=2, name='R on T',
          act='→ 12誘導。QT、K・Mgなどを確認。除細動器を近くに',
          lines=[('→ 12誘導。QT、K・Mgなどを確認。', False), ('除細動器を近くに', True)],
          narr='T波の上。T波に乗るPVC、R on T。',
-         ev=[(0, 'N'), (0.8, 'N'), (0.8 + 0.27, 'V'), (2.4, 'N')], L=3.2, hl=[(0.8 + 0.18, 0.8 + 0.27 + 0.42)]),
+         # PVC は直前のRから RONT_C 秒。T波の頂点（0.27秒）を過ぎた下りに乗せ、乗られたT波の山が見えるようにした
+         # （第21弾は 0.27秒ちょうどで、T波がPVCに隠れて見えなかった。専門医レビュー 2026-10-09）
+         ev=[(0, 'N'), (0.8, 'N'), (0.8 + RONT_C, 'V'), (2.4, 'N')], L=3.2, hl=[(0.8 + 0.14, 0.8 + RONT_C + 0.42)]),
     dict(key='粗いVF', place=3, name='粗いVF',
          act='→ 反応を確認し、人を呼んでCPR＋電気ショック',
          lines=[('→ 反応を確認し、人を呼んでCPR＋電気ショック', False)],
@@ -245,9 +263,10 @@ PATTERNS = [
          narr='小さな揺れでも、VFならショック。細かいVF。',
          ev=[], L=4.0, art=art_vf_fine, hl=ALL),
     dict(key='心静止', place=3, name='心静止',
-         act='→ 人を呼び、すぐCPR（ショックはしない）。並行して電極外れ・感度を確認',
-         lines=[('→ 人を呼び、すぐCPR（ショックはしない）。', False), ('並行して電極外れ・感度を確認', True)],
-         narr='ほぼまっすぐ、心静止。すぐCPR。',
+         act='→ 反応がなければ人を呼び、すぐCPR（ショックはしない）。並行して電極外れ・感度を確認',
+         lines=[('→ 反応がなければ人を呼び、', False), ('すぐCPR（ショックはしない）。', True),
+                ('並行して電極外れ・感度を確認', True)],
+         narr='ほぼまっすぐ、心静止。反応がなければ、すぐCPR。',
          ev=[], L=4.0, art=art_asys, hl=ALL),
     dict(key='PEA1', place=4, name='PEA（ふつうに見える）',
          act='→ 脈なしなら人を呼ぶ。すぐCPR（ショックはしない）、原因（4H4T）を確認',
@@ -288,23 +307,24 @@ def art_apply(pat, rel, v):
 # 録音したら align_vo.py の配置を見て、声の長さ＋0.75秒（話し始めるまで 0.55秒＋次までの間 0.2秒）に合わせて詰め直す。
 # 下限は (1) 見積もった声の長さ＋0.75秒 (2) 次の対応を読む時間（1字 0.12秒、最低 4秒）の大きいほう（--check で確かめる）。
 # そのうえで、拍の並びがくずれない位置で切る（つなぎ目は --check で表示）：
-# - モビッツII 4.8：P-P 0.8秒の倍数。次の完全房室ブロックの最初のP波まで P-P 0.8秒。
-#   縮んで枠へ移るとき見えている範囲（区間の 1.36〜4.45秒）に、伝わらなかったP波（2.4秒）が入る
-# - 完全房室ブロック 4.92：3つめの補充調律（3.7秒）のT波のあと。区間の終わり 0.2秒（trim）にかかるP波（4.76秒）は置かず、
-#   次のショートランの最初のP波（4.76秒）が、心房のP-P 0.68秒の続きの位置に来る。R-R は 3.7 → 4.92秒（1.22秒）
-# - ショートラン 4.4：周期 4.0秒（洞調律の拍の位置）の次の洞調律（4.0秒）のあと 0.4秒で単形性VTが始まる。
-#   見えている範囲（0.96〜4.05秒）に3連のPVC（1.28〜2.04秒）が入る
-# - 単形性VT 6.4：VTの拍の間隔 0.32秒の倍数（20拍）
-# - 多形性VT・粗いVF・細かいVF・心静止：連続した波形なのでどこで切ってもよい（端0.2秒でなめらかにつなぐ）
+# - モビッツII 5.6：P-P 0.8秒の倍数。次の完全房室ブロックの最初のP波まで P-P 0.8秒（R-R は 4.96 → 5.9秒）。
+#   縮んで枠へ移るとき見えている範囲（区間の 2.16〜5.25秒）に、伝わらなかったP波（2.4秒）が入る
+# - 完全房室ブロック 4.52：3つめの補充調律（3.7秒）のT波のあと、次のP波（4.76秒）の手前。
+#   次のショートランの最初のP波（区間の 0.24秒）が、心房のP-P 0.68秒の続きの位置（4.76秒）に来る。R-R は 3.7 → 4.92秒（1.22秒）
+# - ショートラン 5.6：拍の並びを 1.2秒ずらした周期（SR_SHIFT）の、洞調律（5.2秒）のあと 0.4秒で単形性VTが始まる。
+#   見えている範囲（2.16〜5.25秒）に3連のPVC（2.48〜3.24秒）が入る
+# - 単形性VT 6.08：VTの拍の間隔 0.32秒の倍数（19拍）
+# - 多形性VT・粗いVF・細かいVF・心静止：連続した波形なのでどこで切ってもよい（端0.2秒でなめらかにつなぐ）。
+#   心静止 5.1 は次の対応（3行）を読む時間から
 # - トルサード 5.6：トルサードが止まり、洞調律に戻ったところ（1周期）。次の R on T の最初の拍まで 1.0秒
-# - R on T 4.8：周期 3.2秒のあと、2つめのR on T（4.27秒）が乗り、そのT波のあと（0.53秒）に粗いVFが始まる
+# - R on T 4.8：周期 3.2秒のあと、2つめのR on T（4.36秒）が乗り、そのT波のあと（0.44秒）に粗いVFが始まる
 #   （R on T から VF へ。見えている範囲（1.36〜4.45秒）に2つめのR on T が入る）
 # - PEA（ふつうに見える）5.25：拍の間隔 0.75秒の倍数。次の PEA（遅く幅広い）の最初のQRSまで 1.05秒
 # - PEA（遅く幅広い）4.8：2つめと3つめのQRS（2.3・4.3秒）が見えている範囲（1.36〜4.45秒）に入る。
 #   うしろの洞調律は区間の終わりから 0.96秒（TAIL_OFF）で始める（4.3秒のQRSから 1.46秒）
 # 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
-SEG_D = {'モビッツII': 4.8, '完全房室ブロック': 4.92, 'ショートラン': 4.4, '単形性VT': 6.4, '多形性VT': 6.0,
-         'トルサード': 5.6, 'R on T': 4.8, '粗いVF': 4.0, '細かいVF': 4.0, '心静止': 4.2, 'PEA1': 5.25, 'PEA2': 4.8}
+SEG_D = {'モビッツII': 5.6, '完全房室ブロック': 4.52, 'ショートラン': 5.6, '単形性VT': 6.08, '多形性VT': 6.0,
+         'トルサード': 5.6, 'R on T': 4.8, '粗いVF': 4.0, '細かいVF': 4.0, '心静止': 5.1, 'PEA1': 5.25, 'PEA2': 4.8}
 SPEAK_CPS = 8.5                   # 【仮】声の速さ（字/秒、1.2倍速のあと）
 READ_S_PER_CHAR = 0.12            # 次の対応を読む時間（字あたり）
 READ_MIN = 4.0
@@ -540,6 +560,29 @@ def font(size, weight):
     return _FONTS[k]
 
 
+# 閉じかっこのすぐあとの句読点（「）。」「）、」）は、全角の空きで離れて見えるので、字の幅の KERN ぶん詰める
+# （専門医レビュー 2026-10-09：「（ショックはしない）　。」のように見える）
+KERN_PAIRS = ('）。', '）、')
+KERN = 0.45
+
+
+def _layout(f, s, sz):
+    """文字列を「）」と句読点のあいだで切った部品と、それぞれの左端（詰めたあと）、全体の bbox。"""
+    pieces, start = [], 0
+    for i in range(len(s) - 1):
+        if s[i:i+2] in KERN_PAIRS:
+            pieces.append(s[start:i+1]); start = i + 1
+    pieces.append(s[start:])
+    offs, x = [], 0.0
+    for j, pc in enumerate(pieces):
+        offs.append(x)
+        x += f.getlength(pc) - (KERN*sz if j + 1 < len(pieces) else 0.0)
+    boxes = [f.getbbox(pc) for pc in pieces]
+    x0 = min(o + b[0] for o, b in zip(offs, boxes)); x1 = max(o + b[2] for o, b in zip(offs, boxes))
+    y0 = min(b[1] for b in boxes); y1 = max(b[3] for b in boxes)
+    return pieces, offs, (int(math.floor(x0)), y0, int(math.ceil(x1)), y1)
+
+
 def text_img(s, size, weight, col, max_w=None):
     k = (s, size, weight, col, max_w)
     if k in _TXT:
@@ -547,13 +590,15 @@ def text_img(s, size, weight, col, max_w=None):
     sz = size
     while True:
         f = font(sz, weight)
-        x0, y0, x1, y1 = f.getbbox(s)
+        pieces, offs, (x0, y0, x1, y1) = _layout(f, s, sz)
         if max_w is None or (x1 - x0) <= max_w or sz <= 16:
             break
         sz -= 1
     asc, desc = f.getmetrics()
     im = Image.new('RGBA', (x1 - x0 + 8, asc + desc + 8), (0, 0, 0, 0))
-    ImageDraw.Draw(im).text((4 - x0, 4), s, font=f, fill=col + (255,))
+    d = ImageDraw.Draw(im)
+    for pc, o in zip(pieces, offs):
+        d.text((4 - x0 + o, 4), pc, font=f, fill=col + (255,))
     _TXT[k] = (im, asc)
     return _TXT[k]
 
@@ -899,8 +944,9 @@ TITLE = '致死性不整脈'
 TITLE_SUB = [('見るのは', 1.0, WHITE), ('5', 1.35, YEL), ('か所', 1.0, WHITE)]
 END_ASK = 'どこを見落としやすい？コメントで教えてね'
 END_SAVE = '保存して見返してね'
-NOTE1 = '実際の速さ（ふつうの拍は75/分）'
+NOTE1 = '実際の速さ（25mm/秒）'
 NOTE2 = '※数値はこの波形での一例'
+NOTE_CY = (1560, 1586)              # 注記の字の中心（字は y 1549〜1599。下の枠の下端 1544 と、y 1600 のあいだ）
 WATERMARK = '@nurse_polarbearden'
 MARGIN = 130
 
@@ -1067,8 +1113,9 @@ def frame(t, watermark=True):
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
 
-    put(im, NOTE1, 24, 400, GREY, x=135, cy=1567, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, NOTE2, 24, 400, GREY, x=135, cy=1594, a=0.85*ramp(t, T_GO, 0.5)*keep)
+    # 注記は y 1600 より上に（インスタのリール画面の下のほうは、名前とキャプションが重なる）
+    put(im, NOTE1, 24, 400, GREY, x=135, cy=NOTE_CY[0], a=0.85*ramp(t, T_GO, 0.5)*keep)
+    put(im, NOTE2, 24, 400, GREY, x=135, cy=NOTE_CY[1], a=0.85*ramp(t, T_GO, 0.5)*keep)
     if watermark:
         put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
     return im.convert('RGB')
@@ -1099,9 +1146,9 @@ def thumbnail():
 
 
 # --- 検算 ------------------------------------------------------------------------
-def _qrs_ms(f):
-    tt = np.arange(-0.2, 0.2, 0.0005)
-    v = f(tt); m = (np.abs(v) > 0.05) & (tt < 0.12)
+def _qrs_ms(f, lim=0.12):
+    tt = np.arange(-0.2, 0.3, 0.0005)
+    v = f(tt); m = (np.abs(v) > 0.05) & (tt < lim)
     return (tt[m].max() - tt[m].min()) * 1000
 
 
@@ -1228,6 +1275,9 @@ def check():
     print(f'冒頭：名前の下端 {hook_bot} / 変形した波の上端 {hook_top:.1f}')
     ok &= hook_top - hook_bot >= 6
     # 最後の文字は下の枠より上
+    n1, n2 = text_box(NOTE1, 24, 400, NOTE_CY[0]), text_box(NOTE2, 24, 400, NOTE_CY[1])
+    print(f'注記：{n1[0]}〜{n2[1]}（下の枠の下端 {BOT_Y[-1] + CELL_H}、1600 以下）')
+    ok &= n1[0] > BOT_Y[-1] + CELL_H and n2[1] <= 1600 and n2[0] >= n1[1] - 1
     end_bot = text_box(END_SAVE, 40, 800, END_Y_SAVE)[1]
     print(f'最後：保存の字の下端 {end_bot}（下の枠 {_BOT_TOP}）')
     ok &= end_bot <= _BOT_TOP - 20
@@ -1245,10 +1295,10 @@ def check():
     print(f'  モビッツII型：PR {PR:.2f}秒で一定、4つめのP波が伝わらない（4:3）')
     print(f'  完全房室ブロック：心房 {60/0.68:.0f}/分、心室 {60/1.7:.0f}/分（幅の広い補充調律、QRS {_qrs_ms(qrs_escape):.0f}ms）')
     print(f'  ショートラン：3連、間隔 0.38秒（{60/0.38:.0f}/分）')
-    print(f'  単形性VT：{60/0.32:.0f}/分、QRS幅 {_qrs_ms(qrs_pvc):.0f}ms')
+    print(f'  単形性VT：{60/0.32:.0f}/分、QRS幅 {_qrs_ms(qrs_vt_rs, 0.3):.0f}ms（ショートラン・R on T のPVCは {_qrs_ms(qrs_pvc):.0f}ms）')
     print(f'  多形性VT：約{60*POLY_N/POLY_L:.0f}/分')
     print(f'  トルサード：QT延長の洞調律（60/分）→ {TDP_B-TDP_A:.2f}秒、約{TDP_F*60:.0f}/分 → 自然に止まる')
-    print('  R on T：洞調律 75/分、PVCは直前のRから 0.27秒（T波の頂点）')
+    print(f'  R on T：洞調律 75/分、PVCは直前のRから {RONT_C:.2f}秒（T波の頂点 0.27秒を過ぎた下り。乗られたT波の山が見える）')
     print(f'  PEA：ふつうの形 {60/0.75:.0f}/分、幅の広いQRS {60/2.0:.0f}/分')
     tr = [b[0] for b in STRIP if b[0] >= STRIP_END - 1e-9][:6]
     print('うしろの洞調律の間隔', [round(y - x, 3) for x, y in zip(tr, tr[1:])])
