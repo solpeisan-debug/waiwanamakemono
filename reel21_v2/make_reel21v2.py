@@ -196,7 +196,6 @@ def art_asys(rel, L):                      # 心静止：ほぼまっすぐ（�
     return band_noise(rel, L, 0.25, 1.5, 0.012, 26)
 
 
-SR_SHIFT = 1.2                    # ショートランの拍の並びをずらす長さ（秒）
 RONT_C = 0.36                     # R on T：直前のRから PVC の頂点まで（秒）。T波（頂点 0.27秒・終わり 約0.42秒）の下りに乗る
 
 
@@ -217,16 +216,13 @@ PATTERNS = [
          act='→ 意識・血圧・胸痛・息苦しさ等確認。ペーシングに備えてパッド装着',
          lines=[('→ 意識・血圧・胸痛・息苦しさ等確認。', False), ('ペーシングに備えてパッド装着', True)],
          narr='PとQRSが別々に動く、完全房室ブロック。',
-         ev=[(k*0.68, 'P') for k in range(10)] + [(0.3 + k*1.7, 'W') for k in range(4)], L=6.8, hl=ALL),
+         ev=[(k*0.68, 'P') for k in range(10)] + [(0.3 + k*1.7, 'W') for k in range(4)], L=6.8, hl=ALL,
+         trim=0.2),
     dict(key='ショートラン', place=1, name='ショートラン',
          act='→ 症状を見て、12誘導。QT、K・Mgなどを確認',
          lines=[('→ 症状を見て、12誘導。QT、K・Mgなどを確認', False)],
          narr='次は、QRSの幅と形。幅広いQRSが3つ以上続いて、自然に止まる。ショートラン。',
-         # 第21弾と同じ拍の並び（周期 4.0秒）を 1.2秒うしろへずらしたもの（洞調律3拍 → PVC 3連）。
-         # 区間を長くしても、縮んで枠へ移るときに3連が見えている範囲に入るように
-         ev=sorted(((r + SR_SHIFT) % 4.0, k) for r, k in
-                   [(0, 'N'), (0.8, 'N'), (1.28, 'V'), (1.66, 'V'), (2.04, 'V'), (3.2, 'N')]),
-         L=4.0, hl=[(1.19 + SR_SHIFT, 2.46 + SR_SHIFT)]),
+         ev=[(0, 'N'), (0.8, 'N'), (1.28, 'V'), (1.66, 'V'), (2.04, 'V'), (3.2, 'N')], L=4.0, hl=[(1.19, 2.46)]),
     dict(key='単形性VT', place=1, name='単形性VT',
          act='→ 脈あり：意識・血圧・胸痛・息苦しさ等確認。パッド装着 ／ → 脈なしなら人を呼ぶ。CPR＋電気ショック',
          lines=[('→ 脈あり：意識・血圧・胸痛・息苦しさ等確認。', False), ('パッド装着', True),
@@ -303,30 +299,32 @@ def art_apply(pat, rel, v):
     return v
 
 
-# 区間の長さ（秒）。【仮】録音前なので、声の長さは「1.2倍速で 1秒に約8.5字」と見積もった。
-# 録音したら align_vo.py の配置を見て、声の長さ＋0.75秒（話し始めるまで 0.55秒＋次までの間 0.2秒）に合わせて詰め直す。
-# 下限は (1) 見積もった声の長さ＋0.75秒 (2) 次の対応を読む時間（1字 0.12秒、最低 4秒）の大きいほう（--check で確かめる）。
-# そのうえで、拍の並びがくずれない位置で切る（つなぎ目は --check で表示）：
-# - モビッツII 5.6：P-P 0.8秒の倍数。次の完全房室ブロックの最初のP波まで P-P 0.8秒（R-R は 4.96 → 5.9秒）。
-#   縮んで枠へ移るとき見えている範囲（区間の 2.16〜5.25秒）に、伝わらなかったP波（2.4秒）が入る
-# - 完全房室ブロック 4.52：3つめの補充調律（3.7秒）のT波のあと、次のP波（4.76秒）の手前。
-#   次のショートランの最初のP波（区間の 0.24秒）が、心房のP-P 0.68秒の続きの位置（4.76秒）に来る。R-R は 3.7 → 4.92秒（1.22秒）
-# - ショートラン 5.6：拍の並びを 1.2秒ずらした周期（SR_SHIFT）の、洞調律（5.2秒）のあと 0.4秒で単形性VTが始まる。
-#   見えている範囲（2.16〜5.25秒）に3連のPVC（2.48〜3.24秒）が入る
-# - 単形性VT 6.08：VTの拍の間隔 0.32秒の倍数（19拍）
-# - 多形性VT・粗いVF・細かいVF・心静止：連続した波形なのでどこで切ってもよい（端0.2秒でなめらかにつなぐ）。
-#   心静止 5.1 は次の対応（3行）を読む時間から
+# 区間の長さ（秒）。録音（2026-10-09 ElevenLabs Ren – Smooth & Soothing、1.2倍速）の声に合わせた。
+# 下限は (1) 声の長さ＋0.75秒（話し始めるまで 0.55秒＋次までの間 0.2秒）。1つめは 0.3秒で話し始め、区間が 0.35秒短く見えるので
+#        声の長さ＋0.85秒  (2) 次の対応を読む時間（1字 0.11秒、最低 4秒。文字が遅れて出るパターンは +0.35秒）の大きいほう
+# （--check で確かめる）。そのうえで、拍の並びがくずれない位置で切る（つなぎ目は --check で表示）：
+# - モビッツII 7.2：P-P 0.8秒の倍数。次の完全房室ブロックの最初のP波まで P-P 0.8秒（R-R は 6.56 → 7.5秒）。
+#   縮んで枠へ移るとき見えている範囲（区間の 3.76〜6.85秒）に、伝わらなかったP波（5.6秒）が入る
+# - 完全房室ブロック 4.92：3つめの補充調律（3.7秒）のT波のあと。区間の終わり 0.2秒（trim）にかかるP波（4.76秒）は置かず、
+#   次のショートランの最初のP波（4.76秒）が、心房のP-P 0.68秒の続きの位置に来る。R-R は 3.7 → 4.92秒（1.22秒）
+# - ショートラン 7.6：周期 4.0秒の2周目の洞調律（7.2秒）のあと 0.4秒で単形性VTが始まる。
+#   見えている範囲（4.16〜7.25秒）に2周目の3連のPVC（5.28〜6.04秒）が入る
+# - 単形性VT 6.4：VTの拍の間隔 0.32秒の倍数（20拍）
+# - 多形性VT・粗いVF・細かいVF・心静止：連続した波形なのでどこで切ってもよい（端0.2秒でなめらかにつなぐ）
 # - トルサード 5.6：トルサードが止まり、洞調律に戻ったところ（1周期）。次の R on T の最初の拍まで 1.0秒
 # - R on T 4.8：周期 3.2秒のあと、2つめのR on T（4.36秒）が乗り、そのT波のあと（0.44秒）に粗いVFが始まる
 #   （R on T から VF へ。見えている範囲（1.36〜4.45秒）に2つめのR on T が入る）
-# - PEA（ふつうに見える）5.25：拍の間隔 0.75秒の倍数。次の PEA（遅く幅広い）の最初のQRSまで 1.05秒
+# - PEA（ふつうに見える）6.0：拍の間隔 0.75秒の倍数。次の PEA（遅く幅広い）の最初のQRSまで 1.05秒
 # - PEA（遅く幅広い）4.8：2つめと3つめのQRS（2.3・4.3秒）が見えている範囲（1.36〜4.45秒）に入る。
 #   うしろの洞調律は区間の終わりから 0.96秒（TAIL_OFF）で始める（4.3秒のQRSから 1.46秒）
 # 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
-SEG_D = {'モビッツII': 5.6, '完全房室ブロック': 4.52, 'ショートラン': 5.6, '単形性VT': 6.08, '多形性VT': 6.0,
-         'トルサード': 5.6, 'R on T': 4.8, '粗いVF': 4.0, '細かいVF': 4.0, '心静止': 5.1, 'PEA1': 5.25, 'PEA2': 4.8}
-SPEAK_CPS = 8.5                   # 【仮】声の速さ（字/秒、1.2倍速のあと）
-READ_S_PER_CHAR = 0.12            # 次の対応を読む時間（字あたり）
+SEG_D = {'モビッツII': 7.2, '完全房室ブロック': 4.92, 'ショートラン': 7.6, '単形性VT': 6.4, '多形性VT': 5.1,
+         'トルサード': 5.6, 'R on T': 4.8, '粗いVF': 4.25, '細かいVF': 4.1, '心静止': 4.8, 'PEA1': 6.0, 'PEA2': 4.8}
+# 声の長さ（秒）：align_vo.py で切り分けた長さ（文の中の間は 0.45秒、1つめは 0.35秒まで詰めたもの）
+VOICE_LEN = {'冒頭': 2.39, 'モビッツII': 5.89, '完全房室ブロック': 3.64, 'ショートラン': 6.38, '単形性VT': 5.36,
+             '多形性VT': 2.45, 'トルサード': 2.55, 'R on T': 3.17, '粗いVF': 3.46, '細かいVF': 3.34, '心静止': 4.04,
+             'PEA1': 4.90, 'PEA2': 2.89, 'まとめ': 3.54, '保存': 1.48}
+READ_S_PER_CHAR = 0.11            # 次の対応を読む時間（字あたり）
 READ_MIN = 4.0
 for _p in PATTERNS:
     _p['D'] = SEG_D[_p['key']]
@@ -348,9 +346,9 @@ def need_d(i):
     """区間の長さの下限（声の見積もりと、読む時間）。1つめは区間より 0.35秒短く見えるので、そのぶん足す。
     文字が遅れて出るパターンは、そのぶん（0.35秒）読む時間に足す。"""
     pat = PATTERNS[i]
-    voice = len(pat['narr']) / SPEAK_CPS + 0.75
-    read = max(READ_MIN, READ_S_PER_CHAR*act_chars(pat)) + (text_in(i) - 0.1)
-    return max(voice, read) + (HANDOFF_EARLY if i == 0 else 0.0), voice, read
+    voice = VOICE_LEN[pat['key']] + (0.85 if i == 0 else 0.75)
+    read = max(READ_MIN, READ_S_PER_CHAR*act_chars(pat)) + (text_in(i) - 0.1) + (HANDOFF_EARLY if i == 0 else 0.0)
+    return max(voice, read), voice, read
 
 
 def beat_wave(tau, r, kind):
@@ -411,8 +409,8 @@ def hl_mask(pat, rel):
 # 元の波形に戻ってから T_GO でまた流す。T_TITLE で1つめのパターンが右端から入ってくる。
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
-T_TITLE = 4.0                     # 【仮】冒頭の1文（約2秒）のあと、見出しと枠（5か所の名前）を読む時間
-END_HOLD = 6.5                    # 【仮】12個そろってからの時間（まとめ・保存の2文と、冒頭へ戻る時間）
+T_TITLE = 3.0                     # 冒頭の1文（0.1〜2.5秒）のあと、1つめのパターンが右から入る
+END_HOLD = 5.7                     # 12個そろってからの時間（まとめ・保存の2文 約5.3秒と、冒頭へ戻る時間）
 HOOK = [0, 3, 6, 7, 10]           # 場所ごとに1つ：モビッツII型 → 単形性VT → R on T → 粗いVF → PEA（ふつうに見える）
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 HANDOFF_EARLY = 0.35
@@ -457,26 +455,52 @@ F_PXMM = 14.0
 F_PXS = 25 * F_PXMM
 F_MV = 10 * F_PXMM
 
-# --- ミニ波形の枠（2列×3段 を上下に） -------------------------------------------
-CELL_W, CELL_H = 400, 92
+# --- ミニ波形の枠：見る場所ごとに、見出し（① PとQRSのつながり など）の下に、その場所の枠を2列で ---------
+# 上：① ② ／ 下：③ ④ ⑤（2026-10-09 ユーザーの指示。「5か所なのに枠が12個？」とならないよう、場所でまとめる）
+CELL_W, CELL_H = 400, 58
 COL_X = (130, 550)
-CELL_GAP = 8
-TOP_Y = [384 + k*(CELL_H + CELL_GAP) for k in range(3)]          # 384, 484, 584 → 下端 676
-BOT_Y = [1252 + k*(CELL_H + CELL_GAP) for k in range(3)]         # 1252, 1352, 1452 → 下端 1544（下の注記と 12px あける）
+ROW_GAP = 6                        # 同じ場所の枠の段のあいだ
+GROUP_GAP = 8                      # 場所と場所のあいだ（前の場所の枠の下 → 次の見出し）
+HEAD_SZ, HEAD_H = 28, 36           # 見出しの字の大きさと、見出しの行の高さ
+TOP_PLACES, BOT_PLACES = (0, 1), (2, 3, 4)
+TOP_START = 384                    # 上のかたまりの上端（見出しの「5」の下）
+BOT_END = 1544                     # 下のかたまりの下端（下の注記 y 1549〜 と、y 1600 より上）
 CELL_FILL = 225                    # 枠の中の塗りの濃さ（0〜255）。方眼をうっすら残す
 M_PXS = 66.0                      # ミニ波形：実際の1秒 = 66px（約5.8秒ぶんが見える）
-M_MV = 25.0                       # ミニ波形：1mV = 25px（いちばん大きいR on T（上）・トルサード（下）も枠に収まる）
+M_MV = 13.0                       # ミニ波形：1mV = 13px（枠の高さ 58px に、R on T（上）・トルサード（下）が収まる）
 
-# 中部のかたまり：見る場所（小）→ 名前（大）→ 次の対応（最大3行）→ 波形
-_TOP_END = TOP_Y[-1] + CELL_H      # 上の枠の下端（676）
-_BOT_TOP = BOT_Y[0]                # 下の枠の上端（1252）
+
+def _block(places, y):
+    """見出しの上端 {場所: y} と、枠の左上 {パターン: (x, y)} と、かたまりの下端。"""
+    heads, cells = {}, {}
+    for j, pl in enumerate(places):
+        if j:
+            y += GROUP_GAP
+        heads[pl] = y
+        y += HEAD_H
+        idx = [i for i, p in enumerate(PATTERNS) if p['place'] == pl]
+        for k, i in enumerate(idx):
+            row, col = divmod(k, 2)
+            cells[i] = (COL_X[col], y + row*(CELL_H + ROW_GAP))
+        nrows = (len(idx) + 1) // 2
+        y += nrows*CELL_H + (nrows - 1)*ROW_GAP
+    return heads, cells, y
+
+
+_h1, _c1, _TOP_END = _block(TOP_PLACES, TOP_START)                 # 上のかたまりの下端
+_bot_h = _block(BOT_PLACES, 0)[2]
+_h2, _c2, _ = _block(BOT_PLACES, BOT_END - _bot_h)
+_BOT_TOP = BOT_END - _bot_h                                          # 下のかたまりの上端
+HEAD_TOP = {**_h1, **_h2}
+CELL_XY = {**_c1, **_c2}
+
+# 中部のかたまり：名前（大）→ 次の対応（最大3行）→ 波形（見る場所は、上下の見出しが光ってわかる）
 NEG_MAX = 1.22                     # いちばん下へ振れる波（トルサード -1.22mV）
-F_BASE = _BOT_TOP - int(NEG_MAX*F_MV) - 6        # 基線（下の枠に 6px 余白）。背景のマス目の太い線をここにそろえる
-Y_LABEL = _TOP_END + 27            # 見る場所（26px）の字の中心
-Y_NAME = Y_LABEL + 47              # 名前（48px）の字の中心
+F_BASE = _BOT_TOP - int(NEG_MAX*F_MV) - 6        # 基線（下のかたまりに 6px 余白）。背景のマス目の太い線をここにそろえる
+Y_NAME = _TOP_END + 38             # 名前（48px）の字の中心
 Y_ACT0 = Y_NAME + 51               # 次の対応の1行目（32px）の字の中心
 ACT_PITCH = 40                     # 次の対応の行の間隔
-LABEL_SZ, NAME_SZ, ACT_SZ = 26, 48, 32
+NAME_SZ, ACT_SZ = 48, 32
 ACT_W = 760                        # 次の対応の幅の上限（左右に 160px 以上の余白）
 F_Y0, F_Y1 = int(F_BASE - 230), int(_BOT_TOP - 2)
 XC = W / 2
@@ -520,10 +544,7 @@ DUR = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
 
 
 def cell_rect(i):
-    """横に読む：上の枠は i=0..5、下の枠は i=6..11。それぞれ2列×3段。"""
-    j = i if i < 6 else i - 6
-    row, col = j // 2, j % 2
-    x, y = COL_X[col], (TOP_Y if i < 6 else BOT_Y)[row]
+    x, y = CELL_XY[i]
     return (x, y, x + CELL_W, y + CELL_H)
 
 
@@ -821,12 +842,12 @@ def featured(t, base_col, a):
 
 
 STRIP_W = CELL_W - 20             # ミニ波形の帯（枠の中）
-STRIP_BASE = 31                   # 帯の上端（枠の上から 28px）から基線まで → 基線は枠の上から 59px
+STRIP_BASE = 17                   # 帯の上端（枠の上から 24px）から基線まで → 基線は枠の上から 41px（上下 ±1.2mV で 25〜57px）
 
 
 def cell_strip_origin(i):
     x0, y0, _, _ = cell_rect(i)
-    return x0 + 10, y0 + 28
+    return x0 + 10, y0 + 24
 
 
 def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=None, a_norm=1.0):
@@ -902,39 +923,53 @@ def mini(base, i, t, u=1.0, a=1.0):
 
 
 def cell_title(pat):
-    return f"{pat['pno']} {pat['name']}"
+    return pat['name']               # 見る場所の番号は見出しにあるので、枠の中は名前だけ
+
+
+CELL_TITLE_SZ = 18
+HEAD_CY = 16                       # 見出しの字の中心（見出しの行の上端から）
 
 
 def draw_cell(base, i, t, state, a_all):
-    """state: 'empty'（まだ。見る場所の番号と名前を薄く）/'now'（紹介中）/'landing'/'done'（ミニ波形あり）"""
+    """state: 'empty'（まだ。空の枠だけ）/'now'（紹介中。枠が光る）/'landing'/'done'（名前とミニ波形）"""
     x0, y0, x1, y1 = cell_rect(i)
     pat = PATTERNS[i]
-    place = PLACES[pat['place']]
     lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay)
     a_fill = a_all                          # 枠の中の塗り：方眼が透けすぎないよう、薄くする対象から外す
     if state in ('empty', 'now'):
-        a_all = a_all * 0.5                 # ミニ波形がないものは、枠線と文字だけ薄く
+        a_all = a_all * 0.5                 # ミニ波形がないものは、枠線だけ薄く
     if state in ('now', 'landing'):
         pulse = 0.55 + 0.45*math.sin(t*5.0)**2
         if state == 'now':
             pulse = min(1.0, pulse*1.6)
-        d.rounded_rectangle((x0, y0, x1, y1), radius=14, fill=CARD_FILL + (int(CELL_FILL*a_fill),),
+        d.rounded_rectangle((x0, y0, x1, y1), radius=12, fill=CARD_FILL + (int(CELL_FILL*a_fill),),
                             outline=pat['col'] + (int(255*pulse*a_all),), width=3)
     else:
-        d.rounded_rectangle((x0, y0, x1, y1), radius=14, fill=CARD_FILL + (int(CELL_FILL*a_fill),),
+        d.rounded_rectangle((x0, y0, x1, y1), radius=12, fill=CARD_FILL + (int(CELL_FILL*a_fill),),
                             outline=CARD_EDGE + (int(255*a_all),), width=2)
     base.alpha_composite(lay)
     if state in ('done', 'landing'):
-        put(base, cell_title(pat), 22, 700, pat['col'], x=x0 + 14, cy=y0 + 16,
-            a=a_all, max_w=CELL_W - 30)
-    else:
-        bright = state == 'now'
-        put(base, place['no'], 30, 700, place['col'] if bright else mix(DIM, place['col'], 0.35),
-            x=x0 + 16, cy=y0 + CELL_H/2, a=min(1.0, a_all*2) if bright else a_all)
-        put(base, place['name'], 24, 600 if bright else 500,
-            mix(place['col'], LIGHT, 0.3) if bright else (120, 134, 132),
-            x=x0 + 60, cy=y0 + CELL_H/2, a=min(1.0, a_all*2) if bright else a_all, max_w=CELL_W - 76)
+        put(base, cell_title(pat), CELL_TITLE_SZ, 700, pat['col'], x=x0 + 12, cy=y0 + 12,
+            a=a_all, max_w=CELL_W - 26)
+
+
+PLACE_FIRST = {pl: min(i for i, p in enumerate(PATTERNS) if p['place'] == pl) for pl in range(len(PLACES))}
+
+
+def head_text(pl):
+    return f"{PLACES[pl]['no']} {PLACES[pl]['name']}"
+
+
+def draw_heads(base, t, a, lit_all=False):
+    """見る場所の見出し（枠の左端にそろえる）。その場所の1つめのパターンが始まるまでは薄く、始まったら場所の色で。"""
+    if a <= 0.004:
+        return
+    for pl, y in HEAD_TOP.items():
+        col = PLACES[pl]['col']
+        u = 1.0 if lit_all else ramp(t, WINDOWS[PLACE_FIRST[pl]][0], 0.4)
+        put(base, head_text(pl), HEAD_SZ, 800, mix(mix(DIM, col, 0.45), col, u), x=COL_X[0],
+            cy=y + HEAD_CY, a=a*(0.75 + 0.25*u))
 
 
 # --- 画面 ---------------------------------------------------------------------------
@@ -1017,23 +1052,24 @@ def draw_end(im, t, a):
     names = [f"{p['no']} {p['name']}" for p in PLACES]
     wmax = max(text_w(s, END_SZ, 800) for s in names)
     x0 = XC - wmax / 2
-    t0 = T_END + FLY
+    t0 = T_END + 0.2                # 声「見るのは5か所」に合わせて（最後の枠は下へ縮んで移るので、重ならない）
     for k, (p, s) in enumerate(zip(PLACES, names)):
         put(im, s, END_SZ, 800, p['col'], x=x0, cy=END_Y0 + k*END_PITCH, a=a*ramp(t, t0 + 0.12*k, 0.35))
-    put(im, END_ASK, 36, 700, WHITE, cx=XC, cy=END_Y_ASK, a=a*ramp(t, T_END + 1.5, 0.5), max_w=W - 2*170)
-    put(im, END_SAVE, 40, 800, GREEN, cx=XC, cy=END_Y_SAVE, a=a*ramp(t, T_END + 4.2, 0.5))
+    put(im, END_ASK, 36, 700, WHITE, cx=XC, cy=END_Y_ASK, a=a*ramp(t, T_END + END_ASK_T, 0.4), max_w=W - 2*170)
+    put(im, END_SAVE, 40, 800, GREEN, cx=XC, cy=END_Y_SAVE, a=a*ramp(t, T_END + END_SAVE_T, 0.4))
 
 
 END_SZ, END_PITCH = 38, 56
 END_Y0 = _TOP_END + 60
 END_Y_ASK = END_Y0 + 4*END_PITCH + 92
 END_Y_SAVE = END_Y_ASK + 70
+END_ASK_T, END_SAVE_T = 1.2, 3.9   # 問いかけ・保存の字を出す時刻（最後のパターンの終わり T_END から）。声（align_vo の配置）に合わせた
 
 # 冒頭のタイトル（波形が止まっているあいだ）
-TITLE_CY = 590
-TITLE_SUB_BASE = 750
-HOOK_LABEL_CY = 808
-HOOK_NAME_CY = 860
+TITLE_CY = 540
+TITLE_SUB_BASE = 690
+HOOK_LABEL_CY = 735
+HOOK_NAME_CY = 785
 
 _GRID = None
 
@@ -1041,6 +1077,8 @@ _GRID = None
 def strip_alpha(t):
     """中部の帯の濃さ。縮んで枠へ移るあいだは消し、最後（まとめ）も消して、冒頭へ戻るときに戻す。"""
     keep = 1 - ramp(t, DUR - LOOP_FADE - 0.05, LOOP_FADE - 0.05)
+    if t >= WINDOWS[-1][1]:
+        return 1 - keep                 # 最後のパターンが縮んだあとは、冒頭へ戻るときだけ帯を出す
     a = 1.0
     for i in range(N_PAT):
         b_i = WINDOWS[i][1]
@@ -1077,20 +1115,20 @@ def frame(t, watermark=True):
         draw_cell(im, i, t, st, a_cells)
         if st == 'done':
             mini(im, i, t, 1.0, a=keep)
+    draw_heads(im, t, a_cells, lit_all=t >= T_END)
 
-    # 中部：紹介中の見る場所・名前・次の対応
+    # 中部：紹介中の名前・次の対応（見る場所は、上下の見出しが場所の色で光る）
     if cur is not None:
         a_i, b_i = WINDOWS[cur]
         pat = PATTERNS[cur]
         al = ramp(t, a_i + text_in(cur), 0.3) * (1 - ramp(t, b_i - 0.25, 0.25))
-        put(im, place_label(pat), LABEL_SZ, 700, pat['col'], cx=XC, cy=Y_LABEL, a=al)
         put(im, pat['name'], NAME_SZ, 900, pat['col'], cx=XC, cy=Y_NAME, a=al, max_w=820)
         draw_act(im, pat, al)
 
     # 冒頭：タイトルと、変形中の見る場所・パターン名
     a_t = max(1 - ramp(t, T_GO - 0.5, 0.5), a_loop)
     if a_t > 0:
-        put(im, TITLE, 150, 900, WHITE, cx=XC, cy=TITLE_CY, a=a_t, max_w=W - 2*MARGIN)
+        put(im, TITLE, 140, 900, WHITE, cx=XC, cy=TITLE_CY, a=a_t, max_w=W - 2*MARGIN)
         draw_parts(im, TITLE_SUB, 64, TITLE_SUB_BASE, a_t)
         if T_STOP <= t < T_GO:
             _, _, u, shown = hook_state(t)
@@ -1101,7 +1139,7 @@ def frame(t, watermark=True):
                 put(im, f"{pl['no']} {pl['name']}", 36, 700, pat['col'], cx=XC, cy=HOOK_LABEL_CY, a=aa)
                 put(im, pat['name'], 48, 900, pat['col'], cx=XC, cy=HOOK_NAME_CY, a=aa, max_w=820)
 
-    draw_end(im, t, ramp(t, T_END + FLY, 0.6)*keep)
+    draw_end(im, t, ramp(t, T_END + 0.2, 0.4)*keep)
 
     # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
     # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
@@ -1123,9 +1161,9 @@ def frame(t, watermark=True):
 
 # --- サムネイル ---------------------------------------------------------------------
 THUMB_WAVE = 3                    # サムネイルの見本の波形（単形性VT）
-THUMB_TITLE_CY = 762
-THUMB_SUB_BASE = 904
-THUMB_BASE = 1100                 # 見本の波形の基線
+THUMB_TITLE_CY = 712
+THUMB_SUB_BASE = 862
+THUMB_BASE = 1060                 # 見本の波形の基線
 
 
 def thumbnail():
@@ -1133,11 +1171,12 @@ def thumbnail():
     プロフィールのグリッド（中央 1080×1350、y 285〜1635）に要素が収まる。"""
     t = T_END + FLY + 2.0
     g = grid()
-    im = g.copy()                 # 見出しは出さない（大きなタイトルと同じ文言なので）
+    im = g.copy()                 # いちばん上の見出しは出さない（大きなタイトルと同じ文言なので）
     for i in range(N_PAT):
         draw_cell(im, i, t, 'done', 1.0)
         mini(im, i, t, 1.0)
-    put(im, TITLE, 132, 900, WHITE, cx=XC, cy=THUMB_TITLE_CY, max_w=W - 2*MARGIN)
+    draw_heads(im, t, 1.0, lit_all=True)
+    put(im, TITLE, 120, 900, WHITE, cx=XC, cy=THUMB_TITLE_CY, max_w=W - 2*MARGIN)
     draw_parts(im, TITLE_SUB, 70, THUMB_SUB_BASE, 1.0)
     v, cid, spk = hook_arrays(THUMB_WAVE)
     wl = draw_wave(v, cid, WAVE_GREEN, 1.0, spk)
@@ -1155,10 +1194,10 @@ def _qrs_ms(f, lim=0.12):
 def screen_strings():
     """画面に出る文字（出してはいけない言葉 NG_WORDS が無いことの確かめ用）。"""
     out = [s for s, _, _ in HEADER] + [TITLE] + [s for s, _, _ in TITLE_SUB] + [END_ASK, END_SAVE, NOTE1, NOTE2]
-    for p in PLACES:
-        out.append(f"{p['no']} {p['name']}")
+    for j, p in enumerate(PLACES):
+        out.append(head_text(j))
     for p in PATTERNS:
-        out += [cell_title(p), place_label(p), p['name']] + [s for s, _ in p['lines']]
+        out += [cell_title(p), p['name']] + [s for s, _ in p['lines']]
     return out
 
 
@@ -1178,7 +1217,7 @@ def act_from_lines(pat):
 
 def check():
     ok = True
-    print(f'映像 {DUR:.2f}秒（{round(DUR*60)}コマ）【仮：録音前の見積もり】')
+    print(f'映像 {DUR:.2f}秒（{round(DUR*60)}コマ）（声に合わせた長さ）')
     print(f'冒頭 0〜{T_TITLE:.1f}s（止めて変形 {T_STOP}〜{T_GO}s）')
     print('パターンごとの紹介の時間（下限＝max(声の見積もり, 読む時間)）')
     for i, pat in enumerate(PATTERNS):
@@ -1232,7 +1271,7 @@ def check():
         w = text_w(pat['name'], NAME_SZ, 900)
         if w > 820:
             print(f"  ✗ 名前が広い {pat['name']} {w}"); ok = False
-        w = text_w(cell_title(pat), 22, 700)
+        w = text_w(cell_title(pat), CELL_TITLE_SZ, 700)
         if w > CELL_W - 30:
             print(f"  ✗ 枠の名前が広い {cell_title(pat)} {w}"); ok = False
     _, _, total, sz = parts_layout(HEADER, 46, W - 2*MARGIN - 10)
@@ -1249,13 +1288,13 @@ def check():
             print(f'  ✗ 出してはいけない言葉：{s}'); ok = False
 
     # 縦の重なり：文字の下端 と 波形の上端、波形の下端 と 下の枠
-    print(f'中部：上の枠の下端 {_TOP_END}、見る場所 {Y_LABEL}、名前 {Y_NAME}、対応 {Y_ACT0}〜、基線 F_BASE {F_BASE}'
+    print(f'中部：上のかたまりの下端 {_TOP_END}、名前 {Y_NAME}、対応 {Y_ACT0}〜、基線 F_BASE {F_BASE}'
           f'（マス目の太い線は F_BASE から 70px ごと）、下の枠の上端 {_BOT_TOP}')
     for i, pat in enumerate(PATTERNS):
         a, b = WINDOWS[i]
         rows, _ = act_layout(pat)
         txt_bot = max(text_box(s, ACT_SZ, 600, cy)[1] for s, _, cy, _ in rows)
-        lab_top = text_box(place_label(pat), LABEL_SZ, 700, Y_LABEL)[0]
+        lab_top = text_box(pat['name'], NAME_SZ, 900, Y_NAME, max_w=820)[0]
         top_min, bot_max = 1e9, -1e9
         for tt in np.arange(a + text_in(i) + 0.3, b, 0.05):
             if strip_alpha(tt) < 0.05:
@@ -1276,8 +1315,15 @@ def check():
     ok &= hook_top - hook_bot >= 6
     # 最後の文字は下の枠より上
     n1, n2 = text_box(NOTE1, 24, 400, NOTE_CY[0]), text_box(NOTE2, 24, 400, NOTE_CY[1])
-    print(f'注記：{n1[0]}〜{n2[1]}（下の枠の下端 {BOT_Y[-1] + CELL_H}、1600 以下）')
-    ok &= n1[0] > BOT_Y[-1] + CELL_H and n2[1] <= 1600 and n2[0] >= n1[1] - 1
+    print(f'注記：{n1[0]}〜{n2[1]}（下のかたまりの下端 {BOT_END}、1600 以下）')
+    ok &= n1[0] > BOT_END and n2[1] <= 1600 and n2[0] >= n1[1] - 1
+    # 見出し：枠と重ならない
+    for pl, y in HEAD_TOP.items():
+        hb = text_box(head_text(pl), HEAD_SZ, 800, y + HEAD_CY)
+        below = min(cell_rect(i)[1] for i, p in enumerate(PATTERNS) if p['place'] == pl)
+        above = max([cell_rect(i)[3] for i, p in enumerate(PATTERNS) if cell_rect(i)[3] <= y + 1] + [0])
+        print(f'見出し {head_text(pl)}：字 {hb[0]}〜{hb[1]}（上の枠の下端 {above}、下の枠の上端 {below}）')
+        ok &= hb[1] < below and hb[0] > above
     end_bot = text_box(END_SAVE, 40, 800, END_Y_SAVE)[1]
     print(f'最後：保存の字の下端 {end_bot}（下の枠 {_BOT_TOP}）')
     ok &= end_bot <= _BOT_TOP - 20
@@ -1287,9 +1333,9 @@ def check():
         v = art_apply(pat, rel, wave_from(periodic_beats(pat, -1, pat['L'] + 1), rel))
         _, y0, _, y1 = cell_rect(i)
         base_y = cell_strip_origin(i)[1] + STRIP_BASE
-        tt = text_box(cell_title(pat), 22, 700, y0 + 16)[1]
+        tt = text_box(cell_title(pat), CELL_TITLE_SZ, 700, y0 + 12)[1]
         hi, lo = base_y - v.max()*M_MV, base_y - v.min()*M_MV
-        flag = '' if (lo <= y1 - 2 and hi >= y0 + 2) else '  ← はみ出す（枠で切る）'
+        flag = '' if (lo <= y1 - 1 and hi >= tt + 1) else '  ← はみ出す・名前に近い'
         print(f"  枠 {cell_title(pat):<20} 名前の下端 {tt - y0:3d} 波 {hi - y0:5.1f}〜{lo - y0:5.1f}（枠 0〜{CELL_H}）{flag}")
     print('モデルの値')
     print(f'  モビッツII型：PR {PR:.2f}秒で一定、4つめのP波が伝わらない（4:3）')
