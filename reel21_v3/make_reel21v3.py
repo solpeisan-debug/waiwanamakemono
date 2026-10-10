@@ -37,7 +37,7 @@ import wave
 from multiprocessing import Pool
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 W, H = 1080, 1920
@@ -394,6 +394,44 @@ def hi_mv(i):
     return 10 * 14.0 * zoom_of(i)
 
 
+# --- カメラ（寄り）の予定 ----------------------------------------------------------------
+# 顔が出る場面では、カメラがその拍へ寄る（波形とマス目をいっしょに拡大・移動。マスはいつも正方形）。
+# 寄っているあいだ波形の流れはほぼ止まり、顔は「こぶの中に収まる」ときだけ描く（characters.face_fit）。
+# at：ブロック（場所の説明・パターン）の始まりから寄り始める時刻、hold：寄ったままの時間、
+# g：寄ったときの縦の倍率（px/mV。横も同じ倍率で広がる）、by：寄ったときの基線の y、tgt：寄る先の決め方、
+# chain：前の寄りから直接つなぐ（いったん引かない）。strip：場所の説明のとき、寄る帯（パターンの key）。
+SHOTS = {
+    ('ov', 0): [dict(strip='モビッツII', at=1.0, hold=2.2, g=680, by=1250, tgt='pr')],          # P と QRS が握手
+    ('ov', 1): [dict(strip='単形性VT', at=0.6, hold=2.6, g=200, by=960, tgt='stamp')],         # 定規で幅 → 同じ顔のスタンプ
+    ('ov', 2): [dict(strip='R on T', at=0.8, hold=1.8, g=380, by=1100, tgt='t')],              # Tちゃん
+    'モビッツII': [dict(at=0.5, hold=1.2, g=680, by=1250, tgt='pr'),                            # 伝わる拍の握手
+                 dict(at=None, chain=True, hold=2.0, g=560, by=1040, tgt='drop')],             # 抜けたP「あっ」→ QRS「あらっ」
+    '完全房室ブロック': [dict(at=0.6, hold=1.8, g=520, by=1200, tgt='w_p')],
+    'ショートラン': [dict(at=0.9, hold=1.8, g=520, by=1150, tgt='run')],
+    '単形性VT': [dict(at=0.7, hold=1.6, g=640, by=1180, tgt='pair')],
+    '多形性VT': [dict(at=0.7, hold=1.8, g=520, by=960, tgt='poly3')],
+    'トルサード': [dict(at=1.6, hold=1.6, g=420, by=940, tgt='burst')],
+    'R on T': [dict(at=0.9, hold=2.0, g=560, by=1180, tgt='ront')],
+    '粗いVF': [dict(at=0.7, hold=1.6, g=480, by=930, tgt='center')],
+    '細かいVF': [dict(at=0.8, hold=1.6, g=1100, by=950, tgt='center')],
+    'PEA1': [dict(at=0.6, hold=1.8, g=680, by=1060, tgt='beat')],
+    'PEA2': [dict(at=0.6, hold=1.8, g=470, by=1000, tgt='w')],
+}
+CAM_IN, CAM_OUT, CAM_CHAIN = 0.55, 0.55, 0.6      # 寄る・引く・寄りから寄りへ（秒）
+CAM_SLOW = 0.08                                   # 寄っているあいだの流れ（ふだんの何倍か）
+
+
+def shot_need(key):
+    """そのブロックで、最後の寄りが引き終わるまでの時間（秒）＋余白。"""
+    t, end = 0.0, 0.0
+    for sh in SHOTS.get(key, []):
+        t0 = t if sh.get('chain') else sh['at']
+        t1 = t0 + (CAM_CHAIN if sh.get('chain') else CAM_IN)
+        t = t1 + sh['hold']
+        end = t + CAM_OUT
+    return end + 0.3 if end else 0.0
+
+
 def event_need(i):
     """特徴の部分が右端に入ってから左端へ抜けきるまで（紹介の始まりから・秒）。色の範囲が全部のパターンは 0。"""
     pat = PATTERNS[i]
@@ -415,14 +453,15 @@ def build_blocks():
 
     add('open', '冒頭', max(OPEN_MIN, OPEN_LEAD + VOICE_LEN['冒頭'] + OPEN_GAP), OPEN_LEAD)
     for s in range(len(PLACES)):
-        add('ov', f'場所{s}', max(OV_MIN, LEAD_OV + VOICE_LEN[f'場所{s}'] + GAP_OV), LEAD_OV, scene=s)
+        add('ov', f'場所{s}', max(OV_MIN, LEAD_OV + VOICE_LEN[f'場所{s}'] + GAP_OV, shot_need(('ov', s))), LEAD_OV, scene=s)
         for i in SCENE_PATS[s]:
             key = PATTERNS[i]['key']
             d_voice = LEAD_PAT + VOICE_LEN[key] + GAP_PAT
             d_read = TEXT_IN + TEXT_FADE_IN + read_need(i) + TEXT_FADE_OUT
             d_event = event_need(i)
-            add('pat', key, max(PAT_MIN, d_voice, d_read, d_event), LEAD_PAT, scene=s, pat=i,
-                d_voice=d_voice, d_read=d_read, d_event=d_event)
+            d_shot = shot_need(key)
+            add('pat', key, max(PAT_MIN, d_voice, d_read, d_event, d_shot), LEAD_PAT, scene=s, pat=i,
+                d_voice=d_voice, d_read=d_read, d_event=d_event, d_shot=d_shot)
     v_end, v_save = VOICE_LEN['まとめ'], VOICE_LEN['保存']
     add('end', 'まとめ', END_LEAD + v_end + END_GAP + v_save + END_HOLD + LOOP_FADE, END_LEAD,
         save0=None)
@@ -526,13 +565,66 @@ CLOCK_DT = 1/240
 _TG = np.arange(-2.0, DUR + 2.0, CLOCK_DT)
 
 
+KEY_IDX = {p['key']: n for n, p in enumerate(PATTERNS)}
+
+
+def _schedule():
+    """寄りの予定（絶対時刻）。帯ごとに [dict(t0, t1, t2, t3, chain_in, chain_out, ...)]。"""
+    out = {i: [] for i in range(N_PAT)}
+    for b in BLOCKS:
+        if b['kind'] == 'ov':
+            key = ('ov', b['scene'])
+        elif b['kind'] == 'pat':
+            key = PATTERNS[b['pat']]['key']
+        else:
+            continue
+        lst = []
+        for n, sh in enumerate(SHOTS.get(key, [])):
+            i = KEY_IDX[sh['strip']] if 'strip' in sh else b['pat']
+            chain = bool(sh.get('chain'))
+            t0 = lst[-1]['t2'] if chain else b['start'] + sh['at']
+            t1 = t0 + (CAM_CHAIN if chain else CAM_IN)
+            t2 = t1 + sh['hold']
+            d = dict(sh, i=i, n=n, block=b, key=key, t0=t0, t1=t1, t2=t2, t3=t2 + CAM_OUT, chain_in=chain,
+                     chain_out=False, mode='ov' if b['kind'] == 'ov' else 'hi')
+            if chain:
+                lst[-1]['chain_out'] = True
+                lst[-1]['t3'] = lst[-1]['t2']                              # 引かずに次へ
+            lst.append(d)
+        for d in lst:
+            out[d['i']].append(d)
+    return out
+
+
+SCHED = _schedule()
+
+
+def _ease(u):
+    u = min(1.0, max(0.0, u))
+    return u*u*(3 - 2*u)
+
+
+def cam_act(i, t):
+    """帯 i のカメラが寄っている度合い（0〜1）と、そのときの寄り（なければ None）。"""
+    for sh in SCHED[i]:
+        if sh['t0'] <= t < sh['t1']:
+            return (1.0 if sh['chain_in'] else _ease((t - sh['t0']) / (sh['t1'] - sh['t0']))), sh
+        if sh['t1'] <= t <= sh['t2']:
+            return 1.0, sh
+        if not sh['chain_out'] and sh['t2'] < t < sh['t3']:
+            return 1 - _ease((t - sh['t2']) / CAM_OUT), sh
+    return 0.0, None
+
+
 def _speed(i):
     b = PAT_BLOCK[i]
     sl = PATTERNS[i]['slow']
     u_in = np.clip((_TG - b['start']) / 0.5, 0, 1)
     u_out = np.clip((_TG - b['end']) / 0.5, 0, 1)
     u = u_in*u_in*(3 - 2*u_in) * (1 - u_out*u_out*(3 - 2*u_out))
-    return 1 + (sl - 1)*u
+    sp = 1 + (sl - 1)*u
+    act = np.array([cam_act(i, tt)[0] for tt in _TG]) if SCHED[i] else 0.0
+    return sp * (1 - (1 - CAM_SLOW)*act)    # 寄っているあいだは、ほぼ止まる
 
 
 _C = {}
@@ -588,9 +680,132 @@ def screen_speed(i, t, pxs):
     return float(clock(i, t + dt) - clock(i, t - dt)) / (2*dt) * pxs
 
 
-# --- 拍ごとのできごと（あとでキャラクターを重ねるため） --------------------------------------
 # 種類ごとの T波の頂点（R から・秒）。V（PVC）は逆向きのT
 T_PEAK = {'N': 0.27, 'Q': 0.40, 'V': 0.25, 'X': 0.27, 'W': 0.34}
+
+
+# --- カメラ：寄る先（拍）と、寄ったときの画面の対応 ---------------------------------------------------
+def _nearest(cands, c0):
+    return min(cands, key=lambda r: abs(r - c0))
+
+
+def _inst(pat, r, c0, span=3):
+    """周期 L でくり返す時刻 r のうち、c0 にいちばん近いもの。"""
+    L = pat['L']
+    k = round((c0 - r) / L)
+    return _nearest([r + (k + d)*L for d in range(-span, span + 1)], c0)
+
+
+def shot_target(sh):
+    """寄りの開始時刻に、画面の真ん中に近い「話の拍」を選ぶ。fr：寄る先（画面の真ん中に来る時刻）、rels：顔をつける拍の時刻。"""
+    i = sh['i']
+    pat = PATTERNS[i]
+    c0 = float(clock(i, sh['t0']))
+    L = pat['L']
+    ev = pat['ev']
+    tg = sh['tgt']
+    if tg == 'pr':                                   # P→QRS の握手：伝わる拍（P が前にある拍）
+        rs = [_inst(pat, r, c0 + PR/2) for r, k in ev if k == 'N']
+        R = _nearest(rs, c0 + PR/2)
+        return dict(fr=R - PR/2, rels=dict(P=R - PR, R=R))
+    if tg == 'drop':                                 # 抜けたP と、来るはずだった QRS の位置
+        P = _inst(pat, [r for r, k in ev if k == 'P'][0], c0)
+        return dict(fr=P + PR/2, rels=dict(P=P, E=P + PR))
+    if tg == 'w_p':                                  # 完全房室ブロック：幅の広い QRS と、その前の P
+        Wr = _nearest([_inst(pat, r, c0) for r, k in ev if k == 'W'], c0)
+        ps = [_inst(pat, r, Wr - 0.45) for r, k in ev if k == 'P']
+        P = _nearest(ps, Wr - 0.45)
+        return dict(fr=(P + Wr)/2, rels=dict(P=P, W=Wr))
+    if tg == 'run':                                  # ショートランの3連
+        vs = sorted(r for r, k in ev if k == 'V')
+        mid = _inst(pat, vs[1], c0)
+        d = mid - vs[1]
+        return dict(fr=mid, rels=dict(V=[v + d for v in vs]))
+    if tg == 'pair':                                 # 単形性VT：となりあう2拍
+        rs = sorted(_inst(pat, r, c0) for r, k in ev)
+        a = _nearest(rs, c0 - 0.16)
+        return dict(fr=a + 0.16, rels=dict(X=[a, a + 0.32]))
+    if tg == 'poly3':                                # 多形性VT：となりあう3拍
+        cs = sorted(_inst(pat, c, c0) for c, _, _ in POLY)
+        m_ = _nearest(cs, c0)
+        k = cs.index(m_)
+        return dict(fr=m_, rels=dict(B=cs[max(0, k - 1):k + 2]))
+    if tg == 'burst':                                # トルサードのねじれの途中
+        a = _inst(pat, TDP_A, c0 - 1.0)
+        return dict(fr=a + 1.05, rels=dict(A=a))
+    if tg == 'ront':                                 # R on T：乗られた T と PVC
+        R = _inst(pat, 0.8, c0 - 0.3)
+        return dict(fr=R + 0.31, rels=dict(T=R + T_PEAK['N'], V=R + RONT_C))
+    if tg == 'center':
+        return dict(fr=c0, rels={})
+    if tg == 'beat':                                 # PEA：1拍（P・QRS・T）
+        R = _nearest([_inst(pat, r, c0 - 0.08) for r, k in ev], c0 - 0.08)
+        return dict(fr=R + 0.08, rels=dict(P=R - PR, R=R, T=R + T_PEAK['N']))
+    if tg == 'w':
+        Wr = _nearest([_inst(pat, r, c0 - 0.1) for r, k in ev], c0 - 0.1)
+        return dict(fr=Wr + 0.1, rels=dict(W=Wr))
+    if tg == 'stamp':                                # 場所の説明②：単形性VT の3拍
+        rs = sorted(_inst(pat, r, c0) for r, k in ev)
+        m_ = _nearest(rs, c0)
+        return dict(fr=m_, rels=dict(X=[m_ - 0.32, m_, m_ + 0.32]))
+    if tg == 't':                                    # 場所の説明③：ふつうの拍の T（R on T でない拍）
+        R = _nearest([_inst(pat, r, c0 - 0.27) for r, k in ev if k == 'N' and abs(r - 0.8) > 1e-6], c0 - 0.27)
+        return dict(fr=R + T_PEAK['N'], rels=dict(T=R + T_PEAK['N']))
+    raise ValueError(tg)
+
+
+for _i in range(N_PAT):
+    for _sh in SCHED[_i]:
+        _sh.update(shot_target(_sh))
+
+
+def _interp_map(c0, p0, b0, g0, fr, p1, b1, g1, ox, e):
+    """対応 (c0, p0, b0, g0) から、寄り（fr を画面の XC+ox、横 p1・縦 g1、基線 b1）へ e（0→1）で。
+    画面の x = XC + (rel − c)*p、y = b − v*g。"""
+    xf0 = XC + (fr - c0)*p0
+    xf = xf0 + (XC + ox - xf0)*e
+    p = p0*(p1/p0)**e
+    g = g0*(g1/g0)**e
+    b = b0 + (b1 - b0)*e
+    return fr + (XC - xf)/p, p, b, g
+
+
+def apply_camera(i, t, st):
+    """帯の状態 st（基線・倍率・横の倍率）に、カメラの寄りをかける。st に c（画面の真ん中の時刻）・cam（寄りの度合い）・shot を入れる。"""
+    act, sh = cam_act(i, t)
+    c_base = float(clock(i, t))
+    st['c'] = c_base
+    st['cam'] = 0.0
+    st['shot'] = None
+    if sh is None or act <= 0.0:
+        return st
+    B, P, G = st['base'], st.get('pxs', F_PXS), st['g']
+    ratio = P / G
+    def pose(s_):
+        return s_['fr'], s_['g']*ratio, s_['by'], s_['g'], s_.get('ox', 0.0)
+    fr, p1, b1, g1, ox = pose(sh)
+    if sh['chain_in'] and sh['t0'] <= t < sh['t1']:
+        prev = [q for q in SCHED[i] if q['chain_out'] and abs(q['t2'] - sh['t0']) < 1e-9][0]
+        pf, pp, pb, pg, pox = pose(prev)
+        c0 = pf + (XC - (XC + pox))/pp
+        e = ease((t - sh['t0']) / (sh['t1'] - sh['t0']))
+        c, p, b, g = _interp_map(c0, pp, pb, pg, fr, p1, b1, g1, ox, e)
+    else:
+        c, p, b, g = _interp_map(c_base, P, B, G, fr, p1, b1, g1, ox, act)
+    st.update(c=c, pxs=p, base=b, g=g, cam=act, shot=sh)
+    return st
+
+
+def shot_info(i, t):
+    """キャラクター用：(寄り, 寄り始めからの時間 τ, 寄りの度合い)。寄っていなければ (None, 0, 0)。"""
+    act, sh = cam_act(i, t)
+    if sh is None:
+        return None, 0.0, 0.0
+    return sh, t - sh['t0'], act
+
+
+# --- 拍ごとのできごと（あとでキャラクターを重ねるため） --------------------------------------
+# 種類ごとの T波の頂点（R から・秒）。V（PVC）は逆向きのT
 
 
 def beat_events(i, rel0, rel1):
@@ -847,7 +1062,8 @@ def draw_strip(base, i, t, st, x0=0, x1=W, col_all=None, part='all'):
     a = st['a']
     dx = int(round(st.get('dx', 0.0)))
     pxs = st.get('pxs', F_PXS)
-    geo = dict(i=i, base=st['base'], g=st['g'], a=a, x0=x0, x1=x1, dx=dx, kind=st.get('kind'), pxs=pxs)
+    geo = dict(i=i, base=st['base'], g=st['g'], a=a, x0=x0, x1=x1, dx=dx, kind=st.get('kind'), pxs=pxs,
+               c=st.get('c'), cam=st.get('cam', 0.0), shot=st.get('shot'))
     # 場面の切りかえ（横に押し出す）では、帯ごと dx ずらす。波形は帯の中の x で計算し、見えるところだけ描く
     vx0, vx1 = max(x0, -dx - 30), min(x1, W - dx + 30)
     if a <= 0.01 or vx1 <= vx0:
@@ -855,7 +1071,8 @@ def draw_strip(base, i, t, st, x0=0, x1=W, col_all=None, part='all'):
     x0, x1 = vx0, vx1
     pat = PATTERNS[i]
     xs = np.arange(x0, x1 + 0.5, 0.5)
-    rel = rel_at(i, t, xs, pxs)
+    c = st.get('c')
+    rel = rel_at(i, t, xs, pxs) if c is None else c + (xs - XC) / pxs
     v = pattern_wave(i, rel)
     ys = st['base'] - v*st['g']
     pad = 26
@@ -1066,7 +1283,15 @@ def scene_states(s, t):
         prev = lay
     if cur is None:
         cur = scene_layout(s, 'ov')
-    return cur
+    # カメラ：寄っている帯に寄りをかける。場所の説明で寄るときは、ほかの帯を薄く
+    out = {i: apply_camera(i, t, dict(st)) for i, st in cur.items()}
+    cam_ov = max([st['cam'] for st in out.values() if st.get('kind') == 'ov'] + [0.0])
+    if cam_ov > 0:
+        for st in out.values():
+            if st['cam'] <= 0:
+                st['a'] *= 1 - 0.95*cam_ov
+                st['lbl_a'] *= 1 - 0.85*cam_ov
+    return out
 
 
 def draw_scene(base, s, t, a=1.0, dy=0.0, t_wave=None, dx=0.0):
@@ -1082,18 +1307,36 @@ def draw_scene(base, s, t, a=1.0, dy=0.0, t_wave=None, dx=0.0):
         sts[i] = st
     # 顔と手は波形の線の下に描く（線がいつも見えるように）
     pre = [dict(i=i, base=st['base'], g=st['g'], a=st['a'], x0=0, x1=W, dx=int(round(dx)), kind=st.get('kind'),
-                pxs=st.get('pxs', F_PXS), lbl_cy=st['lbl_cy'], scene=s) for i, st in sts.items()]
-    # 紹介中の帯：にじみ（グロー）→ 顔と手 → 線、の順に重ねる（顔がにじみで薄くならず、線はいつも上）
-    his = [i for i, st in sts.items() if st.get('kind') == 'hi' and st['a'] > 0.01]
-    for i in his:
-        draw_strip(base, i, tw, sts[i], part='glow')
-    import characters
-    characters.draw(sys.modules[__name__], base, t, s, current_pattern(t), pre, layer='under')
+                pxs=st.get('pxs', F_PXS), lbl_cy=st['lbl_cy'], scene=s, c=st.get('c'), cam=st.get('cam', 0.0),
+                shot=st.get('shot')) for i, st in sts.items()]
+    # 紹介中の帯・寄っている帯：にじみ（グロー）→ 顔と手 → 線、の順に重ねる（顔がにじみで薄くならず、線はいつも上）。
+    # 寄っているときは、帯の範囲（字の場所には出さない）で切り取る
+    lay_ids = [i for i, st in sts.items() if st['a'] > 0.01 and (st.get('kind') == 'hi' or st.get('cam', 0) > 0)]
     geos = []
     for i, st in sts.items():
-        geo = draw_strip(base, i, tw, st, part='core' if i in his else 'all')
-        geo['lbl_cy'] = st['lbl_cy']
-        geos.append(geo)
+        if i not in lay_ids:
+            geo = draw_strip(base, i, tw, st)
+            geo['lbl_cy'] = st['lbl_cy']
+            geos.append(geo)
+    if lay_ids:
+        L_ = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        for i in lay_ids:
+            draw_strip(L_, i, tw, sts[i], part='glow')
+        import characters
+        characters.draw(sys.modules[__name__], L_, t, s, current_pattern(t), [g_ for g_ in pre if g_['i'] in lay_ids],
+                        layer='under')
+        for i in lay_ids:
+            geo = draw_strip(L_, i, tw, sts[i], part='core')
+            geo['lbl_cy'] = sts[i]['lbl_cy']
+            geos.append(geo)
+        if any(sts[i].get('cam', 0) > 0 for i in lay_ids):
+            hi = any(sts[i].get('kind') == 'hi' for i in lay_ids)
+            y0, y1 = (BIG_TOP - 6, BIG_Y1 + 8) if hi else (STACK_Y0, STACK_Y1 + 8)
+            mask = Image.new('L', (W, H), 0)
+            ImageDraw.Draw(mask).rectangle((0, y0, W, y1), fill=255)
+            L_.putalpha(ImageChops.multiply(L_.getchannel('A'), mask))
+        base.alpha_composite(L_)
+    for i, st in sts.items():
         la = st['lbl_a'] * a
         if la > 0.01:
             put(base, PATTERNS[i]['name'], st['lbl_sz'], st['lbl_wt'], st['lbl_col'], x=LABEL_X + dx,
@@ -1266,8 +1509,8 @@ def push(t, t_mid, d=XF):
 
 
 def zoom_state(t):
-    """いまの拡大の度合い zf（0：ふつう、1：紹介中）と、マス目の (小さいマス, 基準 x, 基準 y)。
-    場面の押し出しのあいだは、出ていく場面と入ってくる場面を重みでまぜる。"""
+    """いまの拡大の度合い zf（0：ふつう、1：拡大）と、マス目の (小さいマス, 基準 x, 基準 y)。
+    紹介中の帯、または場所の説明で寄っている帯の倍率と基線に合わせる。場面の押し出しのあいだは重みでまぜる。"""
     zf, ax, ay, sp = 0.0, 0.0, 0.0, 0.0
     for s in range(len(PLACES)):
         s0, s1 = scene_span(s)
@@ -1275,15 +1518,21 @@ def zoom_state(t):
         w = u_in * (1 - push(t, s1))
         if w <= 0.0:
             continue
-        z = scene_hi(s, t)
-        if z <= 0.0:
+        sts = scene_states(s, t)
+        z_hi = scene_hi(s, t)
+        his = [v for v in sts.values() if v.get('kind') == 'hi']
+        cams = [v for v in sts.values() if v.get('kind') == 'ov' and v.get('cam', 0) > 0]
+        if his and z_hi > 0:
+            st, z = his[0], z_hi
+        elif cams:
+            st, z = cams[0], cams[0]['cam']
+        else:
             continue
-        bs, px = scene_hi_base(s, t)
         zf += w*z
-        sp += w*z*(px / F_PXS - 1)
+        sp += w*z*(st['pxs'] / F_PXS - 1)
         ax += w*z*XC
-        ay += w*z*bs
-    return zf, (F_PXMM*(1 + sp), ax, ay)
+        ay += w*z*st['base']
+    return min(1.0, zf), (F_PXMM*(1 + sp), ax, ay)
 
 
 def frame(t, watermark=True):
@@ -1558,8 +1807,8 @@ def check():
         seen = all(vis[(ts >= v_name[0]) & (ts <= v_name[1])])
         crossed = t_out <= b['dur'] + 1e-6
         print(f"  {pat['name']}（{pat['slow']}倍）：特徴が右端に入る {t_in:.2f}秒 → 左端から抜ける {t_out:.2f}秒（紹介 {b['dur']:.2f}秒）"
-              f"{'' if crossed else ' ✗ 抜けきらない'}、名前を言うあいだ{'見えている' if seen else ' ✗ 見えない'}")
-        ok &= seen and t_in >= 0.3 and crossed
+              f"{'' if crossed else '（寄りで止めて見せるので、抜けきらなくてよい）'}、名前を言うあいだ{'見えている' if seen else ' ✗ 見えない'}")
+        ok &= seen and t_in >= 0.3
     print('モデルの値')
     print(f'  モビッツII型：PR {PR:.2f}秒で一定、4つめのP波が伝わらない（4:3）')
     print(f'  完全房室ブロック：心房 {60/0.68:.0f}/分、心室 {60/1.7:.0f}/分（QRS {_qrs_ms(qrs_escape):.0f}ms）')
