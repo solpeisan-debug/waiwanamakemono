@@ -107,18 +107,20 @@ def speech_blocks(path, noise='-40dB', d=0.25, min_len=0.0):
 
 def cut(audio, blocks, ix, gap_cap=None):
     """声のかたまり ix をつないで1文にする。gap_cap があれば、かたまりの間の無音をその長さまで縮める
-    （無音の真ん中を残して切るので、声には触れない）。"""
+    （無音の前後を gap_cap/2 ずつ残し、まん中だけ切るので、声には触れない）。"""
     a = blocks[ix[0]-1][0] - PAD_IN
     b = blocks[ix[-1]-1][1] + PAD_OUT
     if gap_cap is None:
         return audio[max(0, int(a*SR)):int(b*SR)]
+    # 2026-10-10 直した（第25弾と同じ直し）：前は無音のまん中から gap_cap ぶんを「切り取って」いた
+    # （0.45〜0.9秒の間が 0.0〜0.05秒になり、小さな語尾が切れていた）。いまは、間の前後を gap_cap/2 ずつ残して、
+    # まん中の余りだけを切る（＝間は gap_cap の長さになる。声の終わりの小さな音にも触れない）
     parts, t = [], a
     for j in range(len(ix) - 1):
         g0, g1 = blocks[ix[j]-1][1], blocks[ix[j+1]-1][0]
         if g1 - g0 > gap_cap:
-            mid = (g0 + g1) / 2
-            parts.append(audio[max(0, int(t*SR)):int((mid - gap_cap/2)*SR)])
-            t = mid + gap_cap/2
+            parts.append(audio[max(0, int(t*SR)):int((g0 + gap_cap/2)*SR)])
+            t = g1 - gap_cap/2
     parts.append(audio[max(0, int(t*SR)):int(b*SR)])
     return np.concatenate(parts)
 
