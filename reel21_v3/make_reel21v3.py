@@ -401,22 +401,24 @@ def hi_mv(i):
 # g：寄ったときの縦の倍率（px/mV。横も同じ倍率で広がる）、by：寄ったときの基線の y、tgt：寄る先の決め方、
 # chain：前の寄りから直接つなぐ（いったん引かない）。strip：場所の説明のとき、寄る帯（パターンの key）。
 SHOTS = {
-    ('ov', 0): [dict(strip='モビッツII', at=1.0, hold=2.2, g=680, by=1250, tgt='pr')],          # P と QRS が握手
-    ('ov', 1): [dict(strip='単形性VT', at=0.6, hold=2.6, g=200, by=960, tgt='stamp')],         # 定規で幅 → 同じ顔のスタンプ
-    ('ov', 2): [dict(strip='R on T', at=0.8, hold=1.8, g=380, by=1100, tgt='t')],              # Tちゃん
-    'モビッツII': [dict(at=0.5, hold=1.2, g=680, by=1250, tgt='pr'),                            # 伝わる拍の握手
-                 dict(at=None, chain=True, hold=2.0, g=560, by=1040, tgt='drop')],             # 抜けたP「あっ」→ QRS「あらっ」
-    '完全房室ブロック': [dict(at=0.6, hold=1.8, g=520, by=1200, tgt='w_p')],
-    'ショートラン': [dict(at=0.9, hold=1.8, g=520, by=1150, tgt='run')],
-    '単形性VT': [dict(at=0.7, hold=1.6, g=640, by=1180, tgt='pair')],
-    '多形性VT': [dict(at=0.7, hold=1.8, g=520, by=960, tgt='poly3')],
-    'トルサード': [dict(at=1.6, hold=1.6, g=420, by=940, tgt='burst')],
-    'R on T': [dict(at=0.9, hold=2.0, g=560, by=1180, tgt='ront')],
-    '粗いVF': [dict(at=0.7, hold=1.6, g=480, by=930, tgt='center')],
-    '細かいVF': [dict(at=0.8, hold=1.6, g=1100, by=950, tgt='center')],
-    'PEA1': [dict(at=0.6, hold=1.8, g=680, by=1060, tgt='beat')],
-    'PEA2': [dict(at=0.6, hold=1.8, g=470, by=1000, tgt='w')],
+    ('ov', 0): [dict(strip='モビッツII', at=1.0, hold=2.2, g=680, by=1159, tgt='pr')],          # P と QRS が握手
+    ('ov', 1): [dict(strip='単形性VT', at=0.6, hold=2.6, g=200, by=896, tgt='stamp')],         # 定規で幅 → 同じ顔のスタンプ
+    ('ov', 2): [dict(strip='R on T', at=0.8, hold=1.8, g=380, by=1035, tgt='t')],              # Tちゃん
+    'モビッツII': [dict(at=0.5, hold=1.2, g=600, by=1196, tgt='pr'),                            # 伝わる拍の握手
+                 dict(at=None, chain=True, hold=2.0, g=560, by=1130, tgt='drop')],             # 抜けたP「あっ」→ QRS「あらっ」
+    '完全房室ブロック': [dict(at=0.6, hold=1.8, g=520, by=1079, tgt='w_p')],
+    'ショートラン': [dict(at=0.9, hold=1.8, g=470, by=1036, tgt='run')],
+    '単形性VT': [dict(at=0.7, hold=1.6, g=540, by=996, tgt='pair')],
+    '多形性VT': [dict(at=0.7, hold=1.8, g=370, by=969, tgt='poly3')],
+    'トルサード': [dict(at=1.6, hold=1.6, g=320, by=905, tgt='burst')],
+    'R on T': [dict(at=0.9, hold=2.0, g=450, by=1048, tgt='ront')],
+    '粗いVF': [dict(at=0.7, hold=1.6, g=480, by=928, tgt='center')],
+    '細かいVF': [dict(at=0.8, hold=1.6, g=1100, by=972, tgt='center')],
+    'PEA1': [dict(at=0.6, hold=1.8, g=600, by=1196, tgt='beat')],
+    'PEA2': [dict(at=0.6, hold=1.8, g=470, by=1036, tgt='w')],
 }
+# 寄りの g・by は、寄ったときに画面の幅に入る波形の上下が、帯の範囲（字の場所の手前）に収まるように選んだ
+#（--check の「寄りの範囲」で確かめる。端は VIEW_FADE px でなめらかに消すが、波形はその内側に収める）
 CAM_IN, CAM_OUT, CAM_CHAIN = 0.55, 0.55, 0.6      # 寄る・引く・寄りから寄りへ（秒）
 CAM_SLOW = 0.08                                   # 寄っているあいだの流れ（ふだんの何倍か）
 
@@ -1294,6 +1296,22 @@ def scene_states(s, t):
     return out
 
 
+VIEW_BOT = 1334                    # 寄ったときに波形を描く下の端（次の対応の字の上）
+VIEW_FADE = 30                     # 端の手前でなめらかに消す（線がぶつっと切れて見えないように）
+_MASKS = {}
+
+
+def view_mask(y0, y1):
+    """寄った帯を描く範囲の、やわらかい切り取り（上下の端 VIEW_FADE px で 0 へ）。"""
+    k = (int(y0), int(y1))
+    if k not in _MASKS:
+        yy = np.arange(H, dtype=np.float32)
+        col = np.clip(np.minimum((yy - y0) / VIEW_FADE, (y1 - yy) / VIEW_FADE), 0, 1)
+        col = col*col*(3 - 2*col)
+        _MASKS[k] = Image.fromarray(np.repeat((col*255).astype(np.uint8)[:, None], W, axis=1), 'L')
+    return _MASKS[k]
+
+
 def draw_scene(base, s, t, a=1.0, dy=0.0, t_wave=None, dx=0.0):
     """場面 s：場所の名前・何を見るか・波形の帯とラベル。a・dy は場面の切りかえ用（全体の濃さ・縦のずれ）。"""
     tw = t if t_wave is None else t_wave
@@ -1331,10 +1349,8 @@ def draw_scene(base, s, t, a=1.0, dy=0.0, t_wave=None, dx=0.0):
             geos.append(geo)
         if any(sts[i].get('cam', 0) > 0 for i in lay_ids):
             hi = any(sts[i].get('kind') == 'hi' for i in lay_ids)
-            y0, y1 = (BIG_TOP - 6, BIG_Y1 + 8) if hi else (STACK_Y0, STACK_Y1 + 8)
-            mask = Image.new('L', (W, H), 0)
-            ImageDraw.Draw(mask).rectangle((0, y0, W, y1), fill=255)
-            L_.putalpha(ImageChops.multiply(L_.getchannel('A'), mask))
+            y0, y1 = (BIG_TOP - 8, VIEW_BOT) if hi else (STACK_Y0 - 4, VIEW_BOT)
+            L_.putalpha(ImageChops.multiply(L_.getchannel('A'), view_mask(y0, y1)))
         base.alpha_composite(L_)
     for i, st in sts.items():
         la = st['lbl_a'] * a
@@ -1809,6 +1825,23 @@ def check():
         print(f"  {pat['name']}（{pat['slow']}倍）：特徴が右端に入る {t_in:.2f}秒 → 左端から抜ける {t_out:.2f}秒（紹介 {b['dur']:.2f}秒）"
               f"{'' if crossed else '（寄りで止めて見せるので、抜けきらなくてよい）'}、名前を言うあいだ{'見えている' if seen else ' ✗ 見えない'}")
         ok &= seen and t_in >= 0.3
+    # 寄り：寄ったときの波形の上下が、帯の範囲の内側（やわらかく消える端の手前）に収まるか
+    print('寄り（カメラ）：寄っているあいだ、画面の幅の波形の上下（帯の範囲の内側に収める）')
+    for i in range(N_PAT):
+        for d in SCHED[i]:
+            sc_ = PATTERNS[i]['place']
+            lo, hi = 1e9, -1e9
+            for t in np.linspace(d['t1'], d['t2'], 6):
+                st = scene_states(sc_, t)[i]
+                xs = np.arange(0, W, 4.0)
+                ys = st['base'] - pattern_wave(i, st['c'] + (xs - XC) / st['pxs']) * st['g']
+                lo, hi = min(lo, ys.min()), max(hi, ys.max())
+            top = (BIG_TOP - 8 if d['mode'] == 'hi' else STACK_Y0 - 4) + VIEW_FADE
+            bad = lo < top - 4 or hi > VIEW_BOT - VIEW_FADE + 4
+            ok &= not bad
+            name = PATTERNS[i]['name'] if d['mode'] == 'hi' else f"{PLACES[sc_]['no']} 場所の説明（{PATTERNS[i]['name']}）"
+            print(f"  {name:<20} {d['t0']:6.2f}〜{(d['t2'] if d['chain_out'] else d['t3']):6.2f}秒 縦 {d['g']}px/mV"
+                  f"  波 {lo:5.0f}〜{hi:5.0f}（範囲 {top}〜{VIEW_BOT - VIEW_FADE}）{' ✗ はみ出す' if bad else ''}")
     print('モデルの値')
     print(f'  モビッツII型：PR {PR:.2f}秒で一定、4つめのP波が伝わらない（4:3）')
     print(f'  完全房室ブロック：心房 {60/0.68:.0f}/分、心室 {60/1.7:.0f}/分（QRS {_qrs_ms(qrs_escape):.0f}ms）')

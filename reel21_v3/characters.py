@@ -788,7 +788,7 @@ def scene3(m, img, t, S, mode, a, blk):
     ft = face_fit(S, R['T'])
     if ft is not None:                                       # 接点（PVCの立ち上がり）を隠さないよう、少し左・小さめに
         ft = face_fit_shift(S, R['T'], -0.3)
-    fv = face_fit(S, R['V'], shrink=0.6)                    # PVCくんは上のほうに（T との接点を隠さない）
+    fv = face_fit(S, R['V'], shrink=0.8)                    # PVCくんは上のほうに（T との接点を隠さない）
     jump = 1 - ease((tau - 0.6) / 0.45)
     if fv is not None:
         xv, yv, rv = fv
@@ -890,12 +890,14 @@ def scene4(m, img, t, S, mode, a, blk):
             cpr_hands(m, img, 800 + S.dx, S.base - 175, 60, col, a=ca, press=press)
 
 
-def scene5_props(m, img, t, dx, y, col, a):
-    """⑤：動かないハート（脈がない）と、脈をみる手（？）。"""
-    heart(img, m.XC - 290 + dx, y, 57, col, a=a)
+def scene5_props(m, img, t, dx, y, col, a, e=0.0):
+    """⑤：動かないハート（脈がない）と、脈をみる手（？）。e：寄っている度合い（寄ると、波形の右上の空いたところへ移る）。"""
+    hx = m.XC - 290 + 410*e + dx
+    fx = m.XC + 170 + 130*e + dx
+    heart(img, hx, y, 57, col, a=a)
     press = 0.5 + 0.5*math.sin(2*math.pi*0.8*t)
-    finger(img, m.XC + 170 + dx, y + 46, 36, a=a, press=press)
-    bubble(m, img, m.XC + 295 + dx, y - 40, '？', a=a, tail=(m.XC + 210 + dx, y - 20))
+    finger(img, fx, y + 46, 36, a=a, press=press)
+    bubble(m, img, fx + 110, y - 40, '？', a=a, tail=(fx + 40, y - 20))
 
 
 def scene5(m, img, t, S, mode, a, blk):
@@ -964,13 +966,15 @@ def _draw(m, img, t, geos):
             a = ease((t - (s0 + 0.4)) / 0.35) * (1 - ease((t - (s1 - 0.35)) / 0.3))
             if a <= 0.01:
                 break
+            e = 0.0
             if geo.get('kind') == 'hi':
-                y = 1222                                   # 拡大・寄りの波形の下（次の対応の字より上）
+                e = ease(geo.get('cam', 0.0))
+                y = 1222 + (690 - 1222)*e                  # ふだんは波形の下、寄ると右上の空いたところ
             elif geo['i'] == m.SCENE_PATS[4][0] and geo.get('kind') == 'ov':
                 y = SCENE5_PROP_Y
             else:
                 continue
-            scene5_props(m, img, t, geo.get('dx', 0.0), y, m.PLACES[4]['col'], a)
+            scene5_props(m, img, t, geo.get('dx', 0.0), y, m.PLACES[4]['col'], a, e)
             break
 
 
