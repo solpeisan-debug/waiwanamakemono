@@ -1388,7 +1388,7 @@ def beeps(path, sr=44100):
         L = pat['L']
         # 中央を通る時刻：rel_at(i, t, XC) = r + kL
         off = PHASE[i] + (XC - W) / F_PXS
-        for k in range(int(-off // L) - 2, int((DUR - off) // L) + 2):
+        for k in range(int(off // L) - 2, int((DUR + off) // L) + 3):
             for r, kind in pat['ev']:
                 if KINDS[kind][0] is None:
                     continue
