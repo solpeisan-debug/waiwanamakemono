@@ -265,7 +265,7 @@ for _p in PATTERNS:
 # 区間の長さ（秒）。2026-10-07 録音（Ren – Smooth & Soothing・eleven_v4、1.2倍速・声の高さはそのまま）に合わせて詰めた：
 # 各文の声の長さ（息継ぎ0.45秒まで）＋0.75秒（話し始めまで0.55秒＋次までの間0.2秒）が入る長さで、
 # 拍の並びがくずれない位置（そのパターンの拍の間隔の倍数。次のパターンの最初の拍まで、そのパターンの間隔）で切る。
-# 声の長さ：①2.13 ②2.77 ③3.05 ④2.45 ⑤2.54 ⑥2.47 ⑦2.93 ⑧2.95 ⑨3.40 ⑩3.01 ⑪2.35 秒
+# 声の長さ：①2.57 ②2.77 ③3.05 ④2.45 ⑤2.54 ⑥2.89 ⑦2.93 ⑧2.95 ⑨3.40 ⑩3.01 ⑪2.35 秒（2026-10-10、文の中の間 0.45秒を正しく残した長さ）
 # （①は縮み始めが0.35秒早いぶん、区間より紹介の時間が短い。⑨は 4.0 だと入らないので 5.0）
 # 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
 SEG_D = {'①': 4.0, '②': 4.0, '③': 4.0, '④': 4.2, '⑤': 3.6, '⑥': 3.6,
@@ -316,7 +316,7 @@ def hl_mask(pat, rel):
 # 元の波形に戻ってから T_GO でまた流す。T_TITLE でパターン①が右端から入ってくる。
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
-T_TITLE = 4.0                     # 冒頭の1文（声 4.01秒：0.10〜4.11秒）のあと、①の声が 4.3秒から入る長さ
+T_TITLE = 4.4                     # 冒頭の1文（声 4.36秒：0.10〜4.46秒）のあと、①の声が 4.7秒から入る長さ（2026-10-10 文の中の間を正しく残したため 4.0→4.4）
 END_HOLD = 6.0                    # 11個そろってからの時間（まとめ・保存の2文、「何個わかった？」を読む時間と、冒頭へ戻る時間）
 HOOK = [1, 3, 5, 7, 9]            # ②テント状T → ④P波消失 → ⑥サイン波 → ⑧低K（高度）→ ⑩QT延長
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
@@ -910,6 +910,73 @@ def draw_gauge(im, t, a):
     put(im, 'はじめ', 19, 700, GREY, cx=max(GAUGE_X, 73 + w0/2), cy=GAUGE_Y1 + 28, a=a)
 
 
+# --- 波の名前（P・Q・R・S・T、低KのU）：中部の帯の拍にくっつけて、いっしょに流す ---------------------
+# 色は文字ごとに変える（暗いマス目の上で読める・パターンの色とまぎれにくい）。太字 34px、暗いふちどり
+WAVE_LABEL_COL = {'P': (255, 225, 77), 'Q': (77, 216, 255), 'R': (255, 255, 255), 'S': (170, 255, 90),
+                  'T': (255, 154, 60), 'U': (255, 140, 255)}
+WAVE_LABEL_SIZE = 34
+# (文字, R頂点からの時刻（秒・横の位置）, 基線からの高さ（px・上がマイナス）)。波の線にかからないところに置く
+PQRST_LABELS = [
+    ('P', -0.160, -0.15*F_MV - 30),      # P波の上
+    ('Q', -0.062, 30),                   # R の手前の小さなくぼみ（q）の左下
+    ('R', 0.075, -0.86*F_MV),            # R頂点の右（真上は「ひとこと」の字に近いので）
+    ('S', 0.080, 0.20*F_MV + 30),        # R のあとのくぼみ（S）の右下
+    ('T', 0.270, -0.27*F_MV - 30),       # T波の上
+]
+LABEL_X0, LABEL_X1, LABEL_FADE = 210, 870, 80   # 拍のR頂点がこの範囲にあるときだけ（端は LABEL_FADE px でうすく）
+
+
+def _label_img(ch, col):
+    k = ('lab', ch, col)
+    if k not in _TXT:
+        f = font(WAVE_LABEL_SIZE, 900)
+        x0, y0, x1, y1 = f.getbbox(ch, stroke_width=5)
+        im = Image.new('RGBA', (x1 - x0 + 8, y1 - y0 + 8), (0, 0, 0, 0))
+        ImageDraw.Draw(im).text((4 - x0, 4 - y0), ch, font=f, fill=col + (255,),
+                                stroke_width=5, stroke_fill=(2, 7, 6, 255))
+        _TXT[k] = im
+    return _TXT[k]
+
+
+def put_label(base, ch, x, y, a):
+    if a <= 0.004:
+        return
+    im = _label_img(ch, WAVE_LABEL_COL[ch])
+    if a < 0.999:
+        im = im.copy(); im.putalpha(im.getchannel('A').point(lambda q: int(q*a)))
+    base.alpha_composite(im, (int(x - im.size[0]/2), int(y - im.size[1]/2)))
+
+
+def draw_wave_labels(im, t, cur, a):
+    """紹介中のパターンの拍に、波の名前をつける。①：P・Q・R・S・T、⑦⑧：U（U波の上）。"""
+    if a <= 0.004 or cur is None or cur not in LABELED:
+        return
+    tc = tau_c(t)
+    for r, k, i in STRIP:
+        if i != cur:
+            continue
+        xr = XC + (r - tc) * F_PXS
+        if not (LABEL_X0 - LABEL_FADE < xr < LABEL_X1 + LABEL_FADE):
+            continue
+        ae = a * cl((xr - (LABEL_X0 - LABEL_FADE)) / LABEL_FADE) * cl(((LABEL_X1 + LABEL_FADE) - xr) / LABEL_FADE)
+        for ch, dt, dy in LABELED[cur](k):
+            xl = xr + dt*F_PXS
+            if 96 <= xl <= W - 96:               # 文字が左右の安全域（72px）の内側に入るときだけ
+                put_label(im, ch, xl, F_BASE + dy, ae)
+
+
+def _u_label(k):
+    """U波の頂点の上（U波の高さ・位置はモデルから）。"""
+    tt = np.arange(0.30, 0.70, 0.002)
+    u = KINDS[k].part(tt, 'u')
+    j = int(np.argmax(u))
+    st_t = KINDS[k].part(tt, 'st', 't', 'u')
+    return [('U', float(tt[j]), -float(st_t[j])*F_MV - 32)]
+
+
+LABELED = {0: lambda k: PQRST_LABELS, 6: _u_label, 7: _u_label}   # ①、⑦⑧
+
+
 def frame(t):
     global _GRID
     if _GRID is None:
@@ -987,6 +1054,9 @@ def frame(t):
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     if a_strip > 0.01:
         im.alpha_composite(featured(t, base_col, a_strip, cur), (0, F_Y0))
+        if cur is not None and cur in LABELED:     # 波の名前：名前が出てから、紹介の終わりの少し前まで
+            a_i, b_i = WINDOWS[cur]
+            draw_wave_labels(im, t, cur, a_strip * ramp(t, a_i + 0.5, 0.4) * (1 - ramp(t, b_i - 0.45, 0.3)))
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         mini(im, flying, t, uu)
