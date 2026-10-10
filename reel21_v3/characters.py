@@ -18,7 +18,7 @@ LT = (242, 247, 245)          # 顔・手の線
 EYE = (250, 252, 252)
 SWEAT = (140, 205, 255)
 SS = 3
-FACE_K = 1.55                 # 顔の線の大きさ（位置はそのまま、目・口を大きく）
+FACE_K = 1.0                  # 顔の大きさの倍率（r は描く顔の半径。顔の幅は約 1.3r）
 
 
 def cl(x, a=0.0, b=1.0):
@@ -229,7 +229,7 @@ def face(img, cx, cy, r, expr, a=1.0, look=0.0, rot=0.0, expr2=None, u=0.0):
     pad.paste(img, a)
 
 
-def arms(img, segs, a=1.0, w=2.6, hand=4.2):
+def arms(img, segs, a=1.0, w=4.2, hand=6.5):
     """手：segs = [(肩, 手)]。縁どりつきの線と丸い手。"""
     if a <= 0.01 or not segs:
         return
@@ -244,12 +244,12 @@ def arms(img, segs, a=1.0, w=2.6, hand=4.2):
     pad.paste(img, a)
 
 
-def bubble(m, img, x, y, s, a=1.0, tail=None, size=28, col=(250, 250, 248)):
+def bubble(m, img, x, y, s, a=1.0, tail=None, size=42, col=(250, 250, 248)):
     """吹き出し（中心 x, y）。tail：しっぽの先 (x, y)。文字は4字まで。"""
     if a <= 0.01:
         return
     tw = m.text_w(s, size, 800)
-    w, h = tw + 22, size + 18
+    w, h = tw + 34, size + 26
     x0, y0 = x - w/2, y - h/2
     pts = [p for p in ([tail] if tail else [])]
     xs = [x0, x0 + w] + [p[0] for p in pts]; ys = [y0, y0 + h] + [p[1] for p in pts]
@@ -257,9 +257,9 @@ def bubble(m, img, x, y, s, a=1.0, tail=None, size=28, col=(250, 250, 248)):
     if tail:
         bx = cl(tail[0], x0 + 12, x0 + w - 12)
         by = y0 + h if tail[1] > y else y0
-        tri = [(bx - 7, by), (bx + 7, by), tail]
+        tri = [(bx - 11, by), (bx + 11, by), tail]
         pad.poly(tri, fill=DK, outline=DK, w=3.0, a=230)
-    pad.rrect(x0, y0, x0 + w, y0 + h, h/2, fill=col, outline=DK, w=2.2)
+    pad.rrect(x0, y0, x0 + w, y0 + h, h/2, fill=col, outline=DK, w=3.2)
     if tail:
         pad.poly(tri, fill=col)
         pad.rrect(x0 + 1.2, y0 + 1.2, x0 + w - 1.2, y0 + h - 1.2, h/2 - 1, fill=col)
@@ -319,41 +319,40 @@ def spark(img, x, y, s, a=1.0, col=(255, 236, 140), rot=0.0):
 
 def ruler(m, img, x0, x1, y, col, a=1.0, mark=None):
     """定規（1mm＝14px の目盛り）。mark=(xa, xb) で幅のしるし（両矢印）。"""
-    h = 22
-    pad = Pad(x0 - 8, y - 30, x1 + 8, y + h + 8)
+    h = 33
+    pad = Pad(x0 - 8, y - 42, x1 + 8, y + h + 8)
     pad.rrect(x0, y, x1, y + h, 4, fill=(232, 222, 190), outline=DK, w=2.5)
     for k in range(int((x1 - x0) / 14) + 1):
         xx = x0 + 6 + k*14
         if xx > x1 - 4:
             break
-        L_ = 11 if k % 5 == 0 else 6
-        pad.line([(xx, y), (xx, y + L_)], (70, 60, 40), 1.6 if k % 5 == 0 else 1.1, cap=False)
+        L_ = 17 if k % 5 == 0 else 9
+        pad.line([(xx, y), (xx, y + L_)], (70, 60, 40), 2.2 if k % 5 == 0 else 1.5, cap=False)
     if mark:
         xa, xb = mark
-        pad.line([(xa, y - 14), (xb, y - 14)], DK, 6.5, a=220)
-        pad.line([(xa, y - 14), (xb, y - 14)], col, 3.2)
+        pad.line([(xa, y - 20), (xb, y - 20)], DK, 8.5, a=220)
+        pad.line([(xa, y - 20), (xb, y - 20)], col, 4.5)
         for xx, sg in ((xa, 1), (xb, -1)):
-            pad.line([(xx + sg*7, y - 21), (xx, y - 14), (xx + sg*7, y - 7)], col, 3.0)
-            pad.line([(xx, y - 24), (xx, y - 4)], col, 2.2)
+            pad.line([(xx + sg*10, y - 30), (xx, y - 20), (xx + sg*10, y - 10)], col, 4.2)
+            pad.line([(xx, y - 36), (xx, y - 4)], col, 3.0)
     pad.paste(img, a)
 
 
-def signpost(m, img, x, y, col, a=1.0, left='脈あり', right='脈なし', size=26):
-    """分かれ道の看板：x は柱、y は上の板の中心。"""
-    wl, wr = m.text_w(left, size, 800) + 34, m.text_w(right, size, 800) + 34
-    hh = size + 14
-    pad = Pad(x - wl - 10, y - hh, x + wr + 10, y + hh*2.2 + 12)
-    pad.line([(x, y - hh*0.6), (x, y + hh*2.1)], DK, 9, a=220)
-    pad.line([(x, y - hh*0.6), (x, y + hh*2.1)], (190, 170, 140), 5)
-    L_ = [(x + 4, y - hh/2), (x - wl + 12, y - hh/2), (x - wl, y), (x - wl + 12, y + hh/2), (x + 4, y + hh/2)]
-    y2 = y + hh*1.15
-    R_ = [(x - 4, y2 - hh/2), (x + wr - 12, y2 - hh/2), (x + wr, y2), (x + wr - 12, y2 + hh/2), (x - 4, y2 + hh/2)]
+def signpost(m, img, x, y, col, a=1.0, left='脈あり', right='脈なし', size=34):
+    """分かれ道の看板：x は柱、y は板の中心。左の板「脈あり」・右の板「脈なし」を同じ高さに。"""
+    wl, wr = m.text_w(left, size, 800) + 44, m.text_w(right, size, 800) + 44
+    hh = size + 18
+    pad = Pad(x - wl - 12, y - hh, x + wr + 12, y + hh*1.6 + 12)
+    pad.line([(x, y - hh*0.6), (x, y + hh*1.5)], DK, 12, a=220)
+    pad.line([(x, y - hh*0.6), (x, y + hh*1.5)], (190, 170, 140), 7)
+    L_ = [(x - 6, y - hh/2), (x - wl + 16, y - hh/2), (x - wl, y), (x - wl + 16, y + hh/2), (x - 6, y + hh/2)]
+    R_ = [(x + 6, y - hh/2), (x + wr - 16, y - hh/2), (x + wr, y), (x + wr - 16, y + hh/2), (x + 6, y + hh/2)]
     for pts in (L_, R_):
-        pad.poly(pts, fill=(14, 26, 22), outline=DK, w=5, a=230)
-        pad.poly(pts, fill=(14, 26, 22), outline=col, w=2.6)
+        pad.poly(pts, fill=(14, 26, 22), outline=DK, w=6, a=230)
+        pad.poly(pts, fill=(14, 26, 22), outline=col, w=3.2)
     pad.paste(img, a)
-    m.put(img, left, size, 800, m.LIGHT, cx=x - wl/2 + 2, cy=y, a=a)
-    m.put(img, right, size, 800, m.LIGHT, cx=x + wr/2 - 2, cy=y2, a=a)
+    m.put(img, left, size, 800, m.LIGHT, cx=x - wl/2 + 4, cy=y, a=a)
+    m.put(img, right, size, 800, m.LIGHT, cx=x + wr/2 - 4, cy=y, a=a)
 
 
 def loop_arrow(m, img, x, y, r, col, a=1.0, rot=0.0, label='くり返す'):
@@ -369,7 +368,7 @@ def loop_arrow(m, img, x, y, r, col, a=1.0, rot=0.0, label='くり返す'):
     pad.line(pts, col, 5); pad.poly(head, fill=col)
     pad.paste(img, a)
     if label:
-        m.put(img, label, 28, 800, col, x=x + r + 14, cy=y, a=a)
+        m.put(img, label, 34, 800, col, x=x + r + 16, cy=y, a=a)
 
 
 def plug(img, x, y, s, col, a=1.0, gap=0.0):
@@ -412,12 +411,12 @@ def cpr_hands(m, img, x, y, s, col, a=1.0, press=0.0):
         pad.line([(ax, yy - 0.3*s), (ax, yy + 0.35*s)], col, 4.2)
         pad.line([(ax - 0.18*s, yy + 0.12*s), (ax, yy + 0.37*s), (ax + 0.18*s, yy + 0.12*s)], col, 4.2)
     pad.paste(img, a)
-    m.put(img, 'CPR', 30, 900, col, cx=x, cy=y - 0.85*s, a=a)
+    m.put(img, 'CPR', 36, 900, col, cx=x, cy=y - 0.85*s, a=a)
 
 
 def name_tag(m, img, x, y, col, a=1.0):
     """空いた名札「QRS」（点線の枠）。"""
-    w, h = 96, 44
+    w, h = 144, 66
     pad = Pad(x - w/2 - 6, y - h/2 - 6, x + w/2 + 6, y + h/2 + 6)
     pad.rrect(x - w/2, y - h/2, x + w/2, y + h/2, 10, fill=(10, 20, 18), a=200)
     per = 2*(w + h)
@@ -435,7 +434,7 @@ def name_tag(m, img, x, y, col, a=1.0):
             return (x - w/2, y + h/2 - d)
         pad.line([at(u0), at(u1)], col, 2.4, cap=False)
     pad.paste(img, a)
-    m.put(img, 'QRS', 26, 800, m.GREY, cx=x, cy=y, a=a*0.9)
+    m.put(img, 'QRS', 34, 800, m.GREY, cx=x, cy=y, a=a*0.9)
 
 
 def finger(img, x, y, s, a=1.0, press=0.0):
@@ -455,14 +454,14 @@ def mini_char(m, img, kind, x, y, s, col, t, a=1.0, wave_hand=True, phase=0.0):
     """最後に並ぶ小さなキャラクター（波形の部品の形＋顔＋手をふる）。y は基線。"""
     if kind == 'P':
         pts = [(x - 0.9*s + 1.8*s*k/20, y - 0.45*s*math.exp(-((k - 10)/4.5)**2)) for k in range(21)]
-        fx, fy, r = x, y - 0.45*s - 0.42*s, 0.34*s
+        fx, fy, r = x, y - 0.45*s - 0.52*s, 0.56*s
     elif kind == 'QRS':
         pts = [(x - 0.6*s, y), (x - 0.18*s, y), (x - 0.1*s, y + 0.12*s), (x, y - 1.55*s), (x + 0.1*s, y + 0.25*s),
                (x + 0.18*s, y), (x + 0.6*s, y)]
-        fx, fy, r = x, y - 1.55*s + 0.42*s, 0.42*s
+        fx, fy, r = x, y - 1.55*s + 0.3*s, 0.66*s
     else:
         pts = [(x - 1.0*s + 2.0*s*k/24, y - 0.62*s*math.exp(-((k - 12)/5.5)**2)) for k in range(25)]
-        fx, fy, r = x, y - 0.62*s + 0.3*s, 0.3*s
+        fx, fy, r = x, y - 0.62*s - 0.05*s, 0.5*s
     pad = Pad(min(p[0] for p in pts) - 10, min(p[1] for p in pts) - 10, max(p[0] for p in pts) + 10, y + 0.4*s)
     pad.line(pts, DK, 8, a=200)
     pad.line(pts, col, 4.2)
@@ -470,7 +469,7 @@ def mini_char(m, img, kind, x, y, s, col, t, a=1.0, wave_hand=True, phase=0.0):
     face(img, fx, fy, r, 'happy' if kind != 'QRS' else 'smile', a=a)
     if wave_hand:
         ang = math.radians(-60 + 25*math.sin(2*math.pi*1.6*t + phase))
-        sh = (fx + r*0.9, fy + r*0.7)
+        sh = (fx + r*0.6, fy + r*0.5)
         hd = (sh[0] + 0.55*s*math.cos(ang), sh[1] + 0.55*s*math.sin(ang))
         arms(img, [(sh, hd)], a=a)
 
@@ -543,16 +542,16 @@ _CACHE = {}
 def qrs_face_pos(S, rel, r, down=False):
     """QRSくんの顔の中心：R の先端のすぐ下（下向きの波は谷のすぐ上）。"""
     x, y = S.x(rel), S.y(rel)
-    return (x, y - 0.85*r) if down else (x, y + 0.85*r)
+    return (x, y - 0.5*r) if down else (x, y + 0.5*r)
 
 
 def p_face_pos(S, rel, r):
-    return S.x(rel), S.y(rel) - r - 5
+    return S.x(rel), S.y(rel) - 0.72*r - 6
 
 
 def t_face_pos(S, rel, r):
     x, y = S.x(rel), S.y(rel)
-    return x, y + 0.9*r
+    return x, y - 0.25*r
 
 
 # --- 場面ごと ------------------------------------------------------------------------------
@@ -563,9 +562,9 @@ def _alpha_block(t, b, fi=0.3, fo=0.3, lead=0.2):
 def handshake(img, S, a, t, rel_p, rel_r, r_p, r_q, reach_u, expr_p='smile', expr_q='smile'):
     xp, yp = p_face_pos(S, rel_p, r_p)
     xq, yq = qrs_face_pos(S, rel_r, r_q)
-    mid = ((xp + xq)/2 + 2, S.base - 26*S.sc + 2.5*math.sin(2*math.pi*3.5*t)*(reach_u >= 0.99))
-    shp = (xp + 0.75*r_p, yp + 0.55*r_p)
-    shq = (xq - 3, S.base - 52*S.sc)
+    mid = ((xp + xq)/2 + 4, S.base - 30*S.sc + 3.5*math.sin(2*math.pi*3.5*t)*(reach_u >= 0.99))
+    shp = (xp + 0.55*r_p, yp + 0.5*r_p)
+    shq = (xq - 4, S.base - 62*S.sc)
     hp = (shp[0] + (mid[0] - 3 - shp[0])*reach_u, shp[1] + (mid[1] - shp[1])*reach_u)
     hq = (shq[0] + (mid[0] + 3 - shq[0])*reach_u, shq[1] + (mid[1] - shq[1])*reach_u)
     arms(img, [(shp, hp), (shq, hq)], a=a)
@@ -575,7 +574,7 @@ def handshake(img, S, a, t, rel_p, rel_r, r_p, r_q, reach_u, expr_p='smile', exp
 
 def scene1(m, img, t, S, mode, a):
     pat = S.pat
-    r_p, r_q = 17*S.sc, 26*S.sc
+    r_p, r_q = 40*S.sc, 56*S.sc
     if pat['key'] == 'モビッツII':
         bts = S.beats()
         for b in bts:
@@ -595,14 +594,14 @@ def scene1(m, img, t, S, mode, a):
                     continue          # QRS・T と重なるP波には顔を付けない（見やすさ）
                 xp, yp = p_face_pos(S, b['rel'], r_p)
                 reach = 0.5 + 0.5*math.sin(2*math.pi*0.9*t + b['idx'])
-                sh = (xp + 0.75*r_p, yp + 0.55*r_p)
-                hd = (sh[0] + 6 + 14*reach, sh[1] - 2 - 4*reach)
+                sh = (xp + 0.55*r_p, yp + 0.5*r_p)
+                hd = (sh[0] + 10 + 26*reach, sh[1] - 2 - 6*reach)
                 arms(img, [(sh, hd)], a=a)
                 face(img, xp, yp, r_p, 'serious', a=a, look=-1.0)
             elif b['kind'] == 'W':
                 bob = 3*abs(math.sin(math.pi*1.1*t + b['idx']))
                 xq, yq = qrs_face_pos(S, b['rel'], r_q*1.1)
-                face(img, xq, yq - bob, r_q*1.1, 'tired', a=a, look=1.0)
+                face(img, xq, yq - bob, r_q*1.05, 'tired', a=a, look=1.0)
 
 
 def _dropped(m, img, t, S, rel_p, r_p, r_q, a):
@@ -611,19 +610,19 @@ def _dropped(m, img, t, S, rel_p, r_p, r_q, a):
     if d < -0.2 or d > 3.2:
         return
     xp, yp = p_face_pos(S, rel_p, r_p)
-    sh = (xp + 0.75*r_p, yp + 0.55*r_p)
-    target = (xp + m.PR*m.F_PXS/2 + 2, S.base - 26*S.sc)
+    sh = (xp + 0.55*r_p, yp + 0.5*r_p)
+    target = (xp + m.PR*m.F_PXS/2 + 6, S.base - 30*S.sc)
     u = ease((d - 0.05) / 0.35) * (1 - ease((d - 0.75) / 0.4))
     over = ease((d - 0.35) / 0.3) * (1 - ease((d - 0.75) / 0.4))
     hd = (sh[0] + (target[0] + 10*over - sh[0])*u, sh[1] + (target[1] + 6*over - sh[1])*u)
     arms(img, [(sh, hd)], a=a)
     face(img, xp, yp, r_p, 'smile', a=a, expr2='ah', u=ease((d - 0.4) / 0.25))
-    bubble(m, img, xp - 6, yp - 46, 'あっ', a=a*win(d, 0.45, 1.6, 0.2, 0.3), tail=(xp, yp - r_p - 2))
+    bubble(m, img, xp - 10, yp - 0.75*r_p - 52, 'あっ', a=a*win(d, 0.45, 1.6, 0.2, 0.3), tail=(xp, yp - 0.6*r_p))
     # QRSくん（来るはずだった位置）
     xe = xp + m.PR*m.F_PXS
     rise = ease((d - 0.6) / 0.4)
     fall = ease((d - 1.85) / 0.6)
-    yq = S.base + 92 - 60*rise + 120*fall*fall
+    yq = S.base + 112 - 62*rise + 130*fall*fall
     aq = a*rise*(1 - ease((d - 2.25) / 0.25))
     if aq > 0.01:
         rot = 0.5*fall
@@ -634,12 +633,12 @@ def _dropped(m, img, t, S, rel_p, r_p, r_q, a):
         else:
             arms(img, [((xe - r_q*0.8, yq - r_q*0.3), (xe - r_q*1.3, yq - r_q*1.4)),
                        ((xe + r_q*0.8, yq - r_q*0.3), (xe + r_q*1.3, yq - r_q*1.4))], a=aq)
-        bubble(m, img, xe + 78, S.base + 34, 'あらっ', a=aq*win(d, 1.0, 1.9, 0.2, 0.25), tail=(xe + r_q + 2, yq))
+        bubble(m, img, xe + 0.7*r_q + 92, S.base + 44, 'あらっ', a=aq*win(d, 1.0, 1.9, 0.2, 0.25), tail=(xe + 0.7*r_q, yq))
 
 
 def scene2(m, img, t, S, mode, a, blk):
     key = S.pat['key']
-    r_q = 23*S.sc
+    r_q = 56*S.sc
     if mode == 'ov':
         if key != '単形性VT':
             return
@@ -650,8 +649,8 @@ def scene2(m, img, t, S, mode, a, blk):
         if ar > 0.01:
             qw = m._qrs_ms(m.qrs_vt_rs, 0.3) / 1000 * m.F_PXS
             xr0 = 330 + S.dx
-            yb = S.base + 0.75*S.g + 14
-            ruler(m, img, xr0, xr0 + 210, yb, S.pat['col'], a=ar, mark=(xr0 + 70, xr0 + 70 + qw))
+            yb = S.base + 0.75*S.g + 26
+            ruler(m, img, xr0, xr0 + 315, yb, S.pat['col'], a=ar, mark=(xr0 + 105, xr0 + 105 + qw))
         # 後半：同じ顔のスタンプが左から順に
         if t > mid - 0.1:
             for b in S.beats():
@@ -661,8 +660,8 @@ def scene2(m, img, t, S, mode, a, blk):
                 if u <= 0.01 or x < 140 + S.dx - 20 or x > m.W - 120 + S.dx:
                     continue
                 k = 1 + 0.35*(1 - u)
-                xq, yq = qrs_face_pos(S, b['rel'], 15*k)
-                face(img, xq, yq, 17*k, 'smile', a=a*u)
+                xq, yq = qrs_face_pos(S, b['rel'], 40*k)
+                face(img, xq, yq - 8, 40*k, 'smile', a=a*u)
         return
     if key == 'ショートラン':
         bts = [b for b in S.beats() if b['kind'] == 'V']
@@ -681,10 +680,10 @@ def scene2(m, img, t, S, mode, a, blk):
                 faces.append((xq, yq))
             for n in range(1, len(faces)):
                 (x1, y1), (x0, y0) = faces[n], faces[n-1]
-                segs.append(((x1 - 0.8*r_q, y1 + 0.6*r_q), (x0 + 0.95*r_q, y0 + 0.75*r_q)))
+                segs.append(((x1 - 0.55*r_q, y1 + 0.45*r_q), (x0 + 0.62*r_q, y0 + 0.55*r_q)))
             if len(faces) == len(g) and faces:
                 x0, y0 = faces[0]
-                segs.append(((x0 - 0.8*r_q, y0 + 0.6*r_q), (x0 - 1.3*r_q, y0 + 0.2*r_q - 6*(1 - sit))))
+                segs.append(((x0 - 0.55*r_q, y0 + 0.45*r_q), (x0 - 1.0*r_q, y0 + 0.1*r_q - 8*(1 - sit))))
             arms(img, segs, a=a)
             for (xq, yq) in faces:
                 face(img, xq, yq, r_q, 'determined', a=a, expr2='happy', u=sit)
@@ -695,13 +694,13 @@ def scene2(m, img, t, S, mode, a, blk):
             xq, yq = qrs_face_pos(S, b['rel'], r_q)
             yq += bob
             sw = 6*math.sin(step*t)
-            arms(img, [((xq - 0.8*r_q, yq + 0.7*r_q), (xq - 1.25*r_q + sw, yq + 1.6*r_q)),
-                       ((xq + 0.8*r_q, yq + 0.7*r_q), (xq + 1.25*r_q + sw, yq + 1.6*r_q))], a=a*0.9, w=2.2, hand=3.4)
+            arms(img, [((xq - 0.5*r_q, yq + 0.5*r_q), (xq - 0.68*r_q + sw*0.6, yq + 0.95*r_q)),
+                       ((xq + 0.5*r_q, yq + 0.5*r_q), (xq + 0.68*r_q + sw*0.6, yq + 0.95*r_q))], a=a*0.9, w=3.4, hand=5.0)
             face(img, xq, yq, r_q, 'smile', a=a)
         aa = a*ease((t - (blk['start'] + m.TEXT_IN)) / 0.35)
         if aa > 0.01:
             top = S.base - m.extent(S.i)[0]*S.g
-            signpost(m, img, 812 + S.dx, top - 100, S.pat['col'], a=aa)
+            signpost(m, img, 800 + S.dx, top - 96, S.pat['col'], a=aa)
     elif key == '多形性VT':
         exprs = ['angry', 'surprised', 'troubled', 'ah', 'serious', 'oops', 'worried']
         L = S.pat['L']
@@ -714,7 +713,7 @@ def scene2(m, img, t, S, mode, a, blk):
                 if not (r0 <= rr <= r1):
                     continue
                 down = (amp > 0) == (kind == 1)
-                rq = r_q*(0.8 + 0.2*min(1.0, abs(amp)))
+                rq = 52*S.sc*(0.82 + 0.18*min(1.0, abs(amp)))
                 xq, yq = qrs_face_pos(S, rr, rq, down=down)
                 face(img, xq, yq, rq, exprs[(n*3 + k) % len(exprs)], a=a)
     elif key == 'トルサード':
@@ -724,7 +723,7 @@ def scene2(m, img, t, S, mode, a, blk):
                 ph = rr % L
                 if not (m.TDP_A < ph < m.TDP_B):
                     continue
-                rq = 19*S.sc
+                rq = 42*S.sc
                 xq, yq = S.x(rr), S.y(rr)
                 yq = yq + 0.9*rq if sign > 0 else yq - 0.9*rq
                 rot = 2*math.pi*1.2*t + idx*0.9
@@ -737,15 +736,15 @@ def scene2(m, img, t, S, mode, a, blk):
         aa = a*ease((t - enter_end) / 0.35)
         if aa > 0.01:
             top = S.base - m.extent(S.i)[0]*S.g
-            loop_arrow(m, img, 760 + S.dx, top - 36, 22, S.pat['col'], a=aa, rot=2*math.pi*0.35*t)
+            loop_arrow(m, img, 700 + S.dx, top - 44, 33, S.pat['col'], a=aa, rot=2*math.pi*0.35*t)
 
 
 RONT_DELAY = 0.6
 
 
 def scene3(m, img, t, S, mode, a, blk):
-    r_t = 17*S.sc
-    r_v = 23*S.sc
+    r_t = 42*S.sc
+    r_v = 56*S.sc
     for b in S.beats():
         if b['kind'] != 'N':
             continue
@@ -764,17 +763,17 @@ def scene3(m, img, t, S, mode, a, blk):
         xv, yv = qrs_face_pos(S, rel_v, r_v)
         yv -= 44*jump*math.sin(math.pi*cl((d + 0.6) / 1.05))
         face(img, xv, yv, r_v, 'determined', a=a, expr2='ah', u=ease((d - 0.6) / 0.25))
-        arms(img, [((xv - 0.8*r_v, yv + 0.5*r_v), (xv - 1.4*r_v, yv - 0.4*r_v*jump)),
-                   ((xv + 0.8*r_v, yv + 0.5*r_v), (xv + 1.4*r_v, yv - 0.4*r_v*jump))], a=a)
+        arms(img, [((xv - 0.55*r_v, yv + 0.4*r_v), (xv - 0.95*r_v, yv - 0.3*r_v*jump)),
+                   ((xv + 0.55*r_v, yv + 0.4*r_v), (xv + 0.95*r_v, yv - 0.3*r_v*jump))], a=a)
         # Tちゃん：ひゃっ
-        face(img, xt - 2, yt, r_t, 'calm', a=a, expr2='surprised', u=ease((d - 0.4) / 0.2))
-        bubble(m, img, xt - 74, yt - 70, 'ひゃっ', a=a*win(d, 0.45, 1.7, 0.2, 0.3), tail=(xt - r_t, yt - r_t))
+        xt2 = xt - 24                    # 接点（PVCの立ち上がり）を顔で隠さないよう、左へずらす
+        face(img, xt2, yt - 4, r_t, 'calm', a=a, expr2='surprised', u=ease((d - 0.4) / 0.2))
+        bubble(m, img, xt2 - 172, yt - 70, 'ひゃっ', a=a*win(d, 0.45, 1.7, 0.2, 0.3), tail=(xt2 - 0.6*r_t, yt - 0.4*r_t))
         # 火花（接点の上。接点そのものは隠さない）と、VF のきざし
-        ys = min(S.y(rel_t), S.y(rel_v - 0.04)) - 46
         sa = a*win(d, 0.45, 1.3, 0.12, 0.3)
         if sa > 0.01:
-            spark(img, (xt + xv)/2 - 4, ys, 20, a=sa, rot=t*3)
-            lightning(img, (xt + xv)/2 + 34, ys - 16, 18, a=sa)
+            spark(img, xt2 - 30, yt - 4 - 0.75*r_t - 34, 30, a=sa, rot=t*3)
+            lightning(img, xv + 0.8*r_v + 30, yv - 6, 27, a=sa)
         fa = a*win(d, 0.8, 1.6, 0.12, 0.3)
         if fa > 0.01:
             _vf_hint(img, xv + 70, S.base - 70, fa, t)
@@ -799,60 +798,61 @@ def scene4(m, img, t, S, mode, a, blk):
         u = cl((t - blk['start'] - 0.3) / max(0.5, blk['dur'] - 0.8))
         gx = 230 + 600*ease(u) + 25*math.sin(2*math.pi*0.9*t) + S.dx
         gy = S.base - 10 + 14*math.sin(2*math.pi*0.6*t)
-        magnifier(img, gx, gy, 34, col, a=a)
-        bubble(m, img, gx + 4, gy - 80, 'どこ？', a=a, tail=(gx, gy - 40))
+        magnifier(img, gx, gy, 51, col, a=a)
+        bubble(m, img, gx + 4, gy - 112, 'どこ？', a=a, tail=(gx, gy - 58))
         lbl = S.geo.get('lbl_cy', S.base - 120)
-        name_tag(m, img, 880 + S.dx, lbl, col, a=a)
+        name_tag(m, img, 862 + S.dx, lbl, col, a=a)
         return
     if key == '粗いVF':
-        for rr, idx in S.extrema(0.32, sign=1, min_gap=0.09):
+        for rr, idx in S.extrema(0.32, sign=1, min_gap=0.17):
             xq, yq = S.x(rr), S.y(rr)
             if xq < 150 + S.dx or xq > m.W - 150 + S.dx:
                 continue
             jit = 3*math.sin(2*math.pi*5*t + idx*1.7)
-            face(img, xq + jit, yq + 13, 13, 'worried', a=a)
+            face(img, xq + jit, yq + 6, 40, 'worried', a=a)
     elif key == '細かいVF':
         tb = t - blk['start']
         gx = 300 + 360*ease((tb - 0.3) / 1.4) + S.dx
         gy = S.base - 4
-        rg = 56
+        rg = 84
         ga = a*(1 - ease((tb - (blk['dur'] - 0.6)) / 0.3))
         # 虫めがねの中だけ、小さな顔が見つかる
         found = ease((tb - 1.5) / 0.4)
         if found > 0.01:
-            for rr, idx in S.extrema(0.07, sign=1, min_gap=0.07):
-                xq, yq = S.x(rr), S.y(rr)
-                if abs(xq - gx) < rg - 8:
-                    face(img, xq, yq - 16, 12, 'worried', a=a*found)
+            near = [(abs(S.x(rr) - gx), rr) for rr, idx in S.extrema(0.07, sign=1, min_gap=0.07)
+                    if abs(S.x(rr) - gx) < rg - 20]
+            if near:
+                rr = min(near)[1]          # 虫めがねのいちばん真ん中の小さな山に、1つだけ顔
+                face(img, S.x(rr), S.y(rr) - 30, 38, 'worried', a=a*found)
         magnifier(img, gx, gy, rg, col, a=ga)
         la = a*ease((t - (blk['start'] + m.TEXT_IN + 0.5)) / 0.3)
         if la > 0.01:
             top = S.base - m.extent(S.i)[0]*S.g
-            lightning(img, 860 + S.dx, top - 46, 30, a=la)
+            lightning(img, 880 + S.dx, top - 52, 45, a=la)
     elif key == '心静止':
         tb = t - blk['start']
         pa = a*ease((tb - 0.3) / 0.3)
         if pa > 0.01:
             gap = 10*(0.5 + 0.5*math.sin(2*math.pi*0.8*t))
-            plug(img, 430 + S.dx, S.base - 56, 30, col, a=pa, gap=gap)
-            bubble(m, img, 430 + S.dx, S.base - 128, '外れ？', a=pa, tail=(430 + S.dx, S.base - 86))
+            plug(img, 450 + S.dx, S.base - 64, 45, col, a=pa, gap=gap)
+            bubble(m, img, 450 + S.dx, S.base - 150, '外れ？', a=pa, tail=(450 + S.dx, S.base - 104))
         ca = a*ease((tb - 1.4) / 0.35)
         if ca > 0.01:
             press = 0.5 + 0.5*math.sin(2*math.pi*1.8*t)
-            cpr_hands(m, img, 790 + S.dx, S.base - 120, 46, col, a=ca, press=press)
+            cpr_hands(m, img, 800 + S.dx, S.base - 122, 60, col, a=ca, press=press)
 
 
 def scene5_props(m, img, t, dx, y, col, a):
     """⑤：動かないハート（脈がない）と、脈をみる指（？）。"""
-    heart(img, m.XC - 100 + dx, y, 38, col, a=a)
+    heart(img, m.XC - 130 + dx, y, 57, col, a=a)
     press = 0.5 + 0.5*math.sin(2*math.pi*0.8*t)
-    finger(img, m.XC + 100 + dx, y + 34, 26, a=a, press=press)
-    bubble(m, img, m.XC + 185 + dx, y - 50, '？', a=a, tail=(m.XC + 130 + dx, y - 22))
+    finger(img, m.XC + 110 + dx, y + 46, 36, a=a, press=press)
+    bubble(m, img, m.XC + 235 + dx, y - 40, '？', a=a, tail=(m.XC + 150 + dx, y - 20))
 
 
 def scene5(m, img, t, S, mode, a, blk):
     key = S.pat['key']
-    r_q = 23*S.sc
+    r_q = 56*S.sc
     if key == 'PEA1':
         for b in S.beats():
             xq, yq = qrs_face_pos(S, b['rel'], r_q)
@@ -861,7 +861,7 @@ def scene5(m, img, t, S, mode, a, blk):
         for b in S.beats():
             bob = 3*abs(math.sin(math.pi*0.8*t + b['idx']))
             xq, yq = qrs_face_pos(S, b['rel'], r_q*1.1)
-            face(img, xq, yq - bob, r_q*1.1, 'tired', a=a)
+            face(img, xq, yq - bob, r_q*1.05, 'tired', a=a)
 
 
 SCENE5_PROP_Y = 1190
@@ -918,6 +918,6 @@ def draw_end_chars(m, img, t, a, dx, y):
     if a <= 0.01:
         return
     cols = [m.PLACES[0]['col'], m.PLACES[1]['col'], m.PLACES[2]['col']]
-    for k, (kind, s) in enumerate((('P', 62), ('QRS', 52), ('T', 60))):
-        x = m.XC + (k - 1)*170 + dx
+    for k, (kind, s) in enumerate((('P', 80), ('QRS', 62), ('T', 78))):
+        x = m.XC + (k - 1)*210 + dx
         mini_char(m, img, kind, x, y, s, m.WAVE_GREEN, t, a=a, phase=k*1.1)
