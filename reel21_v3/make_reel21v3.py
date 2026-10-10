@@ -32,6 +32,7 @@ import json
 import math
 import os
 import subprocess
+import sys
 import wave
 from multiprocessing import Pool
 
@@ -965,8 +966,10 @@ def draw_overlays(img, t, scene, pattern, strip_geometry):
     - strip_geometry：見えている帯ごとの dict(i, scene, base, g, a, x0, x1, kind, lbl_cy)。
       kind：'hi'（紹介中・10mm/mV。基線の下に HI_ROOM_DOWN px 以上の余白）／'ov'／'co'（小さく薄い）。
       strip_events(geo, t) で、画面に見えている拍のできごと [dict(type, rel, x, y)] が取れる
-      （type：P／P_dropped／P_dissoc／QRS／PVC／T）。拍の時刻は beat_events、画面の x は x_of で計算できる。"""
-    return
+      （type：P／P_dropped／P_dissoc／QRS／PVC／T）。拍の時刻は beat_events、画面の x は x_of で計算できる。
+    キャラクター（顔と手・小物）は characters.py。"""
+    import characters
+    characters.draw(sys.modules[__name__], img, t, scene, pattern, strip_geometry)
 
 
 def draw_scene_head(base, s, a, dy=0.0, dx=0.0):
@@ -1036,7 +1039,8 @@ def place_rows(base, t, y0, pitch, lbl_sz, wave_h, a_list, x0=LABEL_X, x1=W - MA
 
 END_ROW_Y0, END_ROW_PITCH, END_ROW_LBL, END_ROW_WAVE = 452, 158, 40, 96
 END_HEAD_BASE = 390
-END_ASK_CY, END_SAVE_CY = 1300, 1378
+END_ASK_CY, END_SAVE_CY = 1384, 1452
+END_CHAR_BASE = 1342               # 最後に並ぶキャラクターの基線（5か所の下・問いかけの上）
 
 
 def end_times():
@@ -1053,6 +1057,8 @@ def draw_end(im, t, a, dx=0.0):
     _, t_ask, t_save = end_times()
     draw_parts(im, END_HEAD, 60, END_HEAD_BASE, a, dx=dx)
     place_rows(im, t, END_ROW_Y0, END_ROW_PITCH, END_ROW_LBL, END_ROW_WAVE, [a]*len(PLACES), dx=dx)
+    import characters
+    characters.draw_end_chars(sys.modules[__name__], im, t, a*ramp(t, t_ask - 0.2, 0.4), dx, END_CHAR_BASE)
     put(im, END_ASK, 38, 800, WHITE, cx=XC + dx, cy=END_ASK_CY, a=a*ramp(t, t_ask, 0.4), max_w=W - 2*MARGIN)
     put(im, END_SAVE, 46, 900, GREEN, cx=XC + dx, cy=END_SAVE_CY, a=a*ramp(t, t_save, 0.4), max_w=W - 2*MARGIN)
 
