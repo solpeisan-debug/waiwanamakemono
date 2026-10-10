@@ -326,17 +326,7 @@ for _p in PATTERNS:
 # （①は縮み始めが0.35秒早いぶん、区間より紹介の時間が短い。⑨は 4.0 だと入らないので 5.0）
 # 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
 SEG_D = {'⑦': 4.0, '⑧': 4.0, '⑨': 5.0, '⑩': 4.0, '⑪': 4.0}
-# 高Kの道（①→⑥）は、つなぎ目で形を少しずつ変えて、中部の帯を消さずに流す（2026-10-10）。
-# パターン i（②〜⑥）の前に「移り変わりの拍」を2つ（前の形と i の形を 1/3・2/3 ずつまぜる。拍の間隔もまぜる）。
-# そのあと i の形そのものの拍を CHAIN_N[i] 個。名前とひとこと・声は、i の形そのものの拍が中央にあるあいだだけ。
-# 拍の数：名前の出ている長さ（＝i の拍が中央を通る時間）に、声＋0.75秒が入るように（①は3拍、②③は4拍、④⑤は3拍、⑥は6拍。⑥のあとはこれまでどおり帯を消すので長め）
-CHAIN = [0, 1, 2, 3, 4, 5]
-CHAIN_N = {0: 3, 1: 4, 2: 4, 3: 3, 4: 3, 5: 6}
-MORPH_W = (1/3, 2/3)
-for _i in CHAIN[1:]:
-    for _j, _w in enumerate(MORPH_W):
-        _ka, _kb = PATTERNS[_i - 1]['kind'], PATTERNS[_i]['kind']
-        KINDS[f'M{_i}_{_j}'] = MorphBeat(KINDS[_ka], KINDS[_kb], _w, _ka, _kb)
+CHAIN = [0, 1, 2, 3, 4, 5]               # 高Kの道（①→⑥）：帯を消さずに、画面の波形がその場で形を変える
 for _p in PATTERNS:
     if PATTERNS.index(_p) in CHAIN:
         continue
@@ -391,66 +381,6 @@ HOOK = [1, 3, 5, 7, 9]            # ②テント状T → ④P波消失 → ⑥�
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
 
-def _strip():
-    beats = []        # (R時刻, 種類, パターン番号 or None)。移り変わりの拍は None
-    starts = []
-    # 高Kの道：拍を1つずつ
-    t = 0.0
-    for i in CHAIN:
-        pat = PATTERNS[i]
-        if i == CHAIN[0]:
-            starts.append(0.0)
-        else:
-            prr = PATTERNS[i - 1]['rr']
-            for j, w in enumerate(MORPH_W):
-                t += prr + (pat['rr'] - prr)*w            # 拍の間隔も少しずつ
-                if j == 0:
-                    starts.append(t)                      # 区間 i は、最初の移り変わりの拍から
-                beats.append((t, f'M{i}_{j}', None))
-            t += pat['rr']
-        FIRST_PURE[i] = t
-        for k in range(CHAIN_N[i]):
-            if k:
-                t += pat['rr']
-            beats.append((t, pat['kind'], i))
-        LAST_PURE[i] = t
-    t += PATTERNS[CHAIN[-1]]['rr']                         # ⑥の最後の拍の次（⑦の始まり）
-    segs = [(a, b) for a, b in zip(starts, starts[1:] + [t])]
-    for i in CHAIN:
-        PATTERNS[i]['D'] = segs[i][1] - segs[i][0]
-    for i, pat in enumerate(PATTERNS):
-        if i in CHAIN:
-            continue
-        s0 = t
-        for r, kind in periodic_beats(pat, 0.0, pat['D']):
-            if -1e-9 <= r < pat['D'] - 1e-9:
-                beats.append((t + r, kind, i))
-        t += pat['D']
-        segs.append((s0, t))
-    end = t
-    k = -1
-    while k*RR > -12:                     # 前：洞調律
-        beats.append((k*RR, 'N', None)); k -= 1
-    # うしろ：洞調律（間隔は変えない）。尺は「最後の2文が入る長さ」以上で、
-    # うしろの洞調律の位相が冒頭とそろういちばん短い長さにする。こうするとループがつながる
-    need = T_TITLE + end - HANDOFF_EARLY + 0.8 + END_HOLD      # 0.8 = FLY
-    k = math.ceil((need - FREEZE - end) / RR - 1e-9)
-    dur_target = FREEZE + end + k*RR
-    tt = end
-    beats.append((tt, 'N', None))
-    for k in range(1, 60):
-        tt += RR
-        beats.append((tt, 'N', None))
-    beats.sort(key=lambda b: b[0])
-    return beats, segs, end, dur_target
-
-
-HANDOFF_EARLY = 0.35
-FIRST_PURE, LAST_PURE = {}, {}         # 高Kの道：形そのものの拍の、最初と最後のR時刻
-STRIP, SEGS, STRIP_END, _DUR_LOOP = _strip()
-# ミニ波形・枠へ飛ぶコピーで、パターンの拍の位置をそろえる基準の時刻
-PHASE = {i: (FIRST_PURE[i] if i in CHAIN else SEGS[i][0]) for i in range(len(PATTERNS))}
-
 # 中部の帯：1mm = 14px、25mm/秒 → 実際の1秒 = 350px
 F_PXMM = 14.0
 F_PXS = 25 * F_PXMM
@@ -492,32 +422,156 @@ def t_of(tau_center):
     return t if t < T_STOP else t + FREEZE
 
 
-# WINDOWS[i] = (名前が出る, 名前が消えて枠へ飛び始める)
-# - 高Kの道（①〜⑤の終わり）：帯は消さない。名前は、i の形そのものの拍が中央にあるあいだ
-#   （中央が「最初の拍の 0.40秒前」〜「次の移り変わりの拍の 0.45秒前」）。移り変わりの拍が中央を通るあいだは
-#   名前を出さない（声と声のすき間）。名前が消えたら、i の形そのもののコピーだけが枠へ飛ぶ（うすい状態から）
-# - ⑥の終わりから先（⑦〜⑪）：これまでどおり。区間の終わりが右端の少し先（0.35秒）に来た瞬間に、
-#   見えている帯（i だけ）を縮めて枠へ運び、帯はそのあいだ消す
-SEAMLESS = set(CHAIN[:-1])             # 帯を消さずに次のパターンへつなぐ（コピーだけ飛ぶ）つなぎ目
-NAME_START_LEAD, NAME_END_LEAD = 0.40, 0.45
-WINDOWS = []
-for _i in range(len(PATTERNS)):
+# --- 高Kの道（①→⑥）：画面の波形が、その場で形を変える（2026-10-10） -------------------------
+# 段階 s(t)（0＝①基準 … 5＝⑥サイン波）は、動画の時刻 t だけで決まる。名前・声のあいだは s はそのパターンの値のまま。
+# 名前が消えたら MORPH_T 秒で次の段階へ（なめらかに）。そのあいだ、画面に見えている拍がすべて、いっしょに同じ形へ変わる
+# （P波の高さ・幅・PR、QRSの幅と形、T波の高さ・幅・とがり、⑤→⑥はサイン波へ）。帯は流れつづける。
+# 拍の位置は、画面の中央を通った拍の数（位相 Θ）を積み上げて決める：中央の拍は紙送りの速さで流れ、
+# 拍の間隔 RR(s) が変わるとき、中央から離れた拍は少しずつ寄ったり離れたりする（拍が消えたり増えたり、跳んだりしない）
+# 名前・声の時間：声（録音）の長さに合わせる。①は冒頭の文のすぐあと
+VO_LEN = {'①': 2.57, '②': 2.77, '③': 3.05, '④': 2.45, '⑤': 2.54, '⑥': 2.89}   # 声の長さ（align_vo.py で切った長さ）
+TITLE_VO_END = 4.46                    # 冒頭の文の終わり（0.10＋4.36）
+LEAD = 0.55                            # 名前が出てから話し始めるまで（align_vo.py と同じ）
+NAME_TAIL = 0.40                       # 話し終わってから名前が消えるまで
+MORPH_DELAY, MORPH_T = 0.15, 1.20      # 名前が消えてから形が変わり始めるまで・変わる時間
+NAME_AFTER = 0.15                      # 形が変わり終わってから次の名前が出るまで
+CH_WIN = []
+for _i in CHAIN:
+    _no = PATTERNS[_i]['no']
     if _i == 0:
         _a = T_TITLE
-    elif _i in CHAIN:
-        _a = t_of(FIRST_PURE[_i] - NAME_START_LEAD)
+        _v = max(T_TITLE + 0.30, TITLE_VO_END + 0.20)
     else:
-        _a = WINDOWS[-1][1]
-    if _i in SEAMLESS:
-        _b = t_of(SEGS[_i + 1][0] - NAME_END_LEAD)
-    else:
-        _b = t_of(SEGS[_i][1] - HALF - HANDOFF_EARLY)
-    WINDOWS.append((_a, _b))
+        _a = CH_WIN[-1][1] + MORPH_DELAY + MORPH_T + NAME_AFTER
+        _v = _a + LEAD
+    CH_WIN.append((_a, _v + VO_LEN[_no] + NAME_TAIL))
+MORPHS = [(CH_WIN[i][1] + MORPH_DELAY, CH_WIN[i][1] + MORPH_DELAY + MORPH_T) for i in CHAIN[:-1]]
+T_SWITCH = CH_WIN[-1][1] + 0.30        # ⑥の名前が消えて帯が消えているあいだに、ふつうの（位置で決まる）帯へ切りかえる
+
+
+def stage(t):
+    """段階 s(t)：0（①）〜 5（⑥）。"""
+    s = 0.0
+    for i, (m0, m1) in enumerate(MORPHS):
+        if t >= m1:
+            s = i + 1.0
+        elif t > m0:
+            u = min(1.0, max(0.0, (t - m0) / (m1 - m0)))
+            return i + u*u*(3 - 2*u)
+    return s
+
+
+def stage_rr(s):
+    i0 = min(int(math.floor(s)), CHAIN[-1]); w = s - i0
+    r0 = PATTERNS[i0]['rr']
+    return r0 if w < 1e-9 else r0 + (PATTERNS[i0 + 1]['rr'] - r0)*w
+
+
+_SB = {}
+
+
+def stage_beat(s):
+    """段階 s の1拍の形（ちょうどの段階ならそのパターンの形そのもの）。"""
+    i0 = min(int(math.floor(s + 1e-9)), CHAIN[-1]); w = s - i0
+    if w < 1e-6:
+        return KINDS[PATTERNS[i0]['kind']]
+    key = (i0, round(w, 4))
+    if key not in _SB:
+        if len(_SB) > 64:
+            _SB.clear()
+        ka, kb = PATTERNS[i0]['kind'], PATTERNS[i0 + 1]['kind']
+        _SB[key] = MorphBeat(KINDS[ka], KINDS[kb], w, ka, kb)
+    return _SB[key]
+
+
+# 位相 Θ(t)：画面の中央を通った拍の数。t=0 では Θ＝中央の時刻（①の拍は 0, 1, 2 … 秒、前の洞調律と同じ並び）
+_TG = np.arange(0.0, T_SWITCH + 2.0, 0.001)
+_TC = np.array([tau_c(x) for x in _TG])
+_RRG = np.array([stage_rr(stage(x)) for x in _TG])
+_TH = _TC[0] + np.concatenate([[0.0], np.cumsum(np.diff(_TC) / _RRG[:-1])])
+
+
+def theta(t):
+    return float(np.interp(t, _TG, _TH))
+
+
+def chain_beats(t, margin=1.2):
+    """動画の時刻 t に画面にある拍の R時刻（中央の時刻からの位置で）。"""
+    tc, th, rr = tau_c(t), theta(t), stage_rr(stage(t))
+    k0 = math.floor(th - (HALF + margin) / rr)
+    k1 = math.ceil(th + (HALF + margin) / rr)
+    return [tc + (k - th)*rr for k in range(k0, k1 + 1)]
+
+
+# ⑥のあと（⑦〜⑪）の帯は、これまでどおり時刻の位置で決まる。⑥の名前が消える瞬間に、区間の終わり（＝⑦の始まり）が
+# 右端の少し先（0.35秒）に来るように置く
+HANDOFF_EARLY = 0.35
+CH_END = tau_c(CH_WIN[-1][1]) + HALF + HANDOFF_EARLY
+
+
+def _strip():
+    beats = []        # (R時刻, 種類, パターン番号 or None)
+    # 高Kの道の区間（名前の出ている時間に中央にある時刻。説明・依頼文用）
+    segs = [(tau_c(a), tau_c(b)) for a, b in CH_WIN]
+    segs[-1] = (segs[-1][0], CH_END)
+    for i in CHAIN:
+        PATTERNS[i]['D'] = segs[i][1] - segs[i][0]
+    # ⑥の終わりの近く（⑦へ切りかえたあと、帯が戻ってきたときに左に見える）：サイン波
+    k = 1
+    while k*RR_SW < 8.0:
+        beats.append((CH_END - k*RR_SW, 'SW', CHAIN[-1])); k += 1
+    t = CH_END
+    for i, pat in enumerate(PATTERNS):
+        if i in CHAIN:
+            continue
+        s0 = t
+        for r, kind in periodic_beats(pat, 0.0, pat['D']):
+            if -1e-9 <= r < pat['D'] - 1e-9:
+                beats.append((t + r, kind, i))
+        t += pat['D']
+        segs.append((s0, t))
+    end = t
+    k = -1
+    while k*RR > -12:                     # 前：洞調律（冒頭のフックで止める波形）
+        beats.append((k*RR, 'N', None)); k -= 1
+    # うしろ：洞調律（間隔は変えない）。尺は「最後の2文が入る長さ」以上で、
+    # うしろの洞調律の位相が冒頭とそろういちばん短い長さにする。こうするとループがつながる
+    need = T_TITLE + end - HANDOFF_EARLY + 0.8 + END_HOLD      # 0.8 = FLY
+    k = math.ceil((need - FREEZE - end) / RR - 1e-9)
+    dur_target = FREEZE + end + k*RR
+    tt = end
+    beats.append((tt, 'N', None))
+    for k in range(1, 60):
+        tt += RR
+        beats.append((tt, 'N', None))
+    beats.sort(key=lambda b: b[0])
+    return beats, segs, end, dur_target
+
+
+STRIP, SEGS, STRIP_END, _DUR_LOOP = _strip()
+
+# WINDOWS[i] = (名前が出る, 名前が消えて枠へ飛び始める)
+# - 高Kの道（①〜⑥）：CH_WIN。①〜⑤は帯を消さない（名前が消えたら、そのパターンのコピーだけが枠へ飛ぶ）
+# - ⑥の終わりから先（⑦〜⑪）：これまでどおり。区間の終わりが右端の少し先（0.35秒）に来た瞬間に、
+#   見えている帯（i だけ）を縮めて枠へ運び、帯はそのあいだ消す
+SEAMLESS = set(CHAIN[:-1])
+WINDOWS = list(CH_WIN)
+for _i in range(len(CHAIN), len(PATTERNS)):
+    WINDOWS.append((WINDOWS[-1][1], t_of(SEGS[_i][1] - HALF - HANDOFF_EARLY)))
 T_END = WINDOWS[-1][1]
 FLY = 0.8                                  # 中部から枠へ縮んで移る時間
 LOOP_FADE = 0.75                           # 最後に冒頭の画面へ戻す時間
 FPS_LOOP = 60
 DUR = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
+# ミニ波形・枠へ飛ぶコピーの拍の位置：高Kの道は、名前が消える瞬間に画面にあった拍の並び（そのパターンの形そのもの）
+PHASE = {}
+for _i in range(len(PATTERNS)):
+    if _i in CHAIN:
+        _b = WINDOWS[_i][1]
+        _th = theta(_b)
+        PHASE[_i] = tau_c(_b) - (_th - math.floor(_th))*PATTERNS[_i]['rr']
+    else:
+        PHASE[_i] = SEGS[_i][0]
 
 
 # --- ミニ波形の枠 -----------------------------------------------------------------
@@ -635,30 +689,9 @@ def grid():
 SS = 2
 
 
-def _chain_color_ranges():
-    out = []
-    for i in CHAIN:
-        hl = PATTERNS[i]['hl_rel']
-        if hl is ALL:
-            out.append((FIRST_PURE[i] - 0.45, LAST_PURE[i] + 0.55, i))
-        else:
-            for r, k, j in STRIP:
-                if j == i:
-                    out.append((r + hl[0], r + hl[1], i))
-    return out
-
-
-_CHAIN_HL = None
-
-
 def strip_colors(tau):
-    """パターンの区間のうち、色を付ける範囲だけそのパターンの色。高Kの道は、形そのものの拍だけ（移り変わりの拍は緑）。"""
-    global _CHAIN_HL
-    if _CHAIN_HL is None:
-        _CHAIN_HL = _chain_color_ranges()
+    """パターンの区間のうち、色を付ける範囲だけそのパターンの色（⑥のあとの、位置で決まる帯。高Kの道は chain_arrays）。"""
     cid = np.full(len(tau), -1, dtype=int)
-    for a, b, i in _CHAIN_HL:
-        cid[(tau >= a) & (tau <= b)] = i
     for i, (s0, s1) in enumerate(SEGS):
         if i in CHAIN:
             continue
@@ -795,8 +828,6 @@ def ghost_arrays(tau_center, cur):
     """パターン cur の拍と同じR頂点の位置に置いた、①基準の拍。cur の区間の中だけ（mask）。"""
     tau = tau_center + (FX - XC) / F_PXS
     s0, s1 = SEGS[cur]
-    if cur in CHAIN:                                  # 形そのものの拍のところだけ
-        s0, s1 = FIRST_PURE[cur], LAST_PURE[cur] + 0.65
     gb = [(r, 'N') for r, k, i in STRIP if i == cur]
     return wave_from(gb, tau), (tau >= s0 - 0.30) & (tau < s1)
 
@@ -809,17 +840,47 @@ def draw_ghost(v, m, a):
     return glow_line((W, h), runs, GHOST_COL, GHOST_W, a*GHOST_A, blur=(3, 7))
 
 
+def chain_arrays(t, cur):
+    """高Kの道の帯（t < T_SWITCH）：画面にある拍を、すべて段階 s(t) の形で描く。
+    戻り値：(波形, 色の番号, ゴーストの波形)。色は、名前の出ている（＝形がそのパターンそのもの）ときだけ"""
+    tc = tau_c(t)
+    tau = tc + (FX - XC) / F_PXS
+    s_ = stage(t)
+    beat = stage_beat(s_)
+    rs = chain_beats(t)
+    v = np.zeros_like(tau); g = np.zeros_like(tau)
+    cid = np.full(len(tau), -1, dtype=int)
+    pure = cur is not None and cur in CHAIN and abs(s_ - cur) < 1e-6
+    hl = PATTERNS[cur]['hl_rel'] if pure else None
+    for r in rs:
+        m = (tau - r > WIN[0]) & (tau - r < WIN[1])
+        if not m.any():
+            continue
+        v[m] += beat(tau[m] - r)
+        g[m] += KINDS['N'](tau[m] - r)
+        if pure:
+            if hl is ALL:
+                cid[m] = cur
+            else:
+                cid[(tau >= r + hl[0]) & (tau <= r + hl[1])] = cur
+    return v, cid, g
+
+
 def featured(t, base_col, a, cur=None):
     """中部の帯。色を付けるのは、いま紹介中のパターン cur の拍だけ（前のパターンの色つきの波形が、
     新しい名前の下に残らないように。ほかはふつうの緑）。冒頭のフックは変形中のパターンの色。"""
     if T_STOP <= t < T_GO:
         (v0, c0), (v1, c1), u, _ = hook_state(t)
         return draw_wave(v0 + (v1 - v0)*u, c1 if u >= 0.5 else c0, base_col, a)
-    v, cid = strip_arrays(tau_c(t))
-    cid = np.where(cid == (-2 if cur is None else cur), cid, -1)
+    if t < T_SWITCH:
+        v, cid, gv = chain_arrays(t, cur)
+        gm = np.ones(len(FX), dtype=bool)
+    else:
+        v, cid = strip_arrays(tau_c(t))
+        cid = np.where(cid == (-2 if cur is None else cur), cid, -1)
     out = draw_wave(v, cid, base_col, a)
-    if cur is not None and cur >= 1 and cur != SINE_I:   # ②〜⑪（⑥サイン波は除く）：①基準をうすく下に重ねる
-        lay = draw_ghost(*ghost_arrays(tau_c(t), cur), a * ghost_alpha(t))
+    if cur is not None and cur >= 1 and cur != SINE_I and ghost_alpha(t) > 0.004:   # ②〜⑪（⑥は除く）：①基準をうすく重ねる
+        lay = draw_ghost(*((gv, gm) if t < T_SWITCH else ghost_arrays(tau_c(t), cur)), a * ghost_alpha(t))
         lay.alpha_composite(out)
         out = lay
     return out
@@ -1017,13 +1078,10 @@ K_STAGES = [1, 2, 3, 4, 5]             # ②〜⑥ のパターン番号（0始�
 
 
 def gauge_level(t):
-    """(高さ 0〜1, 色)。段階が進むごとに 1/5 ずつ上がる（名前が出るのと同時に 0.6秒で）。"""
-    lev, col = 0.0, PATTERNS[K_STAGES[0]]['col']
-    for n, i in enumerate(K_STAGES, 1):
-        a_i = WINDOWS[i][0] + 0.5
-        if t >= a_i:
-            lev = (n - 1 + ease((t - a_i) / 0.6)) / len(K_STAGES)
-            col = PATTERNS[i]['col']
+    """(高さ 0〜1, 色)。波形の段階 s(t) といっしょに、なめらかに上がる（⑥でいちばん上）。"""
+    s_ = stage(t) if t < T_SWITCH else float(CHAIN[-1])
+    lev = s_ / len(K_STAGES)
+    col = PATTERNS[min(max(1, math.ceil(s_ - 1e-6)), CHAIN[-1])]['col']
     return lev, col
 
 
@@ -1096,7 +1154,8 @@ def draw_wave_labels(im, t, cur, a):
     if a <= 0.004 or cur is None or cur not in LABELED:
         return
     tc = tau_c(t)
-    for r, k, i in STRIP:
+    src = [(r, PATTERNS[cur]['kind'], cur) for r in chain_beats(t)] if (cur in CHAIN and t < T_SWITCH) else STRIP
+    for r, k, i in src:
         if i != cur:
             continue
         xr = XC + (r - tc) * F_PXS
@@ -1360,21 +1419,16 @@ def check():
         a, b = WINDOWS[i]
         print(f"{pat['no']} {pat['name']:<14} 周期{pat['L']:.2f}s 区間{pat['D']:.2f}s  画面 {a:5.1f}–{b:5.1f}s（{b-a:4.1f}s）")
     print(f'最後のパターンの終わり {T_END:.1f}s → 一覧 {T_END+FLY:.1f}〜{DUR:.1f}s')
-    # 高Kの道：拍の並びと間隔（移り変わりの拍 M は、前後の形と間隔をまぜたもの）
-    print('高Kの道の拍（R時刻 種類 前の拍からの間隔）')
-    ch = [bb for bb in STRIP if 0 - 1e-9 <= bb[0] < SEGS[CHAIN[-1]][1] + 1e-9]
-    row = []
-    for (r0, k0, i0), (r1, k1, i1) in zip(ch, ch[1:] + [(SEGS[CHAIN[-1]][1], '⑦へ', None)]):
-        row.append(f"{k1}:{r1 - r0:.2f}")
-    print('  ' + ' '.join(row))
-    print('高Kの道：中央を移り変わりの拍が通る時間（名前・声のない時間）と、コピーが枠へ飛ぶ時刻')
-    for i in CHAIN[:-1]:
-        print(f"  {PATTERNS[i]['no']}→{PATTERNS[i+1]['no']}：名前が消えてコピーが飛ぶ {WINDOWS[i][1]:5.2f}s"
-              f"・移り変わりの拍が中央 {t_of(SEGS[i+1][0]):5.2f}・{t_of(SEGS[i+1][0] + (STRIP[[bb[0] for bb in STRIP].index(SEGS[i+1][0]) + 1][0] - SEGS[i+1][0])):5.2f}s"
-              f"・次の名前 {WINDOWS[i+1][0]:5.2f}s")
+    # 高Kの道：形がその場で変わる時間と、拍の間隔の変わり方（拍が中央を通る時刻の間隔）
+    print('高Kの道：名前が消えてコピーが飛ぶ → 形が変わる（その場で） → 次の名前')
+    for i, (m0, m1) in enumerate(MORPHS):
+        print(f"  {PATTERNS[i]['no']}→{PATTERNS[i+1]['no']}：コピー {WINDOWS[i][1]:5.2f}s・形が変わる {m0:5.2f}〜{m1:5.2f}s・次の名前 {WINDOWS[i+1][0]:5.2f}s")
+    bt = [_TG[int(np.searchsorted(_TH, kk))] for kk in range(math.ceil(theta(T_GO)), math.floor(theta(T_SWITCH)) + 1)]
+    print('  拍が中央を通る間隔（秒、動画の時刻）：' + ' '.join(f"{y - x:.2f}" for x, y in zip(bt, bt[1:])))
+    print(f'  ⑥のあと、位置で決まる帯へ切りかえ {T_SWITCH:.2f}s（帯は消えている）')
     # 区間のつなぎ目：前のパターンの最後の拍 → 次のパターン（またはうしろの洞調律）の最初の拍
     for i, (s0, s1) in enumerate(SEGS):
-        if i in CHAIN[:-1]:
+        if i in CHAIN:
             continue
         inside = [b for b in STRIP if s0 <= b[0] < s1]
         last = max(inside, key=lambda b: b[0])
@@ -1442,11 +1496,21 @@ def beeps(path, sr=44100):
     """中部の波形の R が画面の中央を通るときに「ピッ」。幅の広いQRSの拍は低い音。"""
     n = int(DUR*sr)
     a = np.zeros(n, dtype=np.float32)
+    ev = []
+    # 高Kの道：位相 Θ(t) が整数をまたぐ時刻＝拍が中央を通る時刻
+    for kk in range(math.ceil(_TH[0]), math.floor(theta(T_SWITCH)) + 1):
+        j = int(np.searchsorted(_TH, kk))
+        if 0 < j < len(_TG):
+            ts = _TG[j]
+            ev.append((ts, stage_beat(stage(ts)).wide))
     for r, k, i in STRIP:
         ts = t_of(r)
+        if ts >= T_SWITCH:
+            ev.append((ts, KINDS[k].wide))
+    for ts, wide in ev:
         if not (0.0 <= ts <= DUR - 0.3) or (T_STOP <= ts < T_GO):
             continue
-        f = 720.0 if KINDS[k].wide else 960.0
+        f = 720.0 if wide else 960.0
         L = int(0.08*sr)
         tt = np.arange(L)/sr
         s = 0.2*np.minimum(1, tt/0.004)*np.exp(-tt/0.045)*np.sin(2*np.pi*f*tt)
