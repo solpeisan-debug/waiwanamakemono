@@ -985,7 +985,7 @@ def _draw(m, img, t):
                 gx = 230 + 600*ease(u)
                 gy = m.BASE - 0.12*m.G                                   # 波形の上を探す
                 magnifier(img, gx, gy, 60, col=g['pat']['col'], a=ao)
-                bubble(m, img, gx + 4, gy - 250, 'どこ？', a=ao, tail=(gx, gy - 66))
+                bubble(m, img, gx + 4, gy - 150, 'どこ？', a=ao, tail=(gx, gy - 66))
                 name_tag(m, img, 880, m.NAME_CY, g['pat']['col'], a=ao)
         elif key == '細かいVF':
             bk = m.PAT_BLOCK[g['idx']]
