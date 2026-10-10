@@ -118,7 +118,7 @@ def plan(lines_len):
         starts[pat['no']] = m.WINDOWS[i][0] + LEAD
     # ①は冒頭のあと。①の区間は縮み始めが 0.35秒早いぶん短いので、名前が出たらすぐ（0.3秒）話し始める
     starts['①'] = max(m.WINDOWS[0][0] + 0.30, starts['冒頭'] + lines_len['冒頭'] + GAP_MIN)
-    starts['まとめ'] = m.T_END + 0.15
+    starts['まとめ'] = m.MORPHS[-1][1] + 0.10       # ⑪が①基準の形へもどり終わってから（形が変わるあいだは声を入れない）
     starts['保存'] = starts['まとめ'] + lines_len['まとめ'] + 0.30
     return starts
 
