@@ -89,8 +89,8 @@ def _ga(t, c, sl, sr):
     return np.exp(-0.5*((t-c)/s)**2)
 
 
-def p_sinus(t):
-    return 0.15*_g(t, 0.0, 0.022)
+def p_sinus(t):                   # P波 0.24mV（ふつうの範囲 2.5mm 以下。拡大したとき顔が中に入る高さ）
+    return 0.24*_g(t, 0.0, 0.026)
 
 
 def qrs_normal(t):
@@ -220,73 +220,75 @@ RONT_C = 0.36                     # R on T：直前のRから PVC の頂点ま�
 # 波形：1周期ぶんの拍（R頂点の時刻, 種類）と周期 L、連続した波形 art・倍率 gain、色を付ける範囲 hl（v2 と同じ）
 # enter：特徴の部分（hl の始まり）が画面の右端に入ってくる時刻（紹介の始まりから・秒）。名前を言っているあいだに見えるように。
 #        トルサードは、紹介が始まってから少しあとに始まるように（すぐ始まらない）
+# slow：紹介中の再生の速さ（実際の何倍か）。zoom：紹介中の拡大（ふつう 2.5倍＝1mm 35px。振れの大きい波形は 2.0〜2.3倍）。
+#       顔がこぶの中に入る大きさにし、特徴の部分が、説明しているあいだに画面を横切りきるように選んだ（速い波形は少し速め）
 PATTERNS = [
     dict(key='モビッツII', place=0, name='モビッツII型',
          act='→ 意識・血圧・胸痛・息苦しさ等確認。ペーシングに備えてパッド装着',
          lines=[('→ 意識・血圧・胸痛・息苦しさ等確認。', False), ('ペーシングに備えてパッド装着', True)],
          narr='モビッツII型。PRは一定のまま、突然QRSが抜ける。',
-         ev=[(0.16, 'N'), (0.96, 'N'), (1.76, 'N'), (2.4, 'P')], L=3.2, hl=[(2.30, 2.52)], enter=0.75),
+         ev=[(0.16, 'N'), (0.96, 'N'), (1.76, 'N'), (2.4, 'P')], L=3.2, hl=[(2.30, 2.52)], enter=0.4, slow=0.5),
     dict(key='完全房室ブロック', place=0, name='完全房室ブロック',
          act='→ 意識・血圧・胸痛・息苦しさ等確認。ペーシングに備えてパッド装着',
          lines=[('→ 意識・血圧・胸痛・息苦しさ等確認。', False), ('ペーシングに備えてパッド装着', True)],
          narr='完全房室ブロック。PとQRSが、別々に動く。',
-         ev=[(k*0.68, 'P') for k in range(10)] + [(0.3 + k*1.7, 'W') for k in range(4)], L=6.8, hl=ALL),
+         ev=[(k*0.68, 'P') for k in range(10)] + [(0.3 + k*1.7, 'W') for k in range(4)], L=6.8, hl=ALL, slow=0.55),
     dict(key='ショートラン', place=1, name='ショートラン',
          act='→ 症状を見て、12誘導。QT、K・Mgなどを確認',
          lines=[('→ 症状を見て、12誘導。QT、K・Mgなどを確認', False)],
          narr='ショートラン。幅広いQRSが3つ以上続いて、自然に止まる。',
          ev=[(0, 'N'), (0.8, 'N'), (1.28, 'V'), (1.66, 'V'), (2.04, 'V'), (3.2, 'N')], L=4.0, hl=[(1.19, 2.46)],
-         enter=0.6),
+         enter=0.4, slow=0.65, zoom=2.3),
     dict(key='単形性VT', place=1, name='単形性VT',
          act='→ 脈あり：意識・血圧・胸痛・息苦しさ等確認。パッド装着 ／ → 脈なしなら人を呼ぶ。CPR＋電気ショック',
          lines=[('→ 脈あり：意識・血圧・胸痛・息苦しさ等確認。', False), ('パッド装着', True),
                 ('→ 脈なしなら人を呼ぶ。CPR＋電気ショック', False)],
          narr='単形性VT。速く、幅広く、同じ形。脈のあるなしで、動きが分かれる。',
-         ev=[(k*0.32, 'X') for k in range(15)], L=4.8, hl=ALL),
+         ev=[(k*0.32, 'X') for k in range(15)], L=4.8, hl=ALL, slow=0.7, zoom=2.3),
     dict(key='多形性VT', place=1, name='多形性VT',
          act='→ 脈なし：CPR＋電気ショック ／ → 脈あり：人を呼び、パッド装着（続けば脈があってもショック）',
          lines=[('→ 脈なし：CPR＋電気ショック', False), ('→ 脈あり：人を呼び、パッド装着', False),
                 ('（続けば脈があってもショック）', True)],
          narr='多形性VT。形が1拍ごとに変わる。',
-         ev=[], L=POLY_L, art=art_poly, hl=ALL),
+         ev=[], L=POLY_L, art=art_poly, hl=ALL, slow=0.75, zoom=2.0),
     dict(key='トルサード', place=1, name='トルサード・ド・ポワント',
          act='→ 脈なし：CPR＋電気ショック ／ → 止まっても12誘導。QT、K・Mgなどを確認',
          lines=[('→ 脈なし：CPR＋電気ショック', False), ('→ 止まっても12誘導。QT、K・Mgなどを確認', False)],
          narr='トルサード。ねじれるように変わり、止まっても、くり返す。',
          ev=[(0, 'Q'), (1.0, 'Q'), (4.6, 'Q')], L=5.6, art=art_tdp, gain=gain_tdp,
-         hl=[(TDP_A - 0.1, TDP_B + 0.1)], enter=0.85),
+         hl=[(TDP_A - 0.1, TDP_B + 0.1)], enter=0.6, slow=0.8, zoom=2.0),
     dict(key='R on T', place=2, name='R on T',
          act='→ 12誘導。QT、K・Mgなどを確認。除細動器を近くに',
          lines=[('→ 12誘導。QT、K・Mgなどを確認。', False), ('除細動器を近くに', True)],
          narr='R on T。VFのきっかけになる。',
          ev=[(0, 'N'), (0.8, 'N'), (0.8 + RONT_C, 'V'), (2.4, 'N')], L=3.2, hl=[(0.8 + 0.14, 0.8 + RONT_C + 0.42)],
-         enter=0.5),
+         enter=0.4, slow=0.55),
     dict(key='粗いVF', place=3, name='粗いVF',
          act='→ 反応を確認し、人を呼んでCPR＋電気ショック',
          lines=[('→ 反応を確認し、人を呼んでCPR＋電気ショック', False)],
          narr='粗いVF。大きくバラバラ。',
-         ev=[], L=4.0, art=art_vf_coarse, hl=ALL),
+         ev=[], L=4.0, art=art_vf_coarse, hl=ALL, slow=0.75, zoom=2.2),
     dict(key='細かいVF', place=3, name='細かいVF',
          act='→ CPR＋電気ショック（細かくてもVFならショック）',
          lines=[('→ CPR＋電気ショック', False), ('（細かくてもVFならショック）', True)],
          narr='細かいVF。小さな揺れでも、VFならショック。',
-         ev=[], L=4.0, art=art_vf_fine, hl=ALL),
+         ev=[], L=4.0, art=art_vf_fine, hl=ALL, slow=0.75),
     dict(key='心静止', place=3, name='心静止',
          act='→ 反応がなければ人を呼び、すぐCPR（ショックはしない）。並行して電極外れ・感度を確認',
          lines=[('→ 反応がなければ人を呼び、', False), ('すぐCPR（ショックはしない）。', True),
                 ('並行して電極外れ・感度を確認', True)],
          narr='心静止。ほぼまっすぐ。反応がなければ、すぐCPR。',
-         ev=[], L=4.0, art=art_asys, hl=ALL),
+         ev=[], L=4.0, art=art_asys, hl=ALL, slow=0.55),
     dict(key='PEA1', place=4, name='PEA（ふつうに見える）',
          act='→ 脈なしなら人を呼ぶ。すぐCPR（ショックはしない）、原因（4H4T）を確認',
          lines=[('→ 脈なしなら人を呼ぶ。', False), ('すぐCPR（ショックはしない）、', True), ('原因（4H4T）を確認', True)],
          narr='PEA。ふつうに見えても、脈がない。',
-         ev=[(k*0.75, 'N') for k in range(6)], L=4.5, hl=ALL),
+         ev=[(k*0.75, 'N') for k in range(6)], L=4.5, hl=ALL, slow=0.55),
     dict(key='PEA2', place=4, name='PEA（遅く幅広い）',
          act='→ 脈なしなら人を呼ぶ。すぐCPR（ショックはしない）、原因（4H4T）を確認',
          lines=[('→ 脈なしなら人を呼ぶ。', False), ('すぐCPR（ショックはしない）、', True), ('原因（4H4T）を確認', True)],
          narr='遅く幅広いQRSでも、脈がなければPEA。',
-         ev=[(0.3, 'W'), (2.3, 'W')], L=4.0, hl=ALL),
+         ev=[(0.3, 'W'), (2.3, 'W')], L=4.0, hl=ALL, slow=0.7, zoom=2.0),
 ]
 for _p in PATTERNS:
     _pl = PLACES[_p['place']]
@@ -375,6 +377,32 @@ def read_need(i):
     return max(READ_MIN, READ_S_PER_CHAR*act_chars(PATTERNS[i]))
 
 
+ZOOM = 2.5                        # 紹介中の拡大（ふつう。パターンの zoom で変えられる）
+HI_PXS = 25 * 14.0 * ZOOM          # 紹介中：実際の1秒 = 875px（2.5倍のとき）
+HI_MV = 10 * 14.0 * 2.0            # 顔の大きさの基準（280px/mV のとき 1）
+
+
+def zoom_of(i):
+    return PATTERNS[i].get('zoom', ZOOM)
+
+
+def hi_pxs(i):
+    return 25 * 14.0 * zoom_of(i)
+
+
+def hi_mv(i):
+    return 10 * 14.0 * zoom_of(i)
+
+
+def event_need(i):
+    """特徴の部分が右端に入ってから左端へ抜けきるまで（紹介の始まりから・秒）。色の範囲が全部のパターンは 0。"""
+    pat = PATTERNS[i]
+    if pat['hl'] is ALL:
+        return 0.0
+    a, b = pat['hl'][0]
+    return pat['enter'] + ((b - a) + W / hi_pxs(i)) / pat['slow'] + 0.2
+
+
 def build_blocks():
     blocks, t = [], 0.0
 
@@ -392,8 +420,9 @@ def build_blocks():
             key = PATTERNS[i]['key']
             d_voice = LEAD_PAT + VOICE_LEN[key] + GAP_PAT
             d_read = TEXT_IN + TEXT_FADE_IN + read_need(i) + TEXT_FADE_OUT
-            add('pat', key, max(PAT_MIN, d_voice, d_read), LEAD_PAT, scene=s, pat=i,
-                d_voice=d_voice, d_read=d_read)
+            d_event = event_need(i)
+            add('pat', key, max(PAT_MIN, d_voice, d_read, d_event), LEAD_PAT, scene=s, pat=i,
+                d_voice=d_voice, d_read=d_read, d_event=d_event)
     v_end, v_save = VOICE_LEN['まとめ'], VOICE_LEN['保存']
     add('end', 'まとめ', END_LEAD + v_end + END_GAP + v_save + END_HOLD + LOOP_FADE, END_LEAD,
         save0=None)
@@ -488,26 +517,75 @@ F_MV = 10 * F_PXMM                # 10mm/mV（いま紹介中の波形）
 XC = W / 2
 
 
+# --- 帯ごとの時計 ------------------------------------------------------------------
+# 帯 i の画面の中央にある時刻（パターンの rel）を c_i(t) とする。ふだんは実際の速さ（1秒に1秒）で進み、
+# その帯を紹介しているあいだ（紹介の始まりから ACC 秒で切りかえ）は slow 倍で進む。
+# 画面の x の点は rel = c_i(t) + (x − XC)/pxs（pxs：その時の横の倍率。ふつう 350、紹介中 700）。
+# 表 BLOCKS から作るので、録音に合わせて秒数を組み直しても、そのままついていく。
+CLOCK_DT = 1/240
+_TG = np.arange(-2.0, DUR + 2.0, CLOCK_DT)
+
+
+def _speed(i):
+    b = PAT_BLOCK[i]
+    sl = PATTERNS[i]['slow']
+    u_in = np.clip((_TG - b['start']) / 0.5, 0, 1)
+    u_out = np.clip((_TG - b['end']) / 0.5, 0, 1)
+    u = u_in*u_in*(3 - 2*u_in) * (1 - u_out*u_out*(3 - 2*u_out))
+    return 1 + (sl - 1)*u
+
+
+_C = {}
+for _i in range(N_PAT):
+    _sp = _speed(_i)
+    _cum = np.concatenate([[0.0], np.cumsum((_sp[1:] + _sp[:-1]) / 2 * CLOCK_DT)])
+    _C[_i] = _cum - np.interp(0.0, _TG, _cum)          # C_i(0) = 0
+
+
+def clock_raw(i, t):
+    t = np.asarray(t, dtype=float)
+    lo, hi = _TG[0], _TG[-1]
+    c = np.interp(t, _TG, _C[i])
+    c = np.where(t < lo, _C[i][0] + (t - lo), c)
+    return np.where(t > hi, _C[i][-1] + (t - hi), c)
+
+
+def t_of_clock(i, c):
+    """clock_raw の逆（時刻）。"""
+    return float(np.interp(c, _C[i], _TG))
+
+
 def phase_of(i):
-    """帯 i の位相：画面の x、時刻 t の点は、パターンの rel = t + PHASE[i] + (x − W)/F_PXS。
-    特徴の部分（hl の始まり）が、紹介の始まりから enter 秒で右端に入ってくるようにする。"""
+    """帯 i の位相：特徴の部分（hl の始まり）が、紹介の始まりから enter 秒で右端に入ってくるようにする。
+    色の範囲が全部のパターンは、紹介の始まりで周期の頭が画面の中央に。"""
     pat = PATTERNS[i]
     b = PAT_BLOCK[i]
     if pat['hl'] is ALL:
-        return -b['start']           # 連続した波形：紹介の始まりで周期の頭が右端に
-    return pat['hl'][0][0] - (b['start'] + pat['enter'])
+        return -float(clock_raw(i, b['start']))
+    te = b['start'] + pat['enter']
+    return pat['hl'][0][0] - (W - XC) / hi_pxs(i) - float(clock_raw(i, te))
 
 
 PHASE = {i: phase_of(i) for i in range(N_PAT)}
 
 
-def rel_at(i, t, x):
-    return t + PHASE[i] + (np.asarray(x, dtype=float) - W) / F_PXS
+def clock(i, t):
+    return clock_raw(i, t) + PHASE[i]
 
 
-def x_of(i, t, rel):
+def rel_at(i, t, x, pxs=F_PXS):
+    return clock(i, t) + (np.asarray(x, dtype=float) - XC) / pxs
+
+
+def x_of(i, t, rel, pxs=F_PXS):
     """rel_at の逆：パターンの時刻 rel が、時刻 t に画面のどの x にあるか。"""
-    return W + (np.asarray(rel, dtype=float) - t - PHASE[i]) * F_PXS
+    return XC + (np.asarray(rel, dtype=float) - clock(i, t)) * pxs
+
+
+def screen_speed(i, t, pxs):
+    """画面の上で波形が流れる速さ（px/秒）。"""
+    dt = 1/120
+    return float(clock(i, t + dt) - clock(i, t - dt)) / (2*dt) * pxs
 
 
 # --- 拍ごとのできごと（あとでキャラクターを重ねるため） --------------------------------------
@@ -546,13 +624,14 @@ def strip_events(geo, t):
     """帯の形（geo：draw_strip が返すもの）と時刻 t から、画面に見えているできごと [dict(type, rel, x, y)]。
     y はその点の波形の高さ（画面の y）。"""
     i = geo['i']
-    r0, r1 = rel_at(i, t, geo['x0']), rel_at(i, t, geo['x1'])
+    pxs = geo.get('pxs', F_PXS)
+    r0, r1 = rel_at(i, t, geo['x0'], pxs), rel_at(i, t, geo['x1'], pxs)
     ev = beat_events(i, float(r0), float(r1))
     if not ev:
         return []
     rels = np.array([r for _, r in ev])
     v = pattern_wave(i, rels)
-    xs = x_of(i, t, rels)
+    xs = x_of(i, t, rels, pxs)
     return [dict(type=e, rel=float(r), x=float(x) + geo.get('dx', 0), y=float(geo['base'] - vv*geo['g']))
             for (e, r), x, vv in zip(ev, xs, v)]
 
@@ -702,20 +781,34 @@ def parts_top(parts, size, baseline):
 GRID_Y0 = 0                        # マス目の太い線は y = 70 の倍数（波形の基線をここにそろえる）
 
 
-def grid():
-    """背景のマス目：波形と同じ 1mm＝14px（25mm/秒・10mm/mV）。小さいマス 14px、大きいマス 70px（太い線）。"""
+def grid(sp=F_PXMM, ax=0.0, ay=GRID_Y0):
+    """背景のマス目：小さいマス sp（ふつう 14px＝1mm、紹介中 28px）、5マスごとの太い線。
+    (ax, ay) を通る線が太い線（紹介中は、拡大した波形の基線が太い線に乗る）。マスはいつも正方形。"""
     im = Image.new('RGBA', (W, H), BG + (255,))
     d = ImageDraw.Draw(im)
-    pm = F_PXMM
-    for i in range(int(W/pm) + 2):
-        x = round(i*pm)
-        d.line([(x, 0), (x, H)], fill=(G_MAJOR if i % 5 == 0 else G_MINOR) + (255,),
-               width=2 if i % 5 == 0 else 1)
-    for k in range(-1, int(H/pm) + 2):
-        y = round(GRID_Y0 + k*pm)
+    k0 = -int(math.ceil(ax / sp)) - 1
+    for k in range(k0, k0 + int(W/sp) + 3):
+        x = round(ax + k*sp)
+        d.line([(x, 0), (x, H)], fill=(G_MAJOR if k % 5 == 0 else G_MINOR) + (255,),
+               width=2 if k % 5 == 0 else 1)
+    k0 = -int(math.ceil(ay / sp)) - 1
+    for k in range(k0, k0 + int(H/sp) + 3):
+        y = round(ay + k*sp)
         d.line([(0, y), (W, y)], fill=(G_MAJOR if k % 5 == 0 else G_MINOR) + (255,),
                width=2 if k % 5 == 0 else 1)
     return im
+
+
+_GRIDS = {}
+
+
+def grid_cached(sp, ax, ay):
+    k = (round(sp, 2), round(ax) % max(1, round(sp*5)), round(ay) % max(1, round(sp*5)))
+    if k not in _GRIDS:
+        if len(_GRIDS) > 12:
+            _GRIDS.clear()
+        _GRIDS[k] = grid(sp, ax, ay)
+    return _GRIDS[k]
 
 
 # --- 線を描く --------------------------------------------------------------------
@@ -723,7 +816,7 @@ SS = 2
 BLUR = (7, 18)
 
 
-def glow_line(size, runs, col, width, a, glow=1.0):
+def glow_line(size, runs, col, width, a, glow=1.0, part='all'):
     """runs: 点列のリスト。グロー付きの線を RGBA で返す。glow=0 で芯の線だけ。"""
     w, h = size
     core = Image.new('L', (w*SS, h*SS), 0)
@@ -733,25 +826,28 @@ def glow_line(size, runs, col, width, a, glow=1.0):
             dc.line([(x*SS, y*SS) for x, y in pts], fill=255, width=max(1, int(round(width*SS))), joint='curve')
     core = core.resize((w, h), Image.LANCZOS)
     out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
-    if glow*a > 0.02:
+    if glow*a > 0.02 and part != 'core':
         g1 = np.asarray(core.filter(ImageFilter.GaussianBlur(BLUR[0])), dtype=np.float32)
         g2 = np.asarray(core.filter(ImageFilter.GaussianBlur(BLUR[1])), dtype=np.float32)
         g = np.maximum(g1*0.95, g2*0.5)
         lay = Image.new('RGBA', (w, h), col + (0,))
         lay.putalpha(Image.fromarray(np.clip(g*a*glow, 0, 255).astype(np.uint8)))
         out.alpha_composite(lay)
+    if part == 'glow':
+        return out
     lay2 = Image.new('RGBA', (w, h), mix(col, (255, 255, 255), 0.6*(0.4 + 0.6*glow)) + (0,))
     lay2.putalpha(core.point(lambda q: int(q*a)))
     out.alpha_composite(lay2)
     return out
 
 
-def draw_strip(base, i, t, st, x0=0, x1=W, col_all=None):
+def draw_strip(base, i, t, st, x0=0, x1=W, col_all=None, part='all'):
     """帯 i（パターン i をくり返した波形）を、状態 st（基線 y・倍率 g・濃さ a・線の太さ lw・グロー glow・
     特徴の色の強さ hl・緑の強さ green）で描く。col_all があれば全部をその色で。"""
     a = st['a']
     dx = int(round(st.get('dx', 0.0)))
-    geo = dict(i=i, base=st['base'], g=st['g'], a=a, x0=x0, x1=x1, dx=dx, kind=st.get('kind'))
+    pxs = st.get('pxs', F_PXS)
+    geo = dict(i=i, base=st['base'], g=st['g'], a=a, x0=x0, x1=x1, dx=dx, kind=st.get('kind'), pxs=pxs)
     # 場面の切りかえ（横に押し出す）では、帯ごと dx ずらす。波形は帯の中の x で計算し、見えるところだけ描く
     vx0, vx1 = max(x0, -dx - 30), min(x1, W - dx + 30)
     if a <= 0.01 or vx1 <= vx0:
@@ -759,7 +855,7 @@ def draw_strip(base, i, t, st, x0=0, x1=W, col_all=None):
     x0, x1 = vx0, vx1
     pat = PATTERNS[i]
     xs = np.arange(x0, x1 + 0.5, 0.5)
-    rel = rel_at(i, t, xs)
+    rel = rel_at(i, t, xs, pxs)
     v = pattern_wave(i, rel)
     ys = st['base'] - v*st['g']
     pad = 26
@@ -781,7 +877,7 @@ def draw_strip(base, i, t, st, x0=0, x1=W, col_all=None):
         sel = sel0 | np.roll(sel0, 1) | np.roll(sel0, -1)
         idx = np.where(sel)[0]
         runs = [list(zip(xs[r] - bx0, ys[r] - y_lo)) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)]
-        lay.alpha_composite(glow_line(size, runs, col, st['lw'], a, st['glow']))
+        lay.alpha_composite(glow_line(size, runs, col, st['lw'], a, st['glow'], part))
     base.alpha_composite(lay, (bx0 + dx, y_lo))
     return geo
 
@@ -848,10 +944,10 @@ def scene_layout(s, mode):
     if k in _LAYOUT:
         return _LAYOUT[k]
     pats = SCENE_PATS[s]
-    if mode == 'ov':
-        out, bot = _fit(lambda g: [(i, 'ov', g) for i in pats], OV_GAINS)
-    else:
-        out, bot = _fit(lambda g: [(i, 'hi' if i == mode else 'co', F_MV if i == mode else g) for i in pats], CO_GAINS)
+    if mode != 'ov':
+        _LAYOUT[k] = big_layout(s, mode)
+        return _LAYOUT[k]
+    out, bot = _fit(lambda g: [(i, 'ov', g) for i in pats], OV_GAINS)
     top = min(o['lbl_cy'] - LBL[o['kind']]['h']/2 for o in out)
     shift = math.floor(((STACK_Y1 - bot) - (top - STACK_Y0)) / 2 / 70) * 70
     shift = max(-(top - STACK_Y0) // 70 * 70, min(shift, (STACK_Y1 - bot) // 70 * 70))
@@ -861,7 +957,7 @@ def scene_layout(s, mode):
         L_ = LBL[kind]
         i = o['i']
         st = dict(base=o['base'] + shift, g=o['g'], lbl_cy=o['lbl_cy'] + shift, green=1.0, below=o['below'],
-                  lbl_sz=L_['sz'], lbl_wt=L_['wt'], kind=kind)
+                  lbl_sz=L_['sz'], lbl_wt=L_['wt'], kind=kind, pxs=F_PXS)
         if kind == 'hi':
             st.update(a=1.0, lw=4.5, glow=1.0, hl=1.0, lbl_a=1.0, lbl_col=PATTERNS[i]['col'])
         elif kind == 'ov':
@@ -873,6 +969,40 @@ def scene_layout(s, mode):
     return res
 
 
+# 紹介中：その波形だけを 2倍に拡大（1mm＝28px）して大きく。ほかの波形は隠し、場所のパターンは上の小さな札（チップ）で示す
+CHIP_CY, CHIP_SZ = 470, 24         # パターンの札の字の中心・大きさ
+BIG_LBL_CY = 530                   # 紹介中のパターンの名前（46px）の字の中心
+BIG_TOP, BIG_Y1 = 568, 1312        # 拡大した波形（とキャラクター・小物の余白）の範囲
+UP_ROOM = {'心静止': 230, 'R on T': 40}                       # 波の上の余白（px）。心静止はプラグ・CPR の手
+DOWN_ROOM = {'モビッツII': 200, 'PEA1': 260, 'PEA2': 250}     # 基線の下の余白（px）。落ちるQRS・ハートと脈をみる手
+
+
+def big_room(i):
+    key = PATTERNS[i]['key']
+    vmax, vmin = extent(i)
+    up = vmax*hi_mv(i) + UP_ROOM.get(key, 18)
+    down = max(-vmin*hi_mv(i) + 18, DOWN_ROOM.get(key, 30))
+    return up, down
+
+
+def big_layout(s, i):
+    """場面 s でパターン i を紹介しているときの並べ方。i は拡大（横 700px/秒・縦 280px/mV）、ほかは隠す（その位置で消える）。
+    背景のマス目は、この基線を太い線にして、1mm＝28px に広げる。"""
+    ov = scene_layout(s, 'ov')
+    res = {}
+    for j in SCENE_PATS[s]:
+        up, down = big_room(j)
+        avail = BIG_Y1 - BIG_TOP
+        base = float(round(BIG_TOP + up + max(0.0, (avail - up - down) / 2)))
+        st = dict(base=base, g=hi_mv(j), pxs=hi_pxs(j), lbl_cy=BIG_LBL_CY, green=1.0, below=down,
+                  lbl_sz=46, lbl_wt=900, kind='hi' if j == i else 'hid',
+                  a=1.0, lw=5.5, glow=1.0, hl=1.0, lbl_a=1.0, lbl_col=PATTERNS[j]['col'])
+        if j != i:
+            st.update(a=0.0, lbl_a=0.0)
+        res[j] = st
+    return res
+
+
 def open_layout():
     """冒頭：場面①の1本目（モビッツII型）が画面の真ん中を灰色で流れ、2本目はまだ出ない。"""
     ov = scene_layout(0, 'ov')
@@ -880,7 +1010,7 @@ def open_layout():
     for n, i in enumerate(SCENE_PATS[0]):
         st = dict(ov[i])
         if n == 0:
-            st.update(base=OPEN_BASE, g=F_MV, a=1.0, lw=4.5, glow=1.0, hl=0.0, green=0.0, lbl_a=0.0,
+            st.update(base=OPEN_BASE, g=F_MV, pxs=F_PXS, a=1.0, lw=4.5, glow=1.0, hl=0.0, green=0.0, lbl_a=0.0,
                       lbl_cy=ov[i]['lbl_cy'] + (OPEN_BASE - ov[i]['base']))
         else:
             st.update(a=0.0, lbl_a=0.0, base=ov[i]['base'] + 60, lbl_cy=ov[i]['lbl_cy'] + 60)
@@ -888,13 +1018,20 @@ def open_layout():
     return res
 
 
-NUM_KEYS = ('base', 'g', 'lbl_cy', 'green', 'a', 'lw', 'glow', 'hl', 'lbl_a', 'lbl_sz')
+NUM_KEYS = ('base', 'g', 'lbl_cy', 'green', 'a', 'lw', 'glow', 'hl', 'lbl_a', 'lbl_sz', 'pxs')
 
 
 def lerp_state(s0, s1, u):
     st = dict(s1)
     for k in NUM_KEYS:
         st[k] = lerp(s0[k], s1[k], u)
+    # 消える帯は前半ですばやく消え、出てくる帯は後半で出る（重ならないように）
+    if s1['a'] < s0['a']:
+        st['a'] = lerp(s0['a'], s1['a'], ease(u*2.2))
+        st['lbl_a'] = lerp(s0['lbl_a'], s1['lbl_a'], ease(u*2.2))
+    elif s1['a'] > s0['a']:
+        st['a'] = lerp(s0['a'], s1['a'], ease((u - 0.45) / 0.55))
+        st['lbl_a'] = lerp(s0['lbl_a'], s1['lbl_a'], ease((u - 0.45) / 0.55))
     st['lbl_col'] = mix(s0['lbl_col'], s1['lbl_col'], u)
     st['lbl_sz'] = int(round(st['lbl_sz']))
     st['lbl_wt'] = s1['lbl_wt'] if u >= 0.5 else s0['lbl_wt']
@@ -936,19 +1073,31 @@ def draw_scene(base, s, t, a=1.0, dy=0.0, t_wave=None, dx=0.0):
     """場面 s：場所の名前・何を見るか・波形の帯とラベル。a・dy は場面の切りかえ用（全体の濃さ・縦のずれ）。"""
     tw = t if t_wave is None else t_wave
     states = scene_states(s, t)
-    geos = []
+    sts = {}
     for i, st in states.items():
         st = dict(st)
         st['a'] *= a
         st['base'] += dy
         st['dx'] = dx
-        geo = draw_strip(base, i, tw, st)
-        geo['lbl_cy'] = st['lbl_cy'] + dy
+        sts[i] = st
+    # 顔と手は波形の線の下に描く（線がいつも見えるように）
+    pre = [dict(i=i, base=st['base'], g=st['g'], a=st['a'], x0=0, x1=W, dx=int(round(dx)), kind=st.get('kind'),
+                pxs=st.get('pxs', F_PXS), lbl_cy=st['lbl_cy'], scene=s) for i, st in sts.items()]
+    # 紹介中の帯：にじみ（グロー）→ 顔と手 → 線、の順に重ねる（顔がにじみで薄くならず、線はいつも上）
+    his = [i for i, st in sts.items() if st.get('kind') == 'hi' and st['a'] > 0.01]
+    for i in his:
+        draw_strip(base, i, tw, sts[i], part='glow')
+    import characters
+    characters.draw(sys.modules[__name__], base, t, s, current_pattern(t), pre, layer='under')
+    geos = []
+    for i, st in sts.items():
+        geo = draw_strip(base, i, tw, st, part='core' if i in his else 'all')
+        geo['lbl_cy'] = st['lbl_cy']
         geos.append(geo)
         la = st['lbl_a'] * a
         if la > 0.01:
             put(base, PATTERNS[i]['name'], st['lbl_sz'], st['lbl_wt'], st['lbl_col'], x=LABEL_X + dx,
-                cy=st['lbl_cy'] + dy, a=la, max_w=W - 2*MARGIN)
+                cy=st['lbl_cy'], a=la, max_w=W - 2*MARGIN)
     return geos
 
 
@@ -969,13 +1118,46 @@ def draw_overlays(img, t, scene, pattern, strip_geometry):
       （type：P／P_dropped／P_dissoc／QRS／PVC／T）。拍の時刻は beat_events、画面の x は x_of で計算できる。
     キャラクター（顔と手・小物）は characters.py。"""
     import characters
-    characters.draw(sys.modules[__name__], img, t, scene, pattern, strip_geometry)
+    characters.draw(sys.modules[__name__], img, t, scene, pattern, strip_geometry, layer='over')
 
 
-def draw_scene_head(base, s, a, dy=0.0, dx=0.0):
+def scene_hi(s, t):
+    """場面 s が「紹介中（拡大）」になっている度合い（0：場所の説明、1：紹介中）。"""
+    return ease((t - PAT_BLOCK[SCENE_PATS[s][0]]['start']) / ACC)
+
+
+def scene_hi_base(s, t):
+    """紹介中の帯の (基線, 横の倍率 px/秒)。マス目の太い線を基線にそろえ、マスの大きさを倍率に合わせる。"""
+    st = scene_states(s, t)
+    his = [v for v in st.values() if v.get('kind') == 'hi']
+    return (his[0]['base'], his[0]['pxs']) if his else (OPEN_BASE, F_PXS)
+
+
+def draw_chips(base, s, t, a, dx=0.0):
+    """紹介中：その場所のパターンを小さな札で並べる（いまのパターンは場所の色）。"""
+    if a <= 0.01:
+        return
+    pats = SCENE_PATS[s]
+    cur = current_pattern(t)
+    ws = [text_w(PATTERNS[i]['name'], CHIP_SZ, 700) + 26 for i in pats]
+    gap = 12
+    total = sum(ws) + gap*(len(ws) - 1)
+    x = XC - total/2 + dx
+    d = ImageDraw.Draw(base, 'RGBA')
+    for i, w in zip(pats, ws):
+        on = (i == cur)
+        col = PATTERNS[i]['col'] if on else DIM
+        d.rounded_rectangle((x, CHIP_CY - 19, x + w, CHIP_CY + 19), radius=19, fill=(9, 19, 16, int(200*a)),
+                            outline=col + (int(255*a),), width=3 if on else 2)
+        put(base, PATTERNS[i]['name'], CHIP_SZ, 700, PATTERNS[i]['col'] if on else GREY, cx=x + w/2, cy=CHIP_CY, a=a)
+        x += w + gap
+
+
+def draw_scene_head(base, s, a, dy=0.0, dx=0.0, t=0.0):
     pl = PLACES[s]
     put(base, f"{pl['no']} {pl['name']}", TITLE_SZ, 900, pl['col'], cx=XC + dx, cy=TITLE_CY + dy, a=a, max_w=W - 2*MARGIN)
     put(base, pl['ov'], OVL_SZ, 600, LIGHT, cx=XC + dx, cy=OVL_CY + dy, a=a*0.95, max_w=W - 2*MARGIN)
+    draw_chips(base, s, t, a*scene_hi(s, t), dx)
 
 
 # --- 次の対応 --------------------------------------------------------------------
@@ -1012,7 +1194,8 @@ OPEN_DOTS_CY = 868                  # 「① ② ③ ④ ⑤」（場所の色�
 END_HEAD = [('見るのは', 1.0, WHITE), ('5', 1.8, YEL), ('か所', 1.0, WHITE)]
 END_ASK = 'どこを見落としやすい？コメントで教えてね'
 END_SAVE = '保存して見返してね'
-NOTE1 = '実際の速さ（25mm/秒）'
+NOTE1 = '実際の速さ（25mm/秒）'      # 冒頭・場所の説明・最後（実際の速さ・1mm＝14px）
+NOTE_ZOOM = '※拡大・ゆっくり表示'      # 紹介中（2倍に拡大・ゆっくり）
 NOTE2 = '※数値はこの波形での一例'
 NOTE_CY = (1560, 1586)
 WATERMARK = '@nurse_polarbearden'
@@ -1082,11 +1265,30 @@ def push(t, t_mid, d=XF):
     return ease((t - (t_mid - d/2)) / d)
 
 
+def zoom_state(t):
+    """いまの拡大の度合い zf（0：ふつう、1：紹介中）と、マス目の (小さいマス, 基準 x, 基準 y)。
+    場面の押し出しのあいだは、出ていく場面と入ってくる場面を重みでまぜる。"""
+    zf, ax, ay, sp = 0.0, 0.0, 0.0, 0.0
+    for s in range(len(PLACES)):
+        s0, s1 = scene_span(s)
+        u_in = 1.0 if s == 0 else push(t, s0)
+        w = u_in * (1 - push(t, s1))
+        if w <= 0.0:
+            continue
+        z = scene_hi(s, t)
+        if z <= 0.0:
+            continue
+        bs, px = scene_hi_base(s, t)
+        zf += w*z
+        sp += w*z*(px / F_PXS - 1)
+        ax += w*z*XC
+        ay += w*z*bs
+    return zf, (F_PXMM*(1 + sp), ax, ay)
+
+
 def frame(t, watermark=True):
-    global _GRID
-    if _GRID is None:
-        _GRID = grid()
-    im = _GRID.copy()
+    zf, gp = zoom_state(t)
+    im = grid_cached(*gp).copy()
 
     # 最後 → 冒頭（ループ）：最後の画面が左へ抜け、冒頭の画面が右から入る。t = DUR で冒頭（t = 0）と同じ
     u_loop = ease((t - (DUR - LOOP_FADE)) / LOOP_FADE)
@@ -1110,7 +1312,7 @@ def frame(t, watermark=True):
             geos.append(g_)
         if abs(dx) < best:
             scene_now, best = s, abs(dx)
-        draw_scene_head(im, s, a_head, 0.0, dx)
+        draw_scene_head(im, s, a_head, 0.0, dx, t=t)
 
     # 最後
     u_end = push(t, END_B['start'])
@@ -1133,7 +1335,8 @@ def frame(t, watermark=True):
         if b['start'] <= t < b['end']:
             draw_act(im, PATTERNS[i], act_alpha(i, t), dx=scene_dx.get(PATTERNS[i]['place'], 0.0))
 
-    put(im, NOTE1, 24, 400, GREY, x=135, cy=NOTE_CY[0], a=0.85)
+    put(im, NOTE1, 24, 400, GREY, x=135, cy=NOTE_CY[0], a=0.85*cl(1 - 2*zf))          # 重ならないよう、順に入れかえる
+    put(im, NOTE_ZOOM, 24, 400, GREY, x=135, cy=NOTE_CY[0], a=0.85*cl(2*zf - 1))
     put(im, NOTE2, 24, 400, GREY, x=135, cy=NOTE_CY[1], a=0.85)
     if watermark:
         put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
@@ -1155,7 +1358,9 @@ def thumb_times():
         i = REP[s]
         pat = PATTERNS[i]
         c = pat['L'] / 2 if pat['hl'] is ALL else sum(pat['hl'][0]) / 2
-        out.append(c - PHASE[i] - (xm - W) / F_PXS)
+        target = c - PHASE[i] - (xm - XC) / F_PXS
+        target += math.ceil(-target / pat['L']) * pat['L']        # 0 秒以降の最初
+        out.append(t_of_clock(i, target))
     return out
 
 
@@ -1178,7 +1383,7 @@ def _qrs_ms(f, lim=0.12):
 
 
 def screen_strings():
-    out = [TITLE] + [s for s, _, _ in TITLE_SUB] + [END_ASK, END_SAVE, NOTE1, NOTE2]
+    out = [TITLE] + [s for s, _, _ in TITLE_SUB] + [END_ASK, END_SAVE, NOTE1, NOTE_ZOOM, NOTE2]
     for p in PLACES:
         out += [f"{p['no']} {p['name']}", p['ov']]
     for p in PATTERNS:
@@ -1267,27 +1472,45 @@ def check():
         for s_, sz, wt in ((f"{p['no']} {p['name']}", TITLE_SZ, 900), (p['ov'], OVL_SZ, 600)):
             if text_w(s_, sz, wt) > W - 2*MARGIN:
                 print(f'  ✗ 広い：{s_}'); ok = False
-    # 並べ方：範囲に入るか・ラベルと上の帯の波が重ならないか・基線がマス目の線の上か
-    print(f'並べ方（範囲 y {STACK_Y0}〜{STACK_Y1}。基線：10・5mm/mV は太い線＝70の倍数）')
+    # 並べ方（場所の説明）：範囲に入るか・ラベルと上の帯の波が重ならないか・基線がマス目の線の上か
+    print(f'場所の説明の並べ方（範囲 y {STACK_Y0}〜{STACK_Y1}。実際の速さ・1mm＝14px。基線：10・5mm/mV は太い線＝70の倍数）')
     for s in range(len(PLACES)):
-        for mode in ['ov'] + SCENE_PATS[s]:
-            lay = scene_layout(s, mode)
-            desc, prev_bot = [], None
-            for i in SCENE_PATS[s]:
-                st = lay[i]
-                vmax, vmin = extent(i)
-                L_ = LBL[st['kind']]
-                lt, lb = text_box(PATTERNS[i]['name'], st['lbl_sz'], st['lbl_wt'], st['lbl_cy'], max_w=W - 2*MARGIN)
-                wt_, wb_ = st['base'] - vmax*st['g'], max(st['base'] - vmin*st['g'], st['base'] + (HI_ROOM_DOWN if st['kind'] == 'hi' else 0))
-                bad = lt < STACK_Y0 - 4 or wb_ > STACK_Y1 or lb > wt_ - 3 or (prev_bot is not None and lt < prev_bot + 3)
-                grid_ok = (st['base'] - GRID_Y0) % (70 if st['g'] in (F_MV, F_MV*0.5) else 14) == 0
-                if bad or not grid_ok:
-                    ok = False
-                desc.append(f"{PATTERNS[i]['name']}[{st['kind']} {st['g']/F_PXMM:.1f}mm/mV 字{lt}〜{lb} 波{wt_:.0f}〜{wb_:.0f}"
-                            f" 基線{st['base']:.0f}{'' if grid_ok else '✗線'}]{' ✗' if bad else ''}")
-                prev_bot = wb_
-            mname = '説明' if mode == 'ov' else PATTERNS[mode]['name']
-            print(f"  {PLACES[s]['no']} {mname}：" + ' / '.join(desc))
+        lay = scene_layout(s, 'ov')
+        desc, prev_bot = [], None
+        for i in SCENE_PATS[s]:
+            st = lay[i]
+            vmax, vmin = extent(i)
+            lt, lb = text_box(PATTERNS[i]['name'], st['lbl_sz'], st['lbl_wt'], st['lbl_cy'], max_w=W - 2*MARGIN)
+            wt_, wb_ = st['base'] - vmax*st['g'], st['base'] - vmin*st['g']
+            bad = lt < STACK_Y0 - 4 or wb_ > STACK_Y1 or lb > wt_ - 3 or (prev_bot is not None and lt < prev_bot + 3)
+            grid_ok = (st['base'] - GRID_Y0) % (70 if st['g'] in (F_MV, F_MV*0.5) else 14) == 0
+            if bad or not grid_ok:
+                ok = False
+            desc.append(f"{PATTERNS[i]['name']}[{st['g']/F_PXMM:.1f}mm/mV 字{lt}〜{lb} 波{wt_:.0f}〜{wb_:.0f}"
+                        f" 基線{st['base']:.0f}{'' if grid_ok else '✗線'}]{' ✗' if bad else ''}")
+            prev_bot = wb_
+        print(f"  {PLACES[s]['no']}：" + ' / '.join(desc))
+    # 紹介中（拡大）：名前の札・名前・波形と余白が範囲に入るか（マス目はこの基線を太い線にして 28px）
+    cb = text_box(PATTERNS[0]['name'], CHIP_SZ, 700, CHIP_CY)
+    nb = text_box(PATTERNS[0]['name'], 46, 900, BIG_LBL_CY)
+    print(f'紹介中（拡大）：札 y {CHIP_CY-19}〜{CHIP_CY+19}、名前 y {nb[0]}〜{nb[1]}、'
+          f'波形の範囲 {BIG_TOP}〜{BIG_Y1}')
+    ok &= CHIP_CY - 19 > ob[1] and nb[0] > CHIP_CY + 19 and nb[1] < BIG_TOP
+    for s in range(len(PLACES)):
+        pats = SCENE_PATS[s]
+        wsum = sum(text_w(PATTERNS[i]['name'], CHIP_SZ, 700) + 26 for i in pats) + 12*(len(pats) - 1)
+        if wsum > W - 2*MARGIN:
+            print(f'  ✗ 札が広い：{PLACES[s]["no"]} {wsum}px'); ok = False
+        for i in pats:
+            st = big_layout(s, i)[i]
+            up, down = big_room(i)
+            top, bot = st['base'] - up, st['base'] + down
+            vmax, vmin = extent(i)
+            bad = top < BIG_TOP - 1 or bot > BIG_Y1 + 1
+            ok &= not bad
+            print(f"  {PATTERNS[i]['name']:<14} {zoom_of(i)}倍（1mm＝{14*zoom_of(i):.0f}px） 基線 {st['base']:.0f}"
+                  f"  波 {st['base'] - vmax*hi_mv(i):.0f}〜{st['base'] - vmin*hi_mv(i):.0f}"
+                  f"  余白こみ {top:.0f}〜{bot:.0f}  ゆっくり {PATTERNS[i]['slow']}倍{' ✗' if bad else ''}")
     # 冒頭
     ttop = text_box(TITLE, OPEN_TITLE_SZ, 900, OPEN_TITLE_CY)
     stop, sw = parts_top(TITLE_SUB, OPEN_SUB_SZ, OPEN_SUB_BASE)
@@ -1319,21 +1542,24 @@ def check():
         b = PAT_BLOCK[i]
         ts = np.arange(b['start'], b['end'], 0.02)
         vis = []
+        xs = np.arange(0, W, 4.0)
         for t in ts:
-            rel = rel_at(i, t, np.array([0.0, W]))
-            # 画面に入っている色の範囲
-            xs = np.arange(0, W, 4.0)
-            vis.append(hl_mask(pat, rel_at(i, t, xs)).any())
+            vis.append(hl_mask(pat, rel_at(i, t, xs, hi_pxs(i))).any())
         vis = np.array(vis)
-        # 新しい特徴の部分（hl の始まり）が右端に入る時刻＝ enter（PHASE で決めた）
-        a0 = pat['hl'][0][0]
-        k = math.ceil((rel_at(i, b['start'], W) - a0) / pat['L'] - 1e-9)
-        first = (a0 + k*pat['L']) - rel_at(i, b['start'], W)
-        v_name = (b['v0'], b['v0'] + min(1.2, b['vlen']))
+        # 新しい特徴の部分（hl の始まり）が右端に入る時刻・左端から抜けきる時刻
+        a0, b0 = pat['hl'][0]
+        te = b['start'] + pat['enter']
+        rr = float(rel_at(i, te, W, hi_pxs(i)))
+        k = round((rr - a0) / pat['L'])
+        a_k, b_k = a0 + k*pat['L'], b0 + k*pat['L']
+        t_in = t_of_clock(i, a_k - PHASE[i] - (W - XC)/hi_pxs(i)) - b['start']
+        t_out = t_of_clock(i, b_k - PHASE[i] + XC/hi_pxs(i)) - b['start']
+        v_name = (b['v0'] + 0.25, b['v0'] + min(1.2, b['vlen']))     # 名前を言っているあいだ（言い始めの 0.25秒は除く）
         seen = all(vis[(ts >= v_name[0]) & (ts <= v_name[1])])
-        print(f"  {pat['name']}：新しい特徴が右端に入る {first:.2f}秒、名前を言うあいだ（{v_name[0]-b['start']:.2f}〜{v_name[1]-b['start']:.2f}秒）"
-              f"{'見えている' if seen else '✗ 見えない'}、紹介中に見えている割合 {vis.mean()*100:.0f}%")
-        ok &= seen and first >= 0.3
+        crossed = t_out <= b['dur'] + 1e-6
+        print(f"  {pat['name']}（{pat['slow']}倍）：特徴が右端に入る {t_in:.2f}秒 → 左端から抜ける {t_out:.2f}秒（紹介 {b['dur']:.2f}秒）"
+              f"{'' if crossed else ' ✗ 抜けきらない'}、名前を言うあいだ{'見えている' if seen else ' ✗ 見えない'}")
+        ok &= seen and t_in >= 0.3 and crossed
     print('モデルの値')
     print(f'  モビッツII型：PR {PR:.2f}秒で一定、4つめのP波が伝わらない（4:3）')
     print(f'  完全房室ブロック：心房 {60/0.68:.0f}/分、心室 {60/1.7:.0f}/分（QRS {_qrs_ms(qrs_escape):.0f}ms）')
@@ -1392,15 +1618,15 @@ def beeps(path, sr=44100):
         if not pat['ev']:
             continue
         L = pat['L']
-        # 中央を通る時刻：rel_at(i, t, XC) = r + kL
-        off = PHASE[i] + (XC - W) / F_PXS
-        for k in range(int(off // L) - 2, int((DUR + off) // L) + 3):
+        # 中央を通る時刻：clock(i, t) = r + kL
+        c0, c1 = float(clock(i, 0.0)), float(clock(i, DUR))
+        for k in range(int(math.floor(c0 / L)) - 1, int(math.ceil(c1 / L)) + 2):
             for r, kind in pat['ev']:
                 if KINDS[kind][0] is None:
                     continue
                 if pat.get('gain') is not None and pat['gain'](np.array([r]), L)[0] < 0.5:
                     continue
-                ts = r + k*L - off
+                ts = t_of_clock(i, r + k*L - PHASE[i])
                 if not (0 <= ts < DUR - 0.1) or focus_strip(ts) != i:
                     continue
                 f = 960.0 if kind in ('N', 'Q') else 720.0
