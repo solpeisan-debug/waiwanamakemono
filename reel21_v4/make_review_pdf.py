@@ -89,7 +89,7 @@ def key_time(i):
     hi = b['end'] - m.TEXT_FADE_OUT - 0.05
     if g['h'] is None:
         return round(min(hi, lo + 1.2)*60)/60
-    tc = g['T'] + ((g['h'] + g['hb'])/2 - g['s0']) / m.SLOW
+    tc = m.CLOCK.tcen((g['h'] + g['hb'])/2)
     return round(min(hi, max(lo, tc))*60)/60
 
 
@@ -146,7 +146,8 @@ def main():
         f"| {p['pno']} {m.PLACES[p['place']]['name']} | {p['name']} | {p['act']} | "
         + ' ／ '.join(('　' if c else '') + s for s, c in p['lines'])
         + f" | {EVID[p['key']]} |" for p in m.PATTERNS)
-    draw = '\n'.join(f"| {p['name']} | {describe(p)} | 画面 {m.SEG_OF[i]['T']:.1f}〜{m.SEG_OF[i]['T'] + m.SEG_OF[i]['D']/m.SLOW:.1f}秒 |"
+    draw = '\n'.join(f"| {p['name']} | {describe(p)} | 画面 {m.SEG_OF[i]['T']:.1f}〜{m.CLOCK.tcen(m.SEG_OF[i]['s1']):.1f}秒"
+                     + (f"（{m.SEG_OF[i]['fz'][0] + m.FREEZE_RAMP:.1f}〜{m.SEG_OF[i]['fz'][0] + m.FREEZE_RAMP + m.SEG_OF[i]['fz'][1]:.1f}秒は一時停止）" if m.SEG_OF[i]['fz'] else '') + " |"
                      for i, p in enumerate(m.PATTERNS))
     tl = '\n'.join(f"| {b['start']:.1f}–{b['end']:.1f} | {name.strip()} |" for name, b in m.timing_table())
     txt = f'''あなたは循環器専門医（蘇生・不整脈）として、看護師・看護学生向けの心電図教育リール（Instagram）を医学的にレビューしてください。
@@ -161,6 +162,7 @@ def main():
 ## 作品の概要（v4 の構成）
 - 縦 1080×1920・60fps・{m.DUR:.0f}秒。ナレーションは**まだ録音していない**（下の台本は下書き。秒数は字数からの見積もり）
 - **切りかえなし**：画面の真ん中に大きな波形が1本だけ。最初から最後まで同じ倍率（{m.ZOOM}倍：1mm＝{m.PXMM:.1f}px、背景のマス目も同じ）・同じゆっくりの速さ（実際の約{m.SLOW:.2f}倍、画面の上で約{m.SCROLL:.0f}px/秒）で流れる。左下に「※拡大・ゆっくり表示」
+- 細かく速い波形（単形性VT・多形性VT・トルサード・粗いVF・細かいVF）は、特徴が画面いっぱいになったら0.5秒で止め、名前・声・次の対応のあいだ止める（モニターのフリーズのように、右上に「⏸ 一時停止」）。目が回らないよう、これらはにじみも弱めた
 - 12パターンを見る場所の順に1本の流れでつなぐ（洞調律 → ① → ⑤ → 洞調律 → ループ）。新しいリズムは右から入ってくる（モニターと同じ）。つなぎ目は拍の途中で切らない
 - 変わるのは字だけ（その場で薄く入れかわる）：上に場所の名前（場所の色）と「何を見るか」の1行、その下にパターン名（特徴の部分が画面に入るころ）、下に「→ 次の対応」
 - 冒頭：「致死性不整脈」「見るのは5か所」。最後：5か所・「どこを見落としやすい？コメントで教えてね」・「保存して見返してね」

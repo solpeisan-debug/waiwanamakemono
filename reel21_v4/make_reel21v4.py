@@ -520,14 +520,59 @@ def _next_end(a, dmin, L, ends):
     return best - a
 
 
+# --- 一時停止（モニターのフリーズ）：細かく速い波形は、特徴が画面に入ったら止めて見せる ------------------------------
+# 速さを 0.5秒で 0 まで落とし（なめらかに）、名前・声・次の対応のあいだ止め、0.5秒でもとの速さに戻す。止めているあいだも字・キャラクターは動く
+FREEZE_KEYS = ('単形性VT', '多形性VT', 'トルサード', '粗いVF', '細かいVF')   # ショートランの3連は間が広い（319px）ので止めない
+FREEZE_RAMP = 0.5
+RESUME_EARLY = 1.3                # 次の対応を読み終わる、この秒数前に動き出す
+DENSE_GLOW = 0.55                  # 細かく速い波形は、にじみ（グロー）を少し弱く
+
+
+class Clock:
+    """流れの時計：c(t) ＝ C0 ＋ SLOW×（t − 止めた分）。止める予定 events＝[(始まり f0, 止めている長さ H)]。"""
+    def __init__(self, c0, slow):
+        self.c0, self.slow, self.ev = c0, slow, []
+
+    def lost(self, t):
+        t = np.asarray(t, dtype=float)
+        R = FREEZE_RAMP
+        out = np.zeros_like(t)
+        for f0, Hh in self.ev:
+            x1 = np.clip((t - f0) / R, 0, 1)
+            x2 = np.clip((t - f0 - R) / max(Hh, 1e-9), 0, 1) if Hh > 0 else (t >= f0 + R).astype(float)
+            x3 = np.clip((t - f0 - R - Hh) / R, 0, 1)
+            out += R*(x1**3 - x1**4/2) + Hh*x2 + R*(x3 - (x3**3 - x3**4/2))
+        return out
+
+    def c(self, t):
+        return self.c0 + self.slow*(np.asarray(t, dtype=float) - self.lost(t))
+
+    def speed(self, t):
+        """いまの速さ（ふだんの何倍か）：0（止まっている）〜1。"""
+        dt = 1e-3
+        return float((self.c(t + dt) - self.c(t - dt)) / (2*dt) / self.slow)
+
+    def tcen(self, tau):
+        """流れの時刻 tau が画面の真ん中に来る（最初の）時刻。"""
+        lo, hi = -5.0, 400.0
+        for _ in range(60):
+            mid = (lo + hi)/2
+            if self.c(mid) < tau:
+                lo = mid
+            else:
+                hi = mid
+        return hi
+
+
 def solve(slow):
-    """波形の区間（SEG）と字・声の秒数（BLOCKS）を決める。"""
+    """波形の区間（SEG）・字と声の秒数（BLOCKS）・一時停止の予定を決める。"""
     open_dur = max(OPEN_MIN, OPEN_LEAD + VOICE_LEN['冒頭'] + OPEN_GAP)
-    c0 = -slow*open_dur                                    # t=0 の画面の真ん中の時刻（モビッツII型の始まりが t=open_dur に真ん中）
-    tcen = lambda tau: (tau - c0) / slow
-    half = (W - XC) / (PXS*slow)
-    tent = lambda tau: tcen(tau) - half
-    texit = lambda tau: tcen(tau) + half
+    c0 = -slow*open_dur
+    ck = Clock(c0, slow)
+    tcen = ck.tcen
+    half_r, half_l = (W - XC) / PXS, XC / PXS
+    tent = lambda tau: tcen(tau - half_r)                  # 右端に入る時刻
+    texit = lambda tau: tcen(tau + half_l)                 # 左端から抜ける時刻
     segs, blocks = [], [dict(kind='open', key='冒頭', start=0.0, end=open_dur, v0=OPEN_LEAD)]
     s0 = 0.0
     for s, pl in enumerate(PLACES):
@@ -535,19 +580,21 @@ def solve(slow):
             pat = PATTERNS[i]
             L = pat['L']
             starts, ends = WINDOWS[pat['key']]
+            freeze = pat['key'] in FREEZE_KEYS
             T = tcen(s0)
             ov = (LEAD_OV + VOICE_LEN[f'場所{s}'] + GAP_OV) if n == 0 else 0.0
             best = None
             pre = PRE.get(pat['key'])
             cands = [(a, k_) for a in (starts if starts is not None else [0.0]) for k_ in (range(PRE_MAX + 1) if pre else [0])]
             for a, npre in cands:
-                sp = s0 + (npre*pre[1] if pre else 0.0)        # パターン本体の始まり
+                sp = s0 + (npre*pre[1] if pre else 0.0)
                 Pmin = T + ov
                 h = hb = None
                 feat_end = 0.0
                 if pat['hl'] is ALL:
                     P = Pmin
                     hl_end_tau = s0
+                    f_tau = sp + 0.15 + half_l                   # 新しい波形が画面いっぱいになる（始まりが左端に届く）
                 else:
                     ha, hbb = pat['hl'][0]
                     k = math.ceil((a + 0.05 - ha) / L)
@@ -558,16 +605,39 @@ def solve(slow):
                         k += 1
                     hb = h + (hbb - ha)
                     P = max(Pmin, tent(h) - NAME_EARLY)
-                    feat_end = texit(hb) + 0.15
                     hl_end_tau = hb
-                t_end = max(P + pat_need(i), feat_end)
-                dmin = max(c0 + slow*t_end, hl_end_tau + 0.05) - sp
+                    if pat['key'] == 'トルサード':
+                        f_tau = h + half_l - 0.08                # ねじれの始まりが左端の近くまで来た（画面いっぱいがねじれ）
+                    else:
+                        f_tau = (h + hb)/2                       # 特徴の部分が真ん中
+                    if not freeze:
+                        feat_end = texit(hb) + 0.15
+                fz = None
+                if freeze:
+                    f_full = tcen(f_tau)                         # 止まりきる時刻（この時刻に止まっている）
+                    f0 = f_full - FREEZE_RAMP*0.5                # 速さを落とし始める（止まるまでに 0.25秒ぶん進むので）
+                    # 声が終わり、次の対応を読み終わるころに動き出す（動き出してから次のパターンが真ん中に来るまでも、次の対応は出ている）
+                    v_end = P + LEAD_PAT + VOICE_LEN[pat['key']] + 0.3
+                    hold_end = max(P + pat_need(i) - RESUME_EARLY - FREEZE_RAMP, v_end, f0 + FREEZE_RAMP + 0.5)
+                    Hh = hold_end - (f0 + FREEZE_RAMP)
+                    fz = (f0, Hh)
+                    ck.ev.append(fz)
+                    t_end = max(P + pat_need(i), f0 + 2*FREEZE_RAMP + Hh + 0.4)
+                else:
+                    t_end = max(P + pat_need(i), feat_end)
+                dmin = max(float(ck.c(t_end)), hl_end_tau + 0.05) - sp
+                if fz is not None:                               # 止めているあいだ、画面の右端までこのパターン（次の波形を入れない）
+                    dmin = max(dmin, float(ck.c(fz[0] + FREEZE_RAMP)) + half_r + 0.12 - sp)
                 D = _next_end(a, dmin, L, ends) + (sp - s0)
+                if fz is not None:
+                    ck.ev.pop()
                 if best is None or D < best['D'] - 1e-9:
-                    best = dict(a=a, D=D, P=P, h=h, hb=hb, sp=sp, npre=npre)
+                    best = dict(a=a, D=D, P=P, h=h, hb=hb, sp=sp, npre=npre, fz=fz)
+            if best['fz'] is not None:
+                ck.ev.append(best['fz'])
             seg = dict(key=pat['key'], idx=i, pat=pat, place=s, first=(n == 0), s0=s0, a=best['a'], D=best['D'],
                        s1=s0 + best['D'], T=T, P=best['P'], h=best['h'], hb=best['hb'], sp=best['sp'],
-                       npre=best['npre'], pre=pre)
+                       npre=best['npre'], pre=pre, fz=best['fz'])
             segs.append(seg)
             if n == 0:
                 blocks.append(dict(kind='ov', key=f'場所{s}', scene=s, start=T, end=seg['P'], v0=T + LEAD_OV))
@@ -581,44 +651,49 @@ def solve(slow):
     a = starts[0]
     D = _next_end(a, slow*(end_need + open_dur), 0.8, ends)
     T = tcen(s0)
+    lost_all = float(ck.lost(1e6))
+    dur = (s0 + D) / slow + lost_all
+    D += slow*(math.ceil(dur*60 - 1e-6)/60 - dur)          # 映像の長さを 1/60秒の整数倍に（ループのつなぎ目のため。0.01秒未満）
     segs.append(dict(key='洞調律', idx=None, pat=SINUS, place=None, first=False, s0=s0, a=a, D=D, s1=s0 + D,
-                     T=T, P=T, h=None, hb=None, sp=s0, npre=0, pre=None))
+                     T=T, P=T, h=None, hb=None, sp=s0, npre=0, pre=None, fz=None))
     Ltot = s0 + D
-    blocks.append(dict(kind='end', key='まとめ', start=T, end=Ltot / slow, v0=T + END_LEAD,
+    dur = Ltot / slow + lost_all
+    blocks.append(dict(kind='end', key='まとめ', start=T, end=dur, v0=T + END_LEAD,
                        save0=T + END_LEAD + v_end + END_GAP))
     for b in blocks:
         b['vlen'] = VOICE_LEN[b['key']]
         b['dur'] = b['end'] - b['start']
-    return segs, blocks, Ltot, c0, open_dur
+    return segs, blocks, Ltot, c0, open_dur, ck, dur
 
 
-# 速さを、映像の長さがちょうど 1/60秒の整数倍になるよう、ほんの少しだけ合わせる（ループのつなぎ目のため）
-_segs, _blocks, _L, _c0, _od = solve(SLOW0)
-SLOW = _L / (math.ceil(_L / SLOW0 * 60 - 1e-6) / 60)
-SEG, BLOCKS, LTOT, C0, OPEN_DUR = solve(SLOW)
-for _ in range(3):
-    if abs(LTOT / SLOW * 60 - round(LTOT / SLOW * 60)) < 1e-6:
-        break
-    SLOW = LTOT / (math.ceil(LTOT / SLOW * 60 - 1e-6) / 60)
-    SEG, BLOCKS, LTOT, C0, OPEN_DUR = solve(SLOW)
-DUR = LTOT / SLOW
-SCROLL = PXS*SLOW                  # 画面の上で流れる速さ（px/秒）
+SLOW = SLOW0
+SEG, BLOCKS, LTOT, C0, OPEN_DUR, CLOCK, DUR = solve(SLOW)
+SCROLL = PXS*SLOW                  # 画面の上で流れる速さ（px/秒。止めていないとき）
 CROSS = W / SCROLL                 # 1つの点が右端から左端まで横切る時間（秒）
 PAT_BLOCK = {b['pat']: b for b in BLOCKS if b['kind'] == 'pat'}
 OV_BLOCK = {b['scene']: b for b in BLOCKS if b['kind'] == 'ov'}
 END_B = BLOCKS[-1]
 SEG_OF = {g['idx']: g for g in SEG if g['idx'] is not None}
 KEY_IDX = {p['key']: n for n, p in enumerate(PATTERNS)}
+FREEZES = [g['fz'] + (g['key'],) for g in SEG if g['fz'] is not None]
 
 
 def scene_span(s):
     pats = SCENE_PATS[s]
-    return SEG_OF[pats[0]]['T'], SEG_OF[pats[-1]]['T'] + SEG_OF[pats[-1]]['D'] / SLOW
+    return SEG_OF[pats[0]]['T'], CLOCK.tcen(SEG_OF[pats[-1]]['s1'])
+
+
+def freeze_amount(t):
+    """止まっている度合い（0〜1）と、そのパターンの key。"""
+    for f0, Hh, key in FREEZES:
+        if f0 <= t <= f0 + 2*FREEZE_RAMP + Hh:
+            return 1.0 - CLOCK.speed(t), key
+    return 0.0, None
 
 
 def c_of(t):
-    """時刻 t に画面の真ん中にある、流れの時刻（ループするので LTOT で回る）。"""
-    return C0 + SLOW*t
+    """時刻 t に画面の真ん中にある、流れの時刻（ループするので LTOT で回る）。止めているあいだは進まない。"""
+    return float(CLOCK.c(t)) if np.ndim(t) == 0 else CLOCK.c(t)
 
 
 def x_of(tau, t):
@@ -1026,7 +1101,8 @@ def draw_wave(img, xs, ys, cols, a, part):
         idx = np.where(sel)[0]
         runs = [list(zip(xs[r], ys[r] - h0)) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)]
         col = WAVE_GREEN if ci < 0 else PATTERNS[ci]['col']
-        lay.alpha_composite(glow_line(size, runs, col, LW, a, 1.0, part))
+        gl = DENSE_GLOW if (ci >= 0 and PATTERNS[ci]['key'] in FREEZE_KEYS) else 1.0
+        lay.alpha_composite(glow_line(size, runs, col, LW, a, gl, part))
     img.alpha_composite(lay, (0, h0))
 
 
@@ -1080,6 +1156,27 @@ def draw_end(im, t, a):
     put(im, END_SAVE, 46, 900, GREEN, cx=XC, cy=END_SAVE_CY, a=a*ramp(t, t_save, 0.4), max_w=W - 2*MARGIN)
 
 
+BADGE = '一時停止'
+BADGE_RIGHT, BADGE_CY = W - MARGIN, NAME_CY
+
+
+def draw_badge(im, t):
+    """止めているあいだ、波形の右上（パターン名の行の右）に「⏸ 一時停止」（場所の色ではない灰色）。"""
+    a, _ = freeze_amount(t)
+    a = ease(min(1.0, a*1.4))
+    if a <= 0.01:
+        return
+    tw = text_w(BADGE, 26, 700)
+    w, h = tw + 66, 44
+    x1 = BADGE_RIGHT; x0 = x1 - w; y0 = BADGE_CY - h/2
+    d = ImageDraw.Draw(im, 'RGBA')
+    d.rounded_rectangle((x0, y0, x1, y0 + h), radius=10, fill=(14, 22, 20, int(220*a)), outline=GREY + (int(230*a),), width=2)
+    for k in range(2):
+        bx = x0 + 16 + k*11
+        d.rounded_rectangle((bx, y0 + 12, bx + 6, y0 + h - 12), radius=2, fill=LIGHT + (int(255*a),))
+    put(im, BADGE, 26, 700, LIGHT, x=x0 + 46, cy=BADGE_CY, a=a)
+
+
 def draw_place_head(im, t):
     for s, pl in enumerate(PLACES):
         a = place_alpha(s, t)
@@ -1117,6 +1214,7 @@ def frame(t, watermark=True):
     characters.draw(sys.modules[__name__], im, t, layer='over')      # 吹き出し・小物
     draw_place_head(im, t)
     draw_names(im, t)
+    draw_badge(im, t)
     draw_open_text(im, open_alpha(t))
     draw_end(im, t, end_alpha(t))
     put(im, NOTE_ZOOM, 24, 400, GREY, x=135, cy=NOTE_CY[0], a=0.85)
@@ -1167,7 +1265,7 @@ def _qrs_ms(f, lim=0.12):
 
 
 def screen_strings():
-    out = [TITLE] + [s for s, _, _ in TITLE_SUB] + [END_ASK, END_SAVE, NOTE_ZOOM, NOTE2]
+    out = [TITLE] + [s for s, _, _ in TITLE_SUB] + [END_ASK, END_SAVE, NOTE_ZOOM, NOTE2, BADGE]
     for p in PLACES:
         out += [f"{p['no']} {p['name']}", p['ov']]
     for p in PATTERNS:
@@ -1220,9 +1318,10 @@ def check(faces=True):
         nm = g['pat']['name']
         extra = ''
         if g['h'] is not None:
-            extra = f"  特徴が右端に入る {g['T'] + (g['h'] - g['s0'])/SLOW - (W - XC)/SCROLL:6.2f}秒"
+            extra = f"  特徴が右端に入る {CLOCK.tcen(g['h'] - (W - XC)/PXS):6.2f}秒"
         print(f"  {nm:<14} 流れ {g['s0']:6.2f}〜{g['s1']:6.2f}（{g['D']:5.2f}・前に {g['npre']}拍・周期の {g['a']:.2f} から）"
-              f"  画面 {g['T']:6.2f}〜{g['T'] + g['D']/SLOW:6.2f}秒  名前 {g['P']:6.2f}秒{extra}")
+              f"  画面 {g['T']:6.2f}〜{CLOCK.tcen(g['s1']):6.2f}秒  名前 {g['P']:6.2f}秒{extra}"
+              + (f"  一時停止 {g['fz'][0] + FREEZE_RAMP:6.2f}〜{g['fz'][0] + FREEZE_RAMP + g['fz'][1]:6.2f}秒" if g['fz'] else ''))
     # つなぎ目：前の区間の最後の QRS → 次の区間の最初の QRS・P
     print('つなぎ目（最後の QRS → 次の最初の拍）')
     for n in range(len(SEG)):
@@ -1263,10 +1362,10 @@ def check(faces=True):
         if g['h'] is None:
             continue
         b = PAT_BLOCK[g['idx']]
-        t_in = g['T'] + (g['h'] - g['s0'])/SLOW - (W - XC)/SCROLL
-        t_out = g['T'] + (g['hb'] - g['s0'])/SLOW + XC/SCROLL
+        t_in = CLOCK.tcen(g['h'] - (W - XC)/PXS)
+        t_out = CLOCK.tcen(g['hb'] + XC/PXS)
         seen = t_in <= b['v0'] + 0.05 and t_out >= b['v0'] + min(1.2, b['vlen'])
-        crossed = t_out <= b['end'] + 1e-6
+        crossed = t_out <= b['end'] + 1e-6 or g['fz'] is not None       # 止めて見せるものは、横切りきらなくてよい
         ok &= seen and crossed
         print(f"  {g['pat']['name']}：右端に入る {t_in:6.2f}秒 → 左端から抜ける {t_out:6.2f}秒（名前 {b['p']:.2f}・声 {b['v0']:.2f}・"
               f"紹介の終わり {b['end']:.2f}）{'' if seen else ' ✗ 名前のあいだに見えない'}{'' if crossed else ' ✗ 横切りきらない'}")
@@ -1383,11 +1482,10 @@ def beeps(path, sr=44100):
     for tb, kind, nseg, r in BEATS:
         if KINDS[kind][0] is None:
             continue
-        ts = (tb - C0) / SLOW
-        while ts >= DUR:
-            ts -= DUR
-        while ts < 0:
-            ts += DUR
+        tb_ = tb if tb >= C0 else tb + LTOT
+        if tb_ >= C0 + LTOT:
+            tb_ -= LTOT
+        ts = CLOCK.tcen(tb_)
         f = 960.0 if kind in ('N', 'Q') else 720.0
         Ln = int(0.08*sr)
         tt = np.arange(Ln)/sr

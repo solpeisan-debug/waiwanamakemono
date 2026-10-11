@@ -645,7 +645,7 @@ def visible_lobes(m, t, sign, thr, seg_keys, margin=60):
 
 
 def d_in(m, t, tau):
-    """その点が画面の右端に入ってからの時間（秒）。"""
+    """その点が画面の右端に入ってからの時間（秒。流れが止まっているあいだは進まない）。"""
     return (m.W - float(m.x_of(tau, t))) / m.SCROLL
 
 
@@ -964,13 +964,13 @@ def _draw(m, img, t):
             bk = m.PAT_BLOCK[g['idx']]
             aa = a*ease((t - (bk['p'] + m.TEXT_IN)) / 0.35)*(1 - ease((t - (bk['end'] - 0.3)) / 0.3))
             if aa > 0.01:
-                signpost(m, img, 800, m.NAME_CY, g['pat']['col'], a=aa)
+                signpost(m, img, 600, m.NAME_CY, g['pat']['col'], a=aa)        # 右は「一時停止」の札
         elif key == '多形性VT':
             poly(m, img, t, g, a)
         elif key == 'トルサード':
             torsade(m, img, t, g, a)
             bk = m.PAT_BLOCK[g['idx']]
-            t_stop = g['T'] + (g['hb'] - g['s0'])/m.SLOW                 # ねじれの終わりが真ん中を過ぎたら
+            t_stop = m.CLOCK.tcen(g['hb'])                              # ねじれの終わりが真ん中を過ぎたら
             aa = a*ease((t - t_stop) / 0.35)*(1 - ease((t - (bk['end'] - 0.3)) / 0.3))
             if aa > 0.01:
                 loop_arrow(m, img, 830, m.NAME_CY, 26, g['pat']['col'], a=aa, rot=2*math.pi*0.35*t)
@@ -986,7 +986,7 @@ def _draw(m, img, t):
                 gy = m.BASE - 0.12*m.G                                   # 波形の上を探す
                 magnifier(img, gx, gy, 60, col=g['pat']['col'], a=ao)
                 bubble(m, img, gx + 4, gy - 150, 'どこ？', a=ao, tail=(gx, gy - 66))
-                name_tag(m, img, 880, m.NAME_CY, g['pat']['col'], a=ao)
+                name_tag(m, img, 620, m.NAME_CY, g['pat']['col'], a=ao)
         elif key == '細かいVF':
             bk = m.PAT_BLOCK[g['idx']]
             am = a*ease((t - bk['p']) / 0.3)*(1 - ease((t - (bk['end'] - 0.3)) / 0.3))
@@ -994,7 +994,7 @@ def _draw(m, img, t):
                 magnifier(img, m.XC - 60, m.BASE - 10, 110, g['pat']['col'], a=am*0.9)
             la = a*ease((t - (bk['p'] + m.TEXT_IN + 1.5)) / 0.3)*(1 - ease((t - (bk['end'] - 0.3)) / 0.3))
             if la > 0.01:
-                lightning(img, 880, m.NAME_CY - 4, 40, a=la)
+                lightning(img, 650, m.NAME_CY - 4, 40, a=la)
         elif key == '心静止':
             bk = m.PAT_BLOCK[g['idx']]
             tb = t - bk['p']
