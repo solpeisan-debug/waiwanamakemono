@@ -931,10 +931,10 @@ def _blk_mode(m, t, g):
 
 def _draw(m, img, t):
     # 冒頭（洞調律が流れているだけ）は顔なし。最後は洞調律の手ふり。冒頭へ戻る前に消える
-    a_all = 1.0 - ease((t - (m.DUR - m.LOOP_FADE - 0.2)) / 0.5)
-    if t < m.OPEN_DUR - 0.6 or a_all <= 0.01:
+    # 冒頭・最後（まとめの表と、大きな波形へ広がる・戻るあいだ）は顔なし
+    if t < m.OPEN_DUR or t > m.END_B['start']:
         return
-    a_all *= ease((t - (m.OPEN_DUR - 0.6)) / 0.5)
+    a_all = ease((t - m.OPEN_DUR) / 0.4) * (1 - ease((t - (m.END_B['start'] - 0.4)) / 0.4))
     beats = m.visible_beats(t)
     for b in beats:
         b['tau'] = float(b['tau'])
@@ -1011,8 +1011,6 @@ def _draw(m, img, t):
             pea1(m, img, t, bs, g, a)
         elif key == 'PEA2':
             pea2(m, img, t, bs, g, a)
-        elif key == '洞調律' and t >= m.END_B['start']:
-            ending(m, img, t, bs, a*ease((t - m.END_B['start'] - 0.3) / 0.4))
         shown.add(key)
     # ⑤ の小物（⑤ の場面のあいだ）
     s0, s1 = m.scene_span(4)

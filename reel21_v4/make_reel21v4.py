@@ -59,19 +59,19 @@ FONT = os.environ.get('REEL_FONT', os.path.join(HERE, 'fonts', 'NotoSansJP.ttf')
 PLACES = [
     dict(no='①', name='PとQRSのつながり', col=(255, 212, 90),
          ov='Pのあとに、QRSが続いているか',
-         narr='1つめは、PとQRSのつながり。Pのあとに、QRSが続いているか。'),
+         narr='PとQRSのつながり。Pのあとに、QRSが続いているか。'),
     dict(no='②', name='QRSの幅と形', col=(255, 152, 72),
          ov='幅が広いか、形がそろっているか',
-         narr='2つめは、QRSの幅と形。幅が広いか、形がそろっているか。'),
+         narr='QRSの幅と形。幅が広いか、形がそろっているか。'),
     dict(no='③', name='T波の上', col=(200, 150, 255),
          ov='T波に、PVCが乗っていないか',
-         narr='3つめは、T波の上。T波に、PVCが乗っていないか。'),
+         narr='T波の上。T波に、PVCが乗っていないか。'),
     dict(no='④', name='QRSがない', col=(255, 92, 112),
          ov='QRSが見えているか',
-         narr='4つめは、QRSがない。QRSが見えているか。'),
+         narr='QRSがない。QRSが見えているか。'),
     dict(no='⑤', name='波形では分からない', col=(110, 200, 255),
          ov='波形がふつうでも、脈を確かめる',
-         narr='最後は、波形では分からない。波形がふつうでも、脈を確かめる。'),
+         narr='波形では分からない。波形がふつうでも、脈を確かめる。'),
 ]
 
 # --- 波形の部品（実際の時間・秒、mV）。reel21_v2 と同じ ------------------------------
@@ -173,7 +173,7 @@ def art_poly(rel, L):
 
 
 # トルサード：QT延長の洞調律 → T波の上のPVC（R on T）から、QRSの大きさがねじれるように変わる → 自然に止まる
-TDP_A, TDP_B = 1.40, 3.95                  # 周期の中のトルサードの区間（秒）
+TDP_A, TDP_B = 1.40, 2.90                  # 周期の中のトルサードの区間（秒）。v4 は短くするため 1.5秒（v2・v3 は 2.55秒）
 TDP_F = 4.0                                # 約240/分
 
 
@@ -185,7 +185,7 @@ def art_tdp(rel, L):
         x = r[m] - TDP_A
         dur = TDP_B - TDP_A
         env = np.sin(np.pi*np.clip(x/dur, 0, 1))**0.6                     # だんだん大きく → 小さく
-        twist = np.cos(2*np.pi*x/1.25)                                     # 向きがゆっくり反転（ねじれ）
+        twist = np.cos(2*np.pi*x/0.75)                                     # 向きが反転（ねじれ）。1.5秒で約2回ねじれる
         car = np.sin(2*np.pi*TDP_F*x - 0.4) + 0.35*np.sin(4*np.pi*TDP_F*x)  # 幅の広いQRSが続く形
         out[m] = 0.95*env*twist*car * (x >= 0)
     return out
@@ -254,7 +254,7 @@ PATTERNS = [
          act='→ 脈なし：CPR＋電気ショック ／ → 止まっても12誘導。QT、K・Mgなどを確認',
          lines=[('→ 脈なし：CPR＋電気ショック', False), ('→ 止まっても12誘導。QT、K・Mgなどを確認', False)],
          narr='トルサード。ねじれるように変わり、止まっても、くり返す。',
-         ev=[(0, 'Q'), (1.0, 'Q'), (4.6, 'Q')], L=5.6, art=art_tdp, gain=gain_tdp,
+         ev=[(0, 'Q'), (1.0, 'Q'), (3.6, 'Q')], L=4.6, art=art_tdp, gain=gain_tdp,
          hl=[(TDP_A - 0.1, TDP_B + 0.1)], enter=0.6, slow=0.8, zoom=2.0),
     dict(key='R on T', place=2, name='R on T',
          act='→ 12誘導。QT、K・Mgなどを確認。除細動器を近くに',
@@ -460,7 +460,7 @@ WINDOWS = {
     'ショートラン': ([3.64, 0.44, 2.84], [0.45, 3.65]),
     '単形性VT': (_vt(0, 15, -0.1), _vt(0, 15, 0.3)),
     '多形性VT': (None, None),
-    'トルサード': ([0.64, 5.24, 4.24], [5.25]),
+    'トルサード': ([0.64, 4.24], [4.25]),
     'R on T': ([2.84, 0.44, 2.04], [1.6, 2.85, 0.45]),     # 1.6：2つめのPVCのあとで終わる（R on T から VF へ）
     '粗いVF': (None, None),
     '細かいVF': (None, None),
@@ -476,13 +476,14 @@ PRE_MAX = 5
 ART_EDGE = 0.2                     # 連続した波形の区間の端を、なめらかに切りかえる長さ（秒）
 
 # 秒数の決まり
-OPEN_LEAD, OPEN_MIN, OPEN_GAP = 0.10, 3.0, 0.6
+OPEN_LEAD, OPEN_MIN, OPEN_GAP = 0.10, 2.6, 0.4        # 冒頭は v2 の一覧（まとめの表）
 LEAD_OV, GAP_OV = 0.40, 0.55
 LEAD_PAT, GAP_PAT, PAT_MIN = 0.45, 0.65, 4.0
 TEXT_IN, TEXT_FADE_IN, TEXT_FADE_OUT = 0.50, 0.30, 0.25
-READ_S_PER_CHAR, READ_MIN = 0.11, 4.0
-END_LEAD, END_GAP, END_HOLD = 0.35, 0.35, 1.2
-LOOP_FADE = 0.75
+READ_S_PER_CHAR, READ_MIN = 0.11, 3.5
+END_LEAD, END_GAP, END_HOLD = 0.35, 0.35, 0.6
+LOOP_FADE = 0.45                   # 最後の問いかけ・保存の字を消す時間（消えると冒頭と同じ画面）
+SWITCH_X = 0.78*W                  # 字（場所・パターン）は、新しいリズムの始まりがここまで来たら入れかえる（真ん中より早く）
 NAME_EARLY = 0.4                   # 特徴の部分が右端に入る、この秒数前にパターン名を出す
 
 
@@ -567,9 +568,11 @@ class Clock:
 def solve(slow):
     """波形の区間（SEG）・字と声の秒数（BLOCKS）・一時停止の予定を決める。"""
     open_dur = max(OPEN_MIN, OPEN_LEAD + VOICE_LEN['冒頭'] + OPEN_GAP)
-    c0 = -slow*open_dur
+    sw = (SWITCH_X - XC) / PXS                             # 字を入れかえる位置（真ん中から右へ、流れの時刻で）
+    c0 = -slow*open_dur - sw                               # モビッツII型の始まりが t=open_dur に SWITCH_X
     ck = Clock(c0, slow)
     tcen = ck.tcen
+    tsw = lambda tau: tcen(tau - sw)                       # 字を入れかえる時刻
     half_r, half_l = (W - XC) / PXS, XC / PXS
     tent = lambda tau: tcen(tau - half_r)                  # 右端に入る時刻
     texit = lambda tau: tcen(tau + half_l)                 # 左端から抜ける時刻
@@ -581,7 +584,7 @@ def solve(slow):
             L = pat['L']
             starts, ends = WINDOWS[pat['key']]
             freeze = pat['key'] in FREEZE_KEYS
-            T = tcen(s0)
+            T = tsw(s0)
             ov = (LEAD_OV + VOICE_LEN[f'場所{s}'] + GAP_OV) if n == 0 else 0.0
             best = None
             pre = PRE.get(pat['key'])
@@ -597,10 +600,11 @@ def solve(slow):
                     f_tau = sp + 0.15 + half_l                   # 新しい波形が画面いっぱいになる（始まりが左端に届く）
                 else:
                     ha, hbb = pat['hl'][0]
+                    # 名前を言い終わるころ（Pmin＋1.65秒）まで画面に残っている、いちばん早い特徴（名前より前に入っていてもよい）
                     k = math.ceil((a + 0.05 - ha) / L)
                     while True:
                         h = sp + ha + k*L - a
-                        if tent(h) >= Pmin - NAME_EARLY:
+                        if texit(h + (hbb - ha)) >= Pmin + LEAD_PAT + 1.2:
                             break
                         k += 1
                     hb = h + (hbb - ha)
@@ -625,7 +629,7 @@ def solve(slow):
                     t_end = max(P + pat_need(i), f0 + 2*FREEZE_RAMP + Hh + 0.4)
                 else:
                     t_end = max(P + pat_need(i), feat_end)
-                dmin = max(float(ck.c(t_end)), hl_end_tau + 0.05) - sp
+                dmin = max(float(ck.c(t_end)) + sw, hl_end_tau + 0.05) - sp
                 if fz is not None:                               # 止めているあいだ、画面の右端までこのパターン（次の波形を入れない）
                     dmin = max(dmin, float(ck.c(fz[0] + FREEZE_RAMP)) + half_r + 0.12 - sp)
                 D = _next_end(a, dmin, L, ends) + (sp - s0)
@@ -642,7 +646,7 @@ def solve(slow):
             if n == 0:
                 blocks.append(dict(kind='ov', key=f'場所{s}', scene=s, start=T, end=seg['P'], v0=T + LEAD_OV))
             blocks.append(dict(kind='pat', key=pat['key'], scene=s, pat=i, start=seg['P'] if n == 0 else T,
-                               p=seg['P'], end=tcen(seg['s1']), v0=seg['P'] + LEAD_PAT))
+                               p=seg['P'], end=tsw(seg['s1']), v0=seg['P'] + LEAD_PAT))
             s0 = seg['s1']
     # 最後の洞調律（最後のまとめ → 冒頭の洞調律へ。ここでループ）
     v_end, v_save = VOICE_LEN['まとめ'], VOICE_LEN['保存']
@@ -650,7 +654,7 @@ def solve(slow):
     starts, ends = WINDOWS['洞調律']
     a = starts[0]
     D = _next_end(a, slow*(end_need + open_dur), 0.8, ends)
-    T = tcen(s0)
+    T = tsw(s0)
     lost_all = float(ck.lost(1e6))
     dur = (s0 + D) / slow + lost_all
     D += slow*(math.ceil(dur*60 - 1e-6)/60 - dur)          # 映像の長さを 1/60秒の整数倍に（ループのつなぎ目のため。0.01秒未満）
@@ -680,7 +684,7 @@ FREEZES = [g['fz'] + (g['key'],) for g in SEG if g['fz'] is not None]
 
 def scene_span(s):
     pats = SCENE_PATS[s]
-    return SEG_OF[pats[0]]['T'], CLOCK.tcen(SEG_OF[pats[-1]]['s1'])
+    return SEG_OF[pats[0]]['T'], CLOCK.tcen(SEG_OF[pats[-1]]['s1'] - (SWITCH_X - XC) / PXS)
 
 
 def freeze_amount(t):
@@ -1109,51 +1113,18 @@ def draw_wave(img, xs, ys, cols, a, part):
 # --- 冒頭・最後の字 --------------------------------------------------------------------------
 TITLE = '致死性不整脈'
 TITLE_SUB = [('見るのは', 1.0, WHITE), ('5', 1.8, YEL), ('か所', 1.0, WHITE)]
-OPEN_TITLE_CY, OPEN_TITLE_SZ = 372, 116
-OPEN_SUB_BASE, OPEN_SUB_SZ = 548, 70
-OPEN_DOTS_CY = 1420                 # 「① ② ③ ④ ⑤」（場所の色。下の字の場所）
 END_ASK = 'どこを見落としやすい？コメントで教えてね'
 END_SAVE = '保存して見返してね'
-END_LIST_Y0, END_LIST_PITCH, END_LIST_SZ = 340, 58, 36
-END_LIST_X = (135, 560)
-END_ASK_CY, END_SAVE_CY = 1394, 1460
 NOTE_ZOOM = '※拡大・ゆっくり表示'
 NOTE2 = '※数値はこの波形での一例'
 NOTE_CY = (1560, 1586)
 WATERMARK = '@nurse_polarbearden'
 
 
-def draw_open_text(im, a):
-    if a <= 0.004:
-        return
-    put(im, TITLE, OPEN_TITLE_SZ, 900, WHITE, cx=XC, cy=OPEN_TITLE_CY, a=a, max_w=W - 2*MARGIN)
-    draw_parts(im, TITLE_SUB, OPEN_SUB_SZ, OPEN_SUB_BASE, a)
-    for k, pl in enumerate(PLACES):
-        put(im, pl['no'], 52, 800, pl['col'], cx=XC + (k - 2)*100, cy=OPEN_DOTS_CY, a=a)
-
-
-def end_list_pos(k):
-    """最後の5か所の位置（2列：①② ／ ③④ ／ ⑤）。"""
-    row, col = divmod(k, 2)
-    return END_LIST_X[col], END_LIST_Y0 + row*END_LIST_PITCH
-
-
 def end_times():
     b = END_B
     t_ask = b['v0'] + max(0.6, VOICE_LEN['まとめ']*0.32)
     return t_ask, b['save0'] - 0.1
-
-
-def draw_end(im, t, a):
-    if a <= 0.004:
-        return
-    t_ask, t_save = end_times()
-    for k, pl in enumerate(PLACES):
-        x, y = end_list_pos(k)
-        put(im, f"{pl['no']} {pl['name']}", END_LIST_SZ, 800, pl['col'], x=x, cy=y,
-            a=a*ramp(t, END_B['start'] + 0.12*k, 0.35))
-    put(im, END_ASK, 38, 800, WHITE, cx=XC, cy=END_ASK_CY, a=a*ramp(t, t_ask, 0.4), max_w=W - 2*MARGIN)
-    put(im, END_SAVE, 46, 900, GREEN, cx=XC, cy=END_SAVE_CY, a=a*ramp(t, t_save, 0.4), max_w=W - 2*MARGIN)
 
 
 BADGE = '一時停止'
@@ -1200,24 +1171,135 @@ def draw_names(im, t):
 _GRID = None
 
 
-def frame(t, watermark=True):
+# --- まとめの表（冒頭と最後）：v2 のできあがった一覧をそのまま使う（reel21_v2/make_reel21v2.py の描き方） -----------------
+_V2 = None
+TR = 0.8                           # 表のモビッツII型の枠の波形が、大きな波形へ広がる（最後は戻る）時間
+TABLE_I = 0                        # 広がる枠（モビッツII型）
+
+
+def v2():
+    """reel21_v2 の描き方を読みこむ（一覧の枠・見出し・ミニ波形・「致死性不整脈 見るのは5か所」の見出し）。"""
+    global _V2
+    if _V2 is None:
+        import importlib.util
+        path = os.path.join(HERE, '..', 'reel21_v2', 'make_reel21v2.py')
+        spec = importlib.util.spec_from_file_location('make_reel21v2', path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _V2 = mod
+    return _V2
+
+
+def t_v2(t):
+    """v2 の時計（ミニ波形が流れる）。冒頭は t、最後は t − DUR で、ループでつながる。"""
+    m2 = v2()
+    base = m2.T_END + m2.FLY + 2.0
+    return base + (t if t < DUR/2 else t - DUR)
+
+
+def strip_u(t):
+    """大きな波形の度合い（0：まとめの表、1：大きな波形）。"""
+    u_in = ease((t - (OPEN_DUR - TR)) / TR)
+    u_out = 1 - ease((t - END_B['start']) / TR)
+    return min(u_in, u_out)
+
+
+_GRID2 = None
+
+
+def table_image(t, a_rest=1.0, a_cell=1.0):
+    """v2 のできあがった一覧（12個の枠とミニ波形・場所の見出し・上の「致死性不整脈 見るのは5か所」）。"""
+    global _GRID2
+    m2 = v2()
+    if _GRID2 is None:
+        _GRID2 = m2.grid()
+    im = _GRID2.copy()
+    t2 = t_v2(t)
+    for i in range(m2.N_PAT):
+        a = a_cell if i == TABLE_I else a_rest
+        m2.draw_cell(im, i, t2, 'done', a)
+        if a > 0.01:
+            m2.mini(im, i, t2, 1.0, a=a)
+    m2.draw_heads(im, t2, a_rest, lit_all=True)
+    m2.draw_header(im, a_rest)
+    return im
+
+
+def strip_image(t):
+    """大きな波形の画面（マス目・波形・顔と手・小物）。"""
     global _GRID
     if _GRID is None:
         _GRID = grid(PXMM, XC, BASE)              # マス目：1mm＝33.6px（波形と同じ）。基線が太い線
     im = _GRID.copy()
     import characters
     xs, ys, cols = wave_layers(t)
-    wa = wave_alpha(t)
-    draw_wave(im, xs, ys, cols, wa, 'glow')
+    draw_wave(im, xs, ys, cols, 1.0, 'glow')
     characters.draw(sys.modules[__name__], im, t, layer='under')     # 顔と手（線の下）
-    draw_wave(im, xs, ys, cols, wa, 'core')
+    draw_wave(im, xs, ys, cols, 1.0, 'core')
     characters.draw(sys.modules[__name__], im, t, layer='over')      # 吹き出し・小物
-    draw_place_head(im, t)
-    draw_names(im, t)
-    draw_badge(im, t)
-    draw_open_text(im, open_alpha(t))
-    draw_end(im, t, end_alpha(t))
-    put(im, NOTE_ZOOM, 24, 400, GREY, x=135, cy=NOTE_CY[0], a=0.85)
+    return im
+
+
+def wave_only(t):
+    lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    xs, ys, cols = wave_layers(t)
+    draw_wave(lay, xs, ys, cols, 1.0, 'glow')
+    draw_wave(lay, xs, ys, cols, 1.0, 'core')
+    return lay
+
+
+def morph_image(t, u):
+    """表 → 大きな波形（u：0→1）。表のモビッツII型の枠の波形の位置・大きさから、大きな波形へ広がる。
+    ほかの枠と見出しは薄くなり、マス目も v2 の 1mm＝14px から 33.6px へ入れかわる。"""
+    m2 = v2()
+    e = ease(u)
+    tab = table_image(t, a_rest=1 - ease(u*1.6), a_cell=1 - ease(u*2.5))
+    big = Image.new('RGBA', (W, H), BG + (255,))
+    big.alpha_composite(grid(PXMM, XC, BASE) if _GRID is None else _GRID)
+    out = Image.blend(tab, big, e)
+    # 波形：枠の中の帯（幅 STRIP_W、基線は枠の上から 41px）→ 画面いっぱい（基線 BASE）
+    ox, oy = m2.cell_strip_origin(TABLE_I)
+    cx0, by0 = ox + m2.STRIP_W/2, oy + m2.STRIP_BASE
+    kx = (m2.STRIP_W / W)**(1 - e)
+    ky = (m2.M_MV / G)**(1 - e)
+    lay = wave_only(t)
+    band = (0, int(STRIP_TOP - 40), W, int(STRIP_BOT + 40))
+    crop = lay.crop(band)
+    nw, nh = max(2, int(W*kx)), max(2, int((band[3] - band[1])*ky))
+    crop = crop.resize((nw, nh), Image.LANCZOS)
+    cx = cx0 + (XC - cx0)*e
+    by = by0 + (BASE - by0)*e
+    px = int(round(cx - nw/2))
+    py = int(round(by - (BASE - band[1])*ky))
+    a = ease(u*3)
+    if a < 0.999:
+        crop.putalpha(crop.getchannel('A').point(lambda q: int(q*a)))
+    out.alpha_composite(crop, (px, py))
+    return out
+
+
+END_ASK_CY, END_SAVE_CY = 880, 950           # 表のまん中（上の①②と下の③④⑤のあいだ）
+
+
+def frame(t, watermark=True):
+    u = strip_u(t)
+    if u >= 1.0:
+        im = strip_image(t)
+    elif u <= 0.0:
+        im = table_image(t)
+    else:
+        im = morph_image(t, u)
+    if u > 0.0:
+        draw_place_head(im, t)
+        draw_names(im, t)
+        draw_badge(im, t)
+    # 最後：表に戻ったら、問いかけと保存（ループの前に消える → 冒頭と同じ画面）
+    a_end = ramp(t, END_B['start'] + TR*0.6, 0.4) * (1 - ramp(t, DUR - LOOP_FADE, LOOP_FADE))
+    if a_end > 0.004:
+        t_ask, t_save = end_times()
+        put(im, END_ASK, 38, 800, WHITE, cx=XC, cy=END_ASK_CY, a=a_end*ramp(t, t_ask, 0.4), max_w=W - 2*MARGIN)
+        put(im, END_SAVE, 46, 900, GREEN, cx=XC, cy=END_SAVE_CY, a=a_end*ramp(t, t_save, 0.4), max_w=W - 2*MARGIN)
+    put(im, NOTE_ZOOM, 24, 400, GREY, x=135, cy=NOTE_CY[0], a=0.85*u)
     put(im, NOTE2, 24, 400, GREY, x=135, cy=NOTE_CY[1], a=0.85)
     if watermark:
         put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
@@ -1265,7 +1347,7 @@ def _qrs_ms(f, lim=0.12):
 
 
 def screen_strings():
-    out = [TITLE] + [s for s, _, _ in TITLE_SUB] + [END_ASK, END_SAVE, NOTE_ZOOM, NOTE2, BADGE]
+    out = [END_ASK, END_SAVE, NOTE_ZOOM, NOTE2, BADGE]
     for p in PLACES:
         out += [f"{p['no']} {p['name']}", p['ov']]
     for p in PATTERNS:
@@ -1398,15 +1480,15 @@ def check(faces=True):
             if text_w(s_, sz, wt) > W - 2*MARGIN:
                 print(f'  ✗ 広い：{s_}'); ok = False
     tt = text_box(f"{PLACES[0]['no']} {PLACES[0]['name']}", TITLE_SZ, 900, TITLE_CY)
-    ot = text_box(TITLE, OPEN_TITLE_SZ, 900, OPEN_TITLE_CY)
-    sub_top, _ = parts_top(TITLE_SUB, OPEN_SUB_SZ, OPEN_SUB_BASE)
-    print(f"上：場所の名前 y {tt[0]}〜、冒頭の題 y {ot[0]}〜{ot[1]}、見るのは5か所 上端 {sub_top}（300 以上）")
-    ok &= tt[0] >= 300 and ot[0] >= 300 and sub_top > ot[1]
-    ey = [end_list_pos(k)[1] for k in range(5)]
-    print(f"最後：5か所 y {min(ey)}〜{max(ey)}、問いかけ {END_ASK_CY}、保存 {END_SAVE_CY}")
+    print(f"上：場所の名前 y {tt[0]}〜（300 以上）")
+    ok &= tt[0] >= 300
+    m2 = v2()
+    ask = text_box(END_ASK, 38, 800, END_ASK_CY); sv = text_box(END_SAVE, 46, 900, END_SAVE_CY)
+    print(f"まとめの表（v2 の一覧）：上のかたまりの下端 {m2._TOP_END}、下のかたまりの上端 {m2._BOT_TOP}／問いかけ y {ask[0]}〜{ask[1]}、保存 y {sv[0]}〜{sv[1]}")
+    ok &= ask[0] > m2._TOP_END + 10 and sv[1] < m2._BOT_TOP - 10
     # ループ
-    print(f'ループ：t={DUR:.4f} の流れの時刻 {c_of(DUR) - C0:.6f} ＝ 1周 {LTOT:.6f}')
-    ok &= abs(c_of(DUR) - C0 - LTOT) < 1e-6
+    print(f'ループ：t={DUR:.4f} の流れの時刻 {c_of(DUR) - C0:.6f} ＝ 1周 {LTOT:.6f}、表のミニ波形の時計 {t_v2(DUR - 1e-6):.4f} → {t_v2(0.0):.4f}')
+    ok &= abs(c_of(DUR) - C0 - LTOT) < 1e-6 and abs(t_v2(DUR - 1e-6) - t_v2(0.0)) < 1e-3
     # 顔：こぶの中に、はみ出さず入っているか（全編を 0.1秒ごとに）
     if faces:
         import characters
