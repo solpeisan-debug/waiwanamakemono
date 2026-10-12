@@ -22,6 +22,9 @@ for d in reel24_tachy reel25_lytes reel26_afl reel28_st; do cp -R reel21_arrest/
   **Gemini Pro Deep Think のダブルチェックがまだ**
 - 第28弾：Claude のレビューと Gemini のチェックとも済み
 
+- 第21弾の作り直し：v3（場面ごと＋キャラクター）・v4（切りかえなし・大きくゆっくり＋まとめの表）は**保留**（2026-10-12、ユーザー「今のままではクオリティが足りない。他を優先」）。
+  再開するときは `reel21_v4/`（最新）から。録音・AI専門医レビューはまだ
+
 ## 3. 次にやること：第24〜27弾の Gemini ダブルチェック（Chrome）
 1. Chrome で https://gemini.google.com を開く（ユーザーのアカウントでログイン済み）。モデルを **Pro**・**Deep Think** にする
 2. 1本ずつ、新しいチャットで：PDF を添付し、依頼文の全文を貼って送る
