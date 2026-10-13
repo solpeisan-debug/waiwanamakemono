@@ -12,7 +12,9 @@
 - 心房細動：P波がなく、R-R が不規則（f波は粗いことも、細かくて平らに見えることもある）
 - 心房粗動：のこぎり状のF波（II誘導で下向き、約300/分）。心拍数は伝導比で決まる（2:1＝150、4:1＝75）
 
-波形は、パターンの周期でくり返す決まった形（乱数の種を固定）。区間の端は0.2秒でなめらかに切りかえる。
+波形は、パターンの周期でくり返す決まった形（乱数の種を固定）。
+中部の帯は最初から最後まで消えない（2026-10-13）。紹介が終わると、そのパターンのコピーだけが縮んで枠へ飛び、
+帯に見えている拍はその場で次のパターンの形へ変わる（関係のある並びは直接 1.0秒、関係のない病態へは基準の洞調律を通る。下の「中部の帯」）。
 II誘導を想定。
 
 使い方:
@@ -328,22 +330,8 @@ def art_apply(pat, rel, v):
 
 N_PAT = len(PATTERNS)
 
-# 区間の長さ（秒）。ナレーション（2026-10-07 ElevenLabs Ren – Smooth & Soothing、atempo 1.2倍速）の声の長さ＋0.75秒
-# （話し始めるまで 0.55秒＋次までの間 0.2秒）以上で、拍の並びがくずれない位置で切る。
-# 区間の終わり＝次のパターンの最初の拍。そこが「そのパターンの次の拍が来るはずの時刻」になる位置（最後の拍からの間隔が、そのパターンの R-R）：
-# - ① 4.64：心房細動の5拍め（最後の拍 4.20 → 0.44）。①は冒頭の文のあとなので、画面の時間は区間より 0.35秒短い
-# - ② 4.80：1周期（最後 0.85）　- ③ 3.78（最後 1.02）　- ④ 3.50：1周期（最後 0.40）　- ⑤ 3.60（最後 1.15）
-# - ⑥ 4.80：1周期（最後 0.52。変行伝導の拍は 2.24秒）　- ⑦ 5.00：1周期（最後 0.80）　- ⑧ 5.00：4拍（R-R 1.25 のまま）
-# - ⑨ 5.22：1周期＋2.09（最後 0.23）
-# - ⑩ 7.06：心房細動 1.86秒 → 休み 3.20秒 → 洞調律 2拍（最後 1.00）。声は 5.4秒で終わるが、休みのタイマーが 3.2秒で止まったところを見せるため長め
-# - ⑪ 4.00（0.8 の倍数）　- ⑫ 4.40（0.4 の倍数）　- ⑬ 3.80：1周期＋0.4（2:1）　- ⑭ 3.60（0.2 の倍数）
-# 縮んで枠へ移るとき見えている3.1秒（区間の終わりの0.35秒手前まで）がそのパターンだけになるよう、3.44秒以上
-SEG_D = {'①': 4.64, '②': 4.80, '③': 3.78, '④': 3.50, '⑤': 3.60, '⑥': 4.80, '⑦': 5.00,
-         '⑧': 5.00, '⑨': round(L_WPW + sum(RR_WPW[:8]), 4), '⑩': L_TB,
-         '⑪': 4.00, '⑫': 4.40, '⑬': 3.80, '⑭': 3.60}
-for _p in PATTERNS:
-    _p['D'] = SEG_D[_p['no']]
-    assert _p['D'] >= 3.44 - 1e-9, _p['no']
+# ①の紹介は、心房細動の5拍め（4.64秒）が右端の 0.35秒先に来るまで（洞調律 → PAC → バラバラ、を通して見せる）
+PAF_SHOW = 4.64
 
 
 def beat_wave(tau, r, kind):
@@ -387,53 +375,16 @@ def hl_mask(pat, rel):
     return m
 
 
-# --- 中部の帯：14パターンをつないだ1本の波形 ---------------------------------
-# パターン i は、実際の時刻 [SEGS[i][0], SEGS[i][1]) にそのパターンをくり返して置く。
-# 紹介の終わり＝区間の終わりが画面の右端に来たとき。このとき画面に見えているのは
-# パターン i だけなので、それをそのまま縮めて枠へ運ぶと、ミニ波形とつながる。
+# --- 中部の帯：冒頭のフック ---------------------------------------------------------
 # 冒頭のフック：流れている波形を T_STOP で止め、その場で5つのパターンに素早く変形し、
-# 元の波形に戻ってから T_GO でまた流す。T_TITLE でパターン①が右端から入ってくる。
+# 元の波形に戻ってから T_GO でまた流す。T_TITLE でパターン①（洞調律 → 心房細動の始まり）が右端から入ってくる。
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
 T_TITLE = 4.6                     # 冒頭の1文（声 4.42秒、0.10秒から）が入り、見出しと枠が出そろう長さ
-END_HOLD = 6.4                    # 14個そろってからの時間（まとめ 3.96秒・保存 1.53秒の2文、コメントの呼びかけ、冒頭へ戻る時間）
+END_HOLD = 7.0                    # 14個そろってからの時間（⑭→基準へ形が変わる 1.15秒・まとめ 3.97秒・保存 1.38秒の2文、冒頭へ戻る時間）
 HOOK = [1, 7, 8, 10, 13]          # ②粗い心房細動 → ⑧完全房室ブロック → ⑨WPW → ⑪粗動4:1 → ⑭粗動1:1
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
-
-
-def _strip():
-    beats = []        # (R時刻, 種類, パターン番号 or None)
-    segs = []
-    t = 0.0
-    for i, pat in enumerate(PATTERNS):
-        s0 = t
-        for r, kind in periodic_beats(pat, 0.0, pat['D']):
-            if -1e-9 <= r < pat['D'] - 1e-9:
-                beats.append((t + r, kind, i))
-        t += pat['D']
-        segs.append((s0, t))
-    end = t
-    k = -1
-    while k*RR > -12:                     # 前：洞調律
-        beats.append((k*RR, 'N', None)); k -= 1
-    # うしろ：洞調律（間隔は変えない）。尺は「最後の2文が入る長さ」以上で、
-    # うしろの洞調律の位相が冒頭とそろういちばん短い長さにする。こうするとループがつながる
-    # ⑫（1:1、R-R 0.2秒）のすぐあとに洞調律の拍が来ないよう、うしろの洞調律は END_GAP 秒あけて始める
-    need = T_TITLE + end - HANDOFF_EARLY + 0.8 + END_HOLD      # 0.8 = FLY
-    k = math.ceil((need - FREEZE - end - END_GAP) / RR - 1e-9)
-    dur_target = FREEZE + end + END_GAP + k*RR
-    tt = end + END_GAP
-    beats.append((tt, 'N', None))
-    for k in range(1, 60):
-        tt += RR
-        beats.append((tt, 'N', None))
-    beats.sort(key=lambda b: b[0])
-    return beats, segs, end, dur_target
-
-
 HANDOFF_EARLY = 0.35
-END_GAP = 0.60                    # ⑫の最後の拍 → うしろの洞調律：0.2 + 0.6 = 0.8秒
-STRIP, SEGS, STRIP_END, _DUR_LOOP = _strip()
 
 # 中部の帯：1mm = 14px、25mm/秒 → 実際の1秒 = 350px
 F_PXMM = 14.0
@@ -482,18 +433,344 @@ def t_of(tau_center):
     return t if t < T_STOP else t + FREEZE
 
 
-WINDOWS = []
-for _i in range(len(PATTERNS)):
-    _a = T_TITLE if _i == 0 else WINDOWS[-1][1]
-    # 区間の終わりが右端の少し先（0.35秒）に来た瞬間。次のパターンの最初の拍・細動波が
-    # 右端に入る前に縮み始めるので、見えているのはパターン i だけになる
-    _b = t_of(SEGS[_i][1] - HALF - HANDOFF_EARLY)
-    WINDOWS.append((_a, _b))
-T_END = WINDOWS[-1][1]
+# --- 中部の帯（①〜⑭〜最後）：画面の波形が、その場で次の形へ変わる（2026-10-13、第25弾と同じ考え方） ------
+# 帯は最初から最後まで消えない。名前が消えると、そのパターンのコピーだけが縮んで枠へ飛び、
+# 帯に見えている拍は、すべていっしょに、その場で次のパターンの形へ変わる（流れは止めない）。
+# - 拍の並び（Arr）：パターンごとの拍の並びを紙（τ）に固定したもの。拍には帯全体で通しの番号 k がある
+# - 形が変わるあいだ（重み w：0→1）、拍 k の位置は 2つの並びの位置の内分 (1-w)·X(k) + w·Y(k)。
+#   どちらの並びも k について増えていくので、内分も増えていく（拍が入れかわったり、消えたり、増えたりしない。跳ばない）。
+#   次の並び Y は、形が変わるまん中の時刻に中央にいちばん近い拍が、2つの並びで同じ位置になるように置く
+#   （中央の拍はそのまま流れ、まわりの拍が少しずつ寄ったり離れたりする＝心拍数・伝導比・R-R のばらつきがなめらかに変わる）
+# - 拍の形は、山の高さ・位置・幅の数値を少しずつ変える（BPAR。重ねないので、山が2つに割れない）
+# - f波・F波は、2つの並びの波を w でまぜる（粗い → 細かい は大きさが、粗動の 4:1 → 2:1 → … はF波が同じまま）
+# - 名前・ひとこと・声が出ているあいだは、そのパターンの形そのもの
+# - 進み方（関係のある並び）：次の形へ直接（MORPH_T 秒）
+# - 関係のない病態へ移るところ：いったん基準の洞調律（75/分）にもどしてから（VIA_T 秒で基準へ・VIA_HOLD 秒そのまま・VIA_T 秒で次へ）
+# - ⑭のあと：基準の洞調律へもどして最後の画面へ。動画の終わりが冒頭とつながる
+
+# 拍の形（数値でまぜるための部品）。P波：2つの山 (高さ, 位置, 幅)、QRS-T：4つの山
+# (q またはデルタ波, R, S, T) の (高さ, 位置, 左の幅, 右の幅)。位置は R頂点からの秒。上の qrs_… ・p_… と同じ値（check で確かめる）
+_P_NONE = [(0.0, -PR, 0.022), (0.0, -PR + 0.032, 0.013)]
+
+
+def _qrs_par(r=1.00, t=(0.27, 0.27, 0.060, 0.042)):
+    return [(-0.08, -0.030, 0.008, 0.008), (r, 0.0, 0.011, 0.011), (-0.20, 0.028, 0.009, 0.009), t]
+
+
+def _preex_par(w, a):
+    return [(0.30*a, -0.030*w, 0.020*w, 0.012), (0.90*a, 0.0, 0.016*w, 0.018*w),
+            (-0.12*a, 0.050*w, 0.014, 0.014), (-0.22, 0.175, 0.038, 0.030)]
+
+
+BPAR = {
+    'N': ([(0.15, -PR, 0.022), (0.0, -PR + 0.032, 0.013)], _qrs_par()),
+    'C': ([(0.13, -0.14, 0.015), (-0.04, -0.14 + 0.032, 0.013)], _qrs_par()),
+    'A': (_P_NONE, _qrs_par()),
+    'F': (_P_NONE, _qrs_par(t=(0.12, 0.27, 0.060, 0.042))),
+    'S': (_P_NONE, _qrs_par(t=(0.22, 0.215, 0.045, 0.034))),
+    'G': (_P_NONE, _qrs_par(r=0.95, t=(0.14, 0.125, 0.026, 0.022))),
+    'B': (_P_NONE, [(0.0, -0.030, 0.008, 0.008), (0.80, 0.0, 0.012, 0.015),
+                    (-0.42, 0.062, 0.022, 0.036), (0.12, 0.30, 0.060, 0.045)]),
+}
+for _k, (_w, _a) in PREEX.items():
+    BPAR[_k] = (_P_NONE, _preex_par(_w, _a))
+_BP = {}
+
+
+def beat_par(ka, kb, w):
+    """種類 ka と kb のあいだ（w=0 で ka、w=1 で kb）の1拍の形の数値。片方にない山（高さ0）は、もう片方の位置・幅のまま大きさだけ変える。"""
+    if w <= 1e-6 or ka == kb:
+        return BPAR[ka]
+    if w >= 1 - 1e-6:
+        return BPAR[kb]
+    key = (ka, kb, round(w, 4))
+    if key in _BP:
+        return _BP[key]
+    pa, pb = BPAR[ka], BPAR[kb]
+    ps = []
+    for (a1, c1, s1), (a2, c2, s2) in zip(pa[0], pb[0]):
+        if a1 == 0:
+            c1, s1 = c2, s2
+        if a2 == 0:
+            c2, s2 = c1, s1
+        ps.append((a1 + (a2 - a1)*w, c1 + (c2 - c1)*w, s1 + (s2 - s1)*w))
+    qs = [tuple(x + (y - x)*w for x, y in zip(q1, q2)) for q1, q2 in zip(pa[1], pb[1])]
+    if len(_BP) > 256:
+        _BP.clear()
+    _BP[key] = (ps, qs)
+    return _BP[key]
+
+
+def eval_par(par, tau):
+    v = np.zeros_like(tau)
+    for a, c, s in par[0]:
+        if a != 0:
+            v += a*_g(tau, c, s)
+    for a, c, sl, sr in par[1]:
+        if a != 0:
+            v += a*_ga(tau, c, sl, sr)
+    return v
+
+
+# パターンの中の拍の番号 m → (R の時刻（パターンの始まりから）, 種類)。m は負でもよい（左へのばした並び）
+def _loc_periodic(ev, L):
+    n = len(ev)
+
+    def f(m):
+        q, j = divmod(m, n)
+        return q*L + ev[j][0], ev[j][1]
+    return f
+
+
+def _loc_paf(m):
+    """① 心房細動の始まり：左はずっと洞調律（75/分）→ PAC → そこから心房細動（R-R の列をくり返す）。"""
+    if m <= len(PAF_SINUS) - 1:
+        return m*RR, 'N'
+    if m == len(PAF_SINUS):
+        return PAF_PAC, 'C'
+    q, j = divmod(m - len(PAF_SINUS) - 1, len(RR_PAF))
+    return PAF_PAC + q*sum(RR_PAF) + sum(RR_PAF[:j + 1]), 'A'
+
+
+TB_LAST = len(RR_TB_AF)               # ⑩ 最後の心房細動の拍の番号（このあとが休み）
+
+
+def _loc_tb(m):
+    """⑩ 徐脈頻脈症候群：左はずっと心房細動（R-R の列をくり返す）→ 最後の拍（m=TB_LAST）→ 休み → 洞調律 60/分がずっと。"""
+    if m <= TB_LAST:
+        q, j = divmod(m, len(RR_TB_AF))
+        return q*sum(RR_TB_AF) + sum(RR_TB_AF[:j]), 'A'
+    return TB_P1 + (m - TB_LAST - 1)*TB_SINUS_RR, 'N'
+
+
+LOCAL = {None: _loc_periodic([(0.0, 'N')], RR)}      # None＝基準の洞調律
+for _i, _p in enumerate(PATTERNS):
+    LOCAL[_i] = _loc_periodic(_p['ev'], _p['L'])
+LOCAL[0], LOCAL[I_TB] = _loc_paf, _loc_tb
+
+
+def _smoothstep(x):
+    x = np.clip(x, 0, 1)
+    return x*x*(3 - 2*x)
+
+
+def local_art(i, rel):
+    """パターン i のf波・F波（rel＝パターンの始まりからの時刻）。①⑩は、片側だけ（①は PAC から右、⑩は最後の拍まで左）。"""
+    if i is None:
+        return None
+    if i == 0:
+        return band_noise(rel, L_PAF, 5.0, 8.0, F_MID, 30) * _smoothstep((rel - PAF_F0) / 0.08)
+    if i == I_TB:
+        return band_noise(rel, L_TB, 5.0, 8.0, F_MID, 39) * _smoothstep((TB_P0 + 0.12 - rel) / 0.08)
+    pat = PATTERNS[i]
+    return pat['art'](rel, pat['L'])
+
+
+class Arr:
+    """拍の並び（紙の上に固定）。pat：パターン番号（None＝基準の洞調律）。通しの番号 k の拍は、パターンの中の番号 k + c。
+    パターンの始まり（m=0 の拍）が τ = A。"""
+
+    def __init__(self, pat, A, c):
+        self.pat, self.A, self.c = pat, A, c
+
+    def beat(self, k):
+        r, kind = LOCAL[self.pat](k + self.c)
+        return self.A + r, kind
+
+    def pos(self, k):
+        return self.beat(k)[0]
+
+    def k_lo(self, tau):
+        """位置が tau 以上になる、いちばん小さい k。"""
+        lo, hi = -20000, 20000
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if self.pos(mid) >= tau:
+                hi = mid
+            else:
+                lo = mid
+        return hi
+
+    def art(self, tau):
+        return local_art(self.pat, tau - self.A)
+
+
+VO_LEN = {'①': 3.567, '②': 3.920, '③': 2.830, '④': 2.649, '⑤': 2.610, '⑥': 3.726, '⑦': 3.597,
+          '⑧': 4.026, '⑨': 4.271, '⑩': 4.836, '⑪': 3.164, '⑫': 3.275, '⑬': 2.549, '⑭': 2.759}   # 声の長さ（align_vo.py で切った長さ）
+TITLE_VO_END = 4.52                    # 冒頭の文の終わり（0.10＋4.42）
+LEAD = 0.55                            # 名前が出てから話し始めるまで（align_vo.py と同じ）
+NAME_TAIL = 0.35                       # 話し終わってから名前が消えるまで
+MORPH_DELAY, MORPH_T = 0.15, 1.00      # 名前が消えてから形が変わり始めるまで・直接変わる時間
+VIA_T, VIA_HOLD = 0.70, 0.30           # 基準を通るとき：基準へ・基準のまま・次の形へ
+NAME_AFTER = 0.15                      # 形が変わり終わってから次の名前が出るまで
+# 前のパターンから直接変わる（関係のある並び）：
+#   ②〜⑤ 心房細動の f波の大きさ・心拍数（①→②→③→④→⑤）、⑥ 遅い心房細動 → 1拍だけ幅広い、⑦ 1拍 → 全部の拍が幅広い、
+#   ⑫〜⑭ 心房粗動の伝導比（4:1 → 2:1 → 変わる → 1:1。F波は同じまま、QRS の数だけ変わる）
+# それ以外（⑦→⑧ 脚ブロック→完全房室ブロック、⑧→⑨ →WPW、⑨→⑩ →徐脈頻脈症候群、⑩→⑪ →心房粗動）は基準を通る
+DIRECT = {1, 2, 3, 4, 5, 6, 11, 12, 13}
+ASH_ENTER = (1.4, 2.0)                 # ⑥ 幅の広い拍が右端に入るのは、名前が出てから この秒のあいだ（「長い」「短い」が声のあいだに見える）
+TB_ENTER = 0.8                         # ⑩ 最後の心房細動の拍が右端に入るのは、名前が出てから この秒（左に心房細動が見えてから止まる）
+
+
+def _place(X, ypat, t0, t1, enter=None):
+    """前の並び X から、形が t0〜t1 で変わる次の並び（パターン ypat）を置く。
+    まん中の時刻に中央にいちばん近い X の拍と、Y の拍 m（候補を全部ためす）を同じ位置に。
+    いちばん動きの小さい置き方を選ぶ。enter=(パターンの中の拍の番号の条件, 右端に入る時刻の範囲) があれば、それを先に満たす。"""
+    tm = (t0 + t1) / 2
+    tc = tau_c(tm)
+    ks = X.k_lo(tc)
+    kx = ks if abs(X.pos(ks) - tc) <= abs(X.pos(ks - 1) - tc) else ks - 1
+    lo, hi = tau_c(t0) - HALF - 0.6, tau_c(t1) + HALF + 0.6
+    if ypat is None:
+        cands = [0]
+    elif ypat == 0:
+        cands = range(-6, 12)
+    elif ypat == I_TB:
+        cands = range(-14, TB_LAST + 1)
+    else:
+        cands = range(len(PATTERNS[ypat]['ev']))
+    best = None
+    for m in cands:
+        Y = Arr(ypat, X.pos(kx) - LOCAL[ypat](m)[0], m - kx)
+        k0, k1 = min(X.k_lo(lo), Y.k_lo(lo)) - 1, max(X.k_lo(hi), Y.k_lo(hi)) + 1
+        cost = sum(abs(Y.pos(k) - X.pos(k)) for k in range(k0, k1 + 1)) / max(1, k1 - k0 + 1)
+        miss = 0.0
+        if enter is not None:            # 条件の拍のうち、右端に入る時刻がいちばん範囲に近いもの
+            cond, (e0, e1) = enter
+            miss = 1e9
+            for q in range(-60, 61):
+                mm = cond(q)
+                if mm is None:
+                    continue
+                te_ = t_of(Y.A + LOCAL[ypat](mm)[0] - HALF)
+                miss = min(miss, max(0.0, e0 - te_, te_ - e1))
+        key = (round(miss, 3), cost)
+        if best is None or key < best[0]:
+            best = (key, Y)
+    return best[1]
+
+
+ARRS, CH_WIN, SHAPE_EV, BOUNDARY = [Arr(0, 0.0, 0)], [], [], []   # 並び・名前の時間・形が変わる時間 (t0, t1, X, Y)・つなぎ目の種類
+for _i, _pat in enumerate(PATTERNS):
+    _no = _pat['no']
+    if _i == 0:
+        _a = T_TITLE
+        _v = max(T_TITLE + 0.30, TITLE_VO_END + 0.20)
+        _b = max(_v + VO_LEN[_no] + NAME_TAIL, t_of(PAF_SHOW - HALF - HANDOFF_EARLY))
+        CH_WIN.append((_a, _b))
+        continue
+    _t0 = CH_WIN[-1][1] + MORPH_DELAY
+    _X = ARRS[-1]
+    _t1 = _t0 + (MORPH_T if _i in DIRECT else 2*VIA_T + VIA_HOLD)
+    _a = _t1 + NAME_AFTER
+    _enter = None
+    if _i == I_ASH:
+        _n = len(RR_ASH)
+        _enter = (lambda q, n=_n: ASH_K + q*n, (_a + ASH_ENTER[0], _a + ASH_ENTER[1]))
+    elif _i == I_TB:
+        _enter = (lambda q: TB_LAST if q == 0 else None, (_a + TB_ENTER - 0.25, _a + TB_ENTER + 0.25))
+    if _i in DIRECT:
+        _Y = _place(_X, _i, _t0, _t1, _enter)
+        SHAPE_EV.append((_t0, _t1, _X, _Y))
+        BOUNDARY.append(('direct', _t0, _t1))
+    else:
+        _N = _place(_X, None, _t0, _t0 + VIA_T)
+        _t2 = _t0 + VIA_T + VIA_HOLD
+        _Y = _place(_N, _i, _t2, _t1, _enter)
+        SHAPE_EV += [(_t0, _t0 + VIA_T, _X, _N), (_t2, _t1, _N, _Y)]
+        BOUNDARY.append(('via', _t0, _t1))
+    ARRS.append(_Y)
+    _v = _a + LEAD
+    _b = _v + VO_LEN[_no] + NAME_TAIL
+    if _i == I_TB:     # 休みのタイマーが止まり、次の洞調律が2拍入るまで
+        _b = max(_b, t_of(_Y.A + L_TB - HANDOFF_EARLY - HALF))
+    CH_WIN.append((_a, _b))
+_t0 = CH_WIN[-1][1] + MORPH_DELAY                      # ⑭のあと：基準の洞調律へ
+ARR_END = _place(ARRS[-1], None, _t0, _t0 + MORPH_T)
+SHAPE_EV.append((_t0, _t0 + MORPH_T, ARRS[-1], ARR_END))
+BOUNDARY.append(('end', _t0, _t0 + MORPH_T))
+MORPHS = [(t0, t1) for t0, t1, *_ in SHAPE_EV]
+
+
+def state_at(t):
+    """動画の時刻 t の (前の並び X, 次の並び Y, まぜる割合 w)。形が変わっていないときは X＝Y・w＝0。"""
+    cur = ARRS[0]
+    for t0, t1, X, Y in SHAPE_EV:
+        if t < t0:
+            return cur, cur, 0.0
+        if t < t1:
+            u = (t - t0) / (t1 - t0)
+            return X, Y, u*u*(3 - 2*u)
+        cur = Y
+    return cur, cur, 0.0
+
+
+def chain_beats(t, margin=0.9):
+    """動画の時刻 t に、画面（＋左右 margin 秒）にある拍 [(R の位置 τ, X での種類, Y での種類, 通しの番号 k)]。"""
+    X, Y, w = state_at(t)
+    tc = tau_c(t)
+    lo, hi = tc - HALF - margin, tc + HALF + margin
+    k0 = min(X.k_lo(lo), Y.k_lo(lo)) - 1
+    k1 = max(X.k_lo(hi), Y.k_lo(hi)) + 1
+    out = []
+    for k in range(k0, k1 + 1):
+        rx, kx = X.beat(k)
+        ry, ky = (rx, kx) if Y is X else Y.beat(k)
+        r = rx + (ry - rx)*w
+        if lo <= r <= hi:
+            out.append((r, kx, ky, k))
+    return out
+
+
+def chain_wave(t, tau):
+    """中部の帯の波形（動画の時刻 t の形で、画面の紙の上の時刻 tau に）。"""
+    X, Y, w = state_at(t)
+    v = np.zeros_like(tau)
+    for r, kx, ky, _ in chain_beats(t):
+        m = (tau - r > -0.5) & (tau - r < 0.75)
+        if m.any():
+            v[m] += eval_par(beat_par(kx, ky, w), tau[m] - r)
+    for arr, wt in ((X, 1 - w), (Y, w)) if Y is not X else ((X, 1.0),):
+        if wt > 1e-6:
+            a = arr.art(tau)
+            if a is not None:
+                v += wt*a
+    return v
+
+
+T_END = CH_WIN[-1][1]
 FLY = 0.8                                  # 中部から枠へ縮んで移る時間
 LOOP_FADE = 0.75                           # 最後に冒頭の画面へ戻す時間
 FPS_LOOP = 60
-DUR = round(_DUR_LOOP * FPS_LOOP) / FPS_LOOP
+
+
+def _loop_dur():
+    """動画の長さ：最後の2文が入る長さ以上で、うしろの洞調律の拍の位相が冒頭とそろう（ループがつながる）いちばん短い長さ。"""
+    need = T_END + FLY + END_HOLD
+    ph0 = (tau_c(0.0) - ARRS[0].A) / RR
+    best = None
+    for n in range(int(need*FPS_LOOP), int((need + 1.0)*FPS_LOOP) + 1):
+        d = n / FPS_LOOP
+        e = ((tau_c(d) - ARR_END.A) / RR - ph0) % 1.0
+        e = min(e, 1 - e)
+        if best is None or e < best[0] - 1e-9:
+            best = (e, d)
+    return best[1], best[0]*RR
+
+
+DUR, LOOP_ERR = _loop_dur()
+WINDOWS = list(CH_WIN)                     # (名前が出る, 名前が消えて枠へ飛び始める)
+PHASE = [a.A for a in ARRS]                # ミニ波形・枠へ飛ぶコピー：パターンの始まりの位置（名前が消える瞬間の帯とそろう）
+# 説明・レビュー用：パターン i の「1周期の始まり」で、名前の出ているあいだに見えるもの
+SEGS = []
+for _i, _arr in enumerate(ARRS):
+    _s = _arr.A
+    if _i == I_ASH:          # 右端に入るように置いた、幅の広い拍の周期
+        _ta = tau_c(WINDOWS[_i][0] + sum(ASH_ENTER) / 2) + HALF
+        _s += round((_ta - _arr.A - T_ASH) / L_ASH) * L_ASH
+    elif _i not in (0, I_TB):
+        _s += math.floor((tau_c(WINDOWS[_i][0]) - _arr.A) / PATTERNS[_i]['L']) * PATTERNS[_i]['L']
+    SEGS.append((_s, _s + PATTERNS[_i]['L']))
 
 
 # --- ミニ波形の枠 -----------------------------------------------------------------
@@ -611,38 +888,21 @@ def grid():
 SS = 2
 
 
-def strip_colors(tau):
-    """パターンの区間のうち、色を付ける範囲だけそのパターンの色。"""
+def chain_colors(t, tau, cur):
+    """色を付けるのは、名前が出ている（＝帯がそのパターンの形そのもの）ときだけ、色を付ける範囲に。"""
     cid = np.full(len(tau), -1, dtype=int)
-    for i, (s0, s1) in enumerate(SEGS):
-        inside = (tau >= s0 - 0.35) & (tau < s1 + 0.0)
-        if not inside.any():
-            continue
-        m = inside & hl_mask(PATTERNS[i], tau - s0)
-        if PATTERNS[i]['hl'] is ALL:
-            m = (tau >= s0 - 0.20) & (tau < s1)
-        cid[m] = i
+    X, Y, w = state_at(t)
+    if cur is None or w > 0 or X.pat != cur:
+        return cid
+    pat = PATTERNS[cur]
+    rel = tau - X.A
+    if pat['hl'] is ALL:
+        cid[:] = cur
+    elif cur == 0:                                   # ①：PAC のあと（心房細動）から右だけ
+        cid[rel >= pat['hl'][0][0]] = cur
+    else:
+        cid[hl_mask(pat, rel)] = cur
     return cid
-
-
-ART_EDGE = 0.2                    # 区間の端で、f波・F波をなめらかに切りかえる長さ（秒）
-
-
-def strip_art(tau, v):
-    """中部の帯：区間ごとに、そのパターンのf波・F波を足す（区間の端 ART_EDGE 秒でなめらかに）。"""
-    out = v.copy()
-    for i, (s0, s1) in enumerate(SEGS):
-        pat = PATTERNS[i]
-        if not pat.get('art'):
-            continue
-        m = (tau > s0 - 1e-9) & (tau < s1)
-        if not m.any():
-            continue
-        tt = tau[m]
-        e = np.minimum(np.clip((tt - s0) / ART_EDGE, 0, 1), np.clip((s1 - tt) / ART_EDGE, 0, 1))
-        e = e*e*(3 - 2*e)
-        out[m] = v[m] + e*pat['art'](tt - s0, pat['L'])
-    return out
 
 
 def glow_line(size, runs, col, width, a, blur=(8, 20)):
@@ -671,10 +931,10 @@ def glow_line(size, runs, col, width, a, blur=(8, 20)):
 FX = np.arange(0, W + 1, 0.5)
 
 
-def strip_arrays(tau_center):
+def chain_arrays(t, cur=None):
     """中部の帯：(波形, 色の番号)"""
-    tau = tau_center + (FX - XC) / F_PXS
-    return strip_art(tau, wave_from(STRIP, tau)), strip_colors(tau)
+    tau = tau_c(t) + (FX - XC) / F_PXS
+    return chain_wave(t, tau), chain_colors(t, tau, cur)
 
 
 def hook_arrays(i):
@@ -697,8 +957,7 @@ _HOOK = {}
 
 def hook_targets():
     if not _HOOK:
-        _HOOK['seq'] = [strip_arrays(tau_c(T_STOP))] + [hook_arrays(i) for i in HOOK] \
-            + [strip_arrays(tau_c(T_STOP))]
+        _HOOK['seq'] = [chain_arrays(T_STOP)] + [hook_arrays(i) for i in HOOK] + [chain_arrays(T_STOP)]
     return _HOOK['seq']
 
 
@@ -717,7 +976,8 @@ def hook_state(t):
     return seq[k], seq[k + 1], u, shown
 
 
-def draw_wave(v, cid, base_col, a):
+def draw_wave(v, cid, base_col, a, cmix=1.0):
+    """cmix：パターンの色の濃さ（0 でふつうの緑。名前が出る・消えるのに合わせて、色もなめらかに）"""
     h = F_Y1 - F_Y0
     ys = F_BASE - F_Y0 - v*F_MV
     out = Image.new('RGBA', (W, h), (0, 0, 0, 0))
@@ -726,20 +986,19 @@ def draw_wave(v, cid, base_col, a):
         sel = sel | np.roll(sel, 1) | np.roll(sel, -1)
         idx = np.where(sel)[0]
         runs = [list(zip(FX[r], ys[r])) for r in np.split(idx, np.where(np.diff(idx) != 1)[0] + 1)] if len(idx) else []
-        col = base_col if ci < 0 else PATTERNS[ci]['col']
+        col = base_col if ci < 0 else mix(base_col, PATTERNS[ci]['col'], cmix)
         if runs:
             out.alpha_composite(glow_line((W, h), runs, col, 4.5, a))
     return out
 
 
-def featured(t, base_col, a, cur=None):
-    """中部の帯。色を付けるのは、いま紹介中のパターン cur の拍だけ（前のパターンの残りはふつうの緑。第28弾と同じ）。"""
+def featured(t, base_col, a, cur=None, cmix=1.0):
+    """中部の帯。色を付けるのは、いま紹介中のパターン cur の形そのもののときだけ（形が変わるあいだは、ふつうの緑）。"""
     if T_STOP <= t < T_GO:
         (v0, c0), (v1, c1), u, _ = hook_state(t)
         return draw_wave(v0 + (v1 - v0)*u, c1 if u >= 0.5 else c0, base_col, a)
-    v, cid = strip_arrays(tau_c(t))
-    cid = np.where(cid == (-2 if cur is None else cur), cid, -1)
-    return draw_wave(v, cid, base_col, a)
+    v, cid = chain_arrays(t, cur)
+    return draw_wave(v, cid, base_col, a, cmix)
 
 
 STRIP_W, STRIP_H, STRIP_BASE = CELL_W - 20, 66, 44     # ミニ波形の帯（枠の中。基線は枠の上から 74px）
@@ -754,7 +1013,7 @@ def pattern_view(i, t, cx, base_y, pxs, mv, x_lo, x_hi, lw, blur, a=1.0, lw_e=No
     """パターン i をくり返した波形を、画面の x_lo〜x_hi に描いた RGBA（全画面サイズの一部）。
     中央 cx に来る時刻は tau_c(t)（中部の帯と同じ）。区間の始まりからの相対時刻で周期にする。"""
     pat = PATTERNS[i]
-    s0 = SEGS[i][0]
+    s0 = PHASE[i]
     xs = np.arange(x_lo, x_hi + 0.5, 0.5)
     tau = tau_c(t) + (xs - cx) / pxs
     rel = tau - s0
@@ -842,7 +1101,7 @@ TITLE = '心房細動・心房粗動'
 HEADER = [(TITLE, 1.0, WHITE), (str(N_PAT), 2.0, (255, 214, 64)), ('パターン', 1.0, WHITE)]
 QUESTION = ('細動？粗動？', '見分けられる？')    # 冒頭の問いかけ（0秒から。見出しが出る前に消す）
 COMMENT = '何個わかった？コメントで教えてね'   # 最後の呼びかけ
-END_SWAP = 3.4                      # 一覧がそろってから、まとめの文 → 呼びかけに入れかえるまで（秒）。まとめの声が終わってから入れかえる
+END_SWAP = 4.55                     # 一覧がそろってから、まとめの文 → 呼びかけに入れかえるまで（秒）。まとめの声（⑭が基準へもどり終わってから 3.97秒）が終わってから入れかえる
 HEADER_BASE = 348                   # 見出しのベースライン（y）
 NOTE1 = '実際の速さ（前後のふつうの拍は75/分）'
 NOTE2 = '※数値はこの波形での一例'
@@ -940,15 +1199,18 @@ def draw_pair(im, parts, size, cy, a=1.0, gap=22):
 
 
 def ruler_items(t):
-    """ものさし：画面に見えている拍と拍のあいだ [(x0, x1, パターン番号 or None, R-R, 始まりの拍の種類), …]。値はモデルの R の時刻から。"""
+    """ものさし：画面に見えている拍と拍のあいだ [(x0, x1, パターン番号 or None, R-R, 始まりの拍の種類, 始まりの拍のパターンの中の番号), …]。
+    値は、いまの拍の位置（モデルの R の時刻）から。形が変わっているあいだは、パターン番号は None。"""
     tc = tau_c(t)
-    rs = [(r, i, k) for r, k, i in STRIP if tc - HALF - 3.5 <= r <= tc + HALF + 3.5]
+    X, Y, w = state_at(t)
+    pure = w <= 0
+    bs = chain_beats(t, margin=3.5)
     out = []
-    for (r0, i0, k0), (r1, i1, k1) in zip(rs, rs[1:]):
+    for (r0, kx0, ky0, k0), (r1, *_) in zip(bs, bs[1:]):
         x0 = XC + (r0 - tc)*F_PXS; x1 = XC + (r1 - tc)*F_PXS
         if x1 < 0 or x0 > W:
             continue
-        out.append((x0, x1, i0 if i0 == i1 else None, r1 - r0, k0))
+        out.append((x0, x1, X.pat if pure else None, r1 - r0, kx0 if w < 0.5 else ky0, k0 + X.c if pure else None))
     return out
 
 
@@ -962,7 +1224,7 @@ def _dashed_bar(d, xa, xb, yc, col, dash=16, gap=9):
         x += dash + gap
 
 
-def draw_ruler(im, t, cur, a):
+def draw_ruler(im, t, cur, a, cmix=1.0):
     """R-R のものさし：拍と拍のあいだを横棒で。そろう＝規則的、バラバラ＝不規則が一目でわかる。
     両端の拍が見えている区間だけ棒を描く（端の半端な棒は描かない）。
     例外：⑩の休みは、最後の心房細動の拍から右端までのびていく点線（タイマーと同じ動き）。
@@ -972,20 +1234,19 @@ def draw_ruler(im, t, cur, a):
     lay = Image.new('RGBA', (W, 40), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay)
     yc = 20
-    s_tb = SEGS[I_TB][0]
-    for x0, x1, i, rr, k0 in ruler_items(t):
-        col = PATTERNS[i]['col'] if (i is not None and i == cur) else RULER_DIM
+    for x0, x1, i, rr, k0, m0 in ruler_items(t):
+        col = mix(RULER_DIM, PATTERNS[i]['col'], cmix) if (i is not None and i == cur) else RULER_DIM
         if i == 0 and k0 == 'N':
             col = RULER_DIM
-        tc = tau_c(t)
-        is_pause = i == I_TB and abs((XC + (s_tb + TB_P0 - tc)*F_PXS) - x0) < 1.0
+        is_pause = i == I_TB and m0 == TB_LAST
         if is_pause and cur == I_TB:
             # 休みの点線：右はのびていく（右端まで）。休みが全部入ったあとも、タイマーと一緒に左へ流れるあいだは描く（左は R-R の字の右で切る）
+            pc = mix(RULER_DIM, C_STOP, cmix)
             if x1 - 5 > RULER_X0 + 4:
-                _dashed_bar(d, max(x0 + 5, RULER_X0), min(x1, W) - 5, yc, C_STOP + (int(235*a),))
+                _dashed_bar(d, max(x0 + 5, RULER_X0), min(x1, W) - 5, yc, pc + (int(235*a),))
             for xt in (x0, x1):
                 if RULER_X0 - 2 <= xt <= W:
-                    d.line([(xt, yc - 9), (xt, yc + 9)], fill=C_STOP + (int(235*a),), width=3)
+                    d.line([(xt, yc - 9), (xt, yc + 9)], fill=pc + (int(235*a),), width=3)
             continue
         if cur == I_ASH and i == I_ASH and x0 < RULER_X0 and RULER_X0 + 30 < x1 <= W - 4:
             # ⑥：長い R-R が左端で切れても、棒は左端まで描く（長い → 短い を、名前が出ているあいだ見せる）
@@ -1004,7 +1265,7 @@ def draw_ruler(im, t, cur, a):
     im.alpha_composite(lay, (0, int(RULER_Y - yc)))
     put(im, 'R-R', 22, 700, GREY, x=72, cy=RULER_Y + 1, a=0.9*a)
     if cur == I_ASH:
-        draw_ash_labels(im, t, a)
+        draw_ash_labels(im, t, a*cmix)
 
 
 ASH_LABEL_SIZE = 20
@@ -1012,12 +1273,19 @@ ASH_LABEL_SIZE = 20
 
 def draw_ash_labels(im, t, a):
     """⑥：変行伝導の拍の直前の「長い」R-R と、その拍までの「短い」R-R の棒の下に小さく名札。値はモデルの R の時刻から。"""
-    s0 = SEGS[I_ASH][0]
+    X, _, w = state_at(t)
+    if w > 0 or X.pat != I_ASH:
+        return
     tc = tau_c(t)
-    ev = PATTERNS[I_ASH]['ev']
-    r_a, r_b, r_c = (s0 + ev[ASH_K - 2][0], s0 + ev[ASH_K - 1][0], s0 + ev[ASH_K][0])   # 長い：a→b、短い：b→c
-    xs = [XC + (r - tc)*F_PXS for r in (r_a, r_b, r_c)]
-    if not (RULER_X0 + 30 < xs[1] and xs[2] <= W - 4):
+    n = len(PATTERNS[I_ASH]['ev'])
+    q0 = math.floor((tc - X.A) / L_ASH)
+    for q in range(q0 - 1, q0 + 2):                  # 画面にある、変行伝導の拍（パターンの中の番号 ASH_K + q·n）
+        m = ASH_K + q*n
+        rs = [X.A + LOCAL[I_ASH](mm)[0] for mm in (m - 2, m - 1, m)]   # 長い：a→b、短い：b→c
+        xs = [XC + (r - tc)*F_PXS for r in rs]
+        if RULER_X0 + 30 < xs[1] and xs[2] <= W - 4:
+            break
+    else:
         return
     col = PATTERNS[I_ASH]['col']
     for lab, xa, xb in (('長い', max(xs[0], RULER_X0), xs[1]), ('短い', xs[1], xs[2])):
@@ -1035,7 +1303,7 @@ def draw_pause_timer(im, t, a):
     1.1秒まで数えてから出す（最後の拍のT波と重ならないよう）。字の幅は「休み 3.2秒」で固定。"""
     if a <= 0.01:
         return
-    s0 = SEGS[I_TB][0]
+    s0 = ARRS[I_TB].A
     p0, p1 = s0 + TB_P0, s0 + TB_P1
     right = tau_c(t) + HALF
     el = min(right, p1) - p0
@@ -1078,7 +1346,8 @@ def frame(t):
         if st == 'done':
             mini(im, i, t, 1.0, a=keep)
 
-    # 中部：紹介中の名前とひとこと
+    # 中部：紹介中の名前とひとこと（帯の色も、これと同じ濃さで出し入れする）
+    al = 0.0
     if cur is not None:
         a_i, b_i = WINDOWS[cur]
         pat = PATTERNS[cur]
@@ -1118,20 +1387,15 @@ def frame(t):
         a_i, b_i = WINDOWS[cur]
         draw_pause_timer(im, t, ramp(t, a_i + 0.1, 0.3) * (1 - ramp(t, b_i - 0.25, 0.25)))
 
-    # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
-    # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
-    a_strip = 1.0
-    for i in range(N_PAT):
-        b_i = WINDOWS[i][1]
-        if b_i <= t < b_i + FLY + 0.35:
-            a_strip = min(a_strip, ramp(t, b_i + FLY - 0.1, 0.45))
+    # 中部の波形：最初から最後まで消さない。紹介が終わると、見えている波形のコピーだけが縮んで枠へ移り、
+    # 帯の拍は、その場で次のパターンの形へ変わる（state_at）
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
-    if a_strip > 0.01:
-        im.alpha_composite(featured(t, base_col, a_strip, cur), (0, F_Y0))
-        draw_ruler(im, t, cur, a_strip*ramp(t, T_GO, 0.5)*keep)
+    im.alpha_composite(featured(t, base_col, 1.0, cur, al), (0, F_Y0))
+    draw_ruler(im, t, cur, ramp(t, T_GO, 0.5)*keep, al)
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
-        mini(im, flying, t, uu)
+        # コピーはうすい状態から（帯と重なる最初の一瞬に、二重に見えないように）
+        mini(im, flying, t, uu, a=cl(uu / 0.3))
 
     put(im, NOTE1, 22, 400, GREY, x=135, cy=1562, a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, NOTE2, 22, 400, GREY, x=135, cy=1586, a=0.85*ramp(t, T_GO, 0.5)*keep)
@@ -1281,23 +1545,57 @@ def f_peak(pat, n=4000):
 
 
 def check():
-    print('パターンごとの紹介の時間')
+    print('パターンごとの紹介の時間（名前が出ている＝そのパターンの形そのもの）と、その前のつなぎ目')
+    kinds = {'direct': '直接', 'via': '基準を通る', 'end': '基準へ'}
     for i, pat in enumerate(PATTERNS):
         a, b = WINDOWS[i]
-        print(f"{pat['no']} {pat['name']:<14} 周期{pat['L']:.2f}s 区間{pat['D']:.2f}s  画面 {a:5.1f}–{b:5.1f}s（{b-a:4.1f}s）")
-    print(f'最後のパターンの終わり {T_END:.1f}s → 一覧 {T_END+FLY:.1f}〜{DUR:.1f}s（映像 {DUR:.1f}秒）')
-    # 区間のつなぎ目：前のパターンの最後の拍 → 次のパターン（またはうしろの洞調律）の最初の拍
-    for i, (s0, s1) in enumerate(SEGS):
-        inside = [b for b in STRIP if s0 <= b[0] < s1]
-        last = max(inside, key=lambda b: b[0])
-        nxt = min((b for b in STRIP if b[0] >= s1 - 1e-9), key=lambda b: b[0])
-        rrs = [y[0] - x[0] for x, y in zip(inside, inside[1:])]
-        rr_txt = f'区間の中の R-R {min(rrs):.2f}〜{max(rrs):.2f}s' if rrs else ''
-        print(f"  つなぎ目 {PATTERNS[i]['no']}→ : 最後の拍 {last[0]-s0:.2f}s → 次 {nxt[1]} 間隔 {nxt[0]-last[0]:.2f}s  {rr_txt}")
-    # 前の洞調律 → ①
-    first = min((b for b in STRIP if b[0] >= 0), key=lambda b: b[0])
-    prev = max((b for b in STRIP if b[0] < 0), key=lambda b: b[0])
-    print(f'  前の洞調律 → ① 間隔 {first[0]-prev[0]:.2f}s')
+        bd = ''
+        if i >= 1:
+            k_, t0, t1 = BOUNDARY[i - 1]
+            bd = f'  ← {PATTERNS[i-1]["no"]}→{pat["no"]} {kinds[k_]} {t0:5.2f}–{t1:5.2f}s'
+        print(f"{pat['no']} {pat['name']:<14} 画面 {a:5.2f}–{b:5.2f}s（{b-a:4.2f}s）{bd}")
+    k_, t0, t1 = BOUNDARY[-1]
+    print(f'⑭→基準の洞調律 {t0:5.2f}–{t1:5.2f}s')
+    print(f'最後のパターンの終わり {T_END:.2f}s → 一覧 {T_END+FLY:.2f}〜{DUR:.2f}s（映像 {DUR:.2f}秒、ループの拍の位相のずれ {LOOP_ERR*1000:.1f}ms）')
+    # 拍の形の数値（BPAR）が、もとの関数と同じか
+    tt = np.arange(-0.5, 0.75, 0.0005)
+    err = max(float(np.abs(eval_par(BPAR[k], tt) - beat_wave(tt, 0.0, k)).max()) for k in KINDS)
+    print(f'拍の形の数値（BPAR）ともとの関数の差 最大 {err:.2e}mV')
+    assert err < 1e-9
+    # 名前が出ているあいだは、そのパターンの形そのもの
+    for i in range(N_PAT):
+        a, b = WINDOWS[i]
+        for t in np.linspace(a, b, 40):
+            X, Y, w = state_at(t)
+            assert w == 0 and X.pat == i and Y is X, (i, t)
+    # 名前が消える瞬間の帯と、枠へ飛ぶコピー（くり返しのパターン）が同じか
+    diffs = []
+    for i in range(N_PAT):
+        b = WINDOWS[i][1]
+        tau = tau_c(b) + (FX - XC) / F_PXS
+        rel = tau - PHASE[i]
+        pv = art_apply(PATTERNS[i], rel, wave_from(periodic_beats(PATTERNS[i], rel[0] - 1, rel[-1] + 1), rel))
+        diffs.append(float(np.abs(chain_wave(b, tau) - pv).max()))
+    print('名前が消える瞬間の帯とコピーの差（mV）', [round(x, 4) for x in diffs])
+    # 拍が跳ばない・重ならない：1/60秒ごとに、画面の拍の位置の動き（紙送りとの差）と、となりの拍との間隔
+    jump, min_rr, prev = 0.0, 9.0, {}
+    for n in range(int(DUR*60)):
+        t = n / 60
+        if T_STOP <= t < T_GO:
+            continue
+        tc = tau_c(t)
+        bs = chain_beats(t, margin=0.0)
+        cur_ = {}
+        for r, _, _, k in bs:
+            cur_[k] = r
+            if k in prev and n - 1 == prev[k][0]:
+                jump = max(jump, abs((r - tc) - prev[k][1]) - 1/60)
+        for (r0, *_), (r1, *_) in zip(bs, bs[1:]):
+            min_rr = min(min_rr, r1 - r0)
+        prev = {k: (n, r - tc) for k, r in cur_.items()}
+    print(f'画面の拍の動き：1コマで紙送りより余分に動く最大 {jump*F_PXS:.1f}px、となりの拍との最小の間隔 {min_rr:.3f}秒')
+    cr = center_crossings()
+    print(f'中央を通る拍（モニター音） {len(cr)}拍')
     print('ひとこと＋色の文字の幅（上限 %dpx、文字 32px）' % ONE_W)
     for pat in PATTERNS:
         sz, w = one_size(pat)
@@ -1338,8 +1636,6 @@ def check():
         print(f'  {no} {[round(x*F_PXS) for x in rr]}')
     print(f'レイアウト：上の枠 {TOP_Y[0]}〜{_TOP_END}、名前 {Y_NAME:.0f}、ひとこと {Y_ONE:.0f}、基線 {F_BASE:.0f}、'
           f'ものさし {RULER_Y:.0f}、下の枠 {_BOT_TOP}〜{BOT_Y[-1] + CELL_H}（上下の余白 {_GAP:.0f}px）')
-    tr = [b[0] for b in STRIP if b[0] >= STRIP_END - 1e-9][:8]
-    print('うしろの洞調律の間隔', [round(y - x, 3) for x, y in zip(tr, tr[1:])])
 
 
 # --- 書き出し ---------------------------------------------------------------------
@@ -1364,12 +1660,35 @@ def render_chunk(args):
     return path
 
 
+_CROSS = []
+
+
+def center_crossings(dt=0.004):
+    """中部の帯の拍（R）が画面の中央を通る時刻と、そのときの拍の種類 [(t, 種類)]。拍ごとに1回だけ（左へ通りすぎたとき）。"""
+    if _CROSS:
+        return _CROSS
+    prev, done = {}, set()
+    for n in range(int(DUR / dt) + 2):
+        t = n*dt
+        if T_STOP <= t < T_GO:
+            continue
+        tc = tau_c(t)
+        _, _, w = state_at(t)
+        for r, kx, ky, k in chain_beats(t, margin=-HALF + 0.4):
+            d = r - tc
+            if k in prev and prev[k][1] > 0 >= d and k not in done:
+                tp, dp = prev[k]
+                _CROSS.append((tp + (t - tp)*dp/(dp - d), kx if w < 0.5 else ky))
+                done.add(k)
+            prev[k] = (t, d)
+    return _CROSS
+
+
 def beeps(path, sr=44100):
     """中部の波形の R が画面の中央を通るときに「ピッ」。幅の広い拍は低い音。"""
     n = int(DUR*sr)
     a = np.zeros(n, dtype=np.float32)
-    for r, k, i in STRIP:
-        ts = t_of(r)
+    for ts, k in center_crossings():
         if not (0.0 <= ts <= DUR - 0.3) or (T_STOP <= ts < T_GO):
             continue
         f = 720.0 if k in WIDE else 960.0
