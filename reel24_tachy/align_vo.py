@@ -124,12 +124,10 @@ def plan(lines_len):
         starts[pat['no']] = m.WINDOWS[i][0] + LEAD
     # ①は冒頭のあと。①の区間は縮み始めが 0.35秒早いぶん短いので、名前が出たらすぐ（0.3秒）話し始める
     starts['①'] = max(m.WINDOWS[0][0] + 0.30, starts['冒頭'] + lines_len['冒頭'] + GAP_MIN)
-    # ⑧ は区間が長い（9.6秒）。「突然始まり…PSVT」がカウンターの跳ぶところ（PAC がカウンターの位置を通る時刻）に、
-    # 「少しずつ変わるなら…」が洞調律の少しずつ変わるところに重なるよう、PAC の 0.5秒前から話し始める
-    i8 = [k for k, p in enumerate(m.PATTERNS) if p['no'] == '⑧'][0]
-    r_pac = [r for r, k, i in m.STRIP if i == i8 and k == 'B'][0]
-    starts['⑧'] = max(starts['⑧'], m.t_of(r_pac - m.DT_REF) - 0.5)
-    starts['まとめ'] = m.T_END + 0.15
+    # ⑧：「突然始まり…PSVT」がカウンターの跳ぶところに重なるよう、PAC がカウンターの位置を通る 0.5秒前から話し始める
+    #    （make_reel24.py の窓の計算と同じ）
+    starts['⑧'] = max(starts['⑧'], m.PAC_CROSS - 0.5)
+    starts['まとめ'] = m.MORPHS[-1][1] + 0.10       # ⑩が①の形へもどり終わってから（形が変わるあいだは声を入れない）
     starts['保存'] = starts['まとめ'] + lines_len['まとめ'] + 0.30
     return starts
 
@@ -170,8 +168,10 @@ def main():
         note = ''
         if s1 + 0.05 > nxt:
             note = '← 次の文と重なる'; ok = False
-        if n in win and s1 > win[n][1] + m.FLY:
-            note += ' ← 次のパターンまで食いこむ'; ok = False
+        if n in win and s1 > win[n][1]:
+            note += ' ← 名前が消えてから話している'; ok = False
+        if any(s0 < m1 and s1 > m0 for m0, m1 in m.MORPHS):
+            note += ' ← 形が変わるあいだに声がある'; ok = False
         rows.append((n, s0, s1, note))
     print(f'映像 {m.DUR:.1f}秒')
     for n, s0, s1, note in rows:

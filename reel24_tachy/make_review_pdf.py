@@ -35,9 +35,15 @@ SRC = {
 
 
 def beat_time(i, k, after=0.15):
-    """パターン i の k 番目の拍（区間の中）でカウンターが変わった直後の t。"""
-    rs = [r for r, b, j in m.STRIP_HR if j == i]
-    return m.t_of(rs[k] - m.DT_REF) + after
+    """パターン i の k 番目の拍（名前の出ているあいだ）でカウンターが変わった直後の t。"""
+    rs = [t for t, kk, b, j in m.crossings() if j == i]
+    return rs[k] + after
+
+
+def pac_index(i):
+    """⑧：名前の出ているあいだにカウンターを通った拍のうち、きっかけのPACの順番。"""
+    rs = [t for t, kk, b, j in m.crossings() if j == i]
+    return min(range(len(rs)), key=lambda n: abs(rs[n] - m.PAC_CROSS))
 
 
 def key_time(i, c=None):
@@ -74,7 +80,7 @@ def describe():
         f"幅の狭いQRS が {r(m.SVT_RR):.0f}/分で規則正しい。P波は見えない（QRSの終わりに小さな偽S波）",
         f"洞調律 90/分 → PAC（連結 {m.OO_PAC_C:.2f}秒、PR {m.pr_ms('B'):.0f}ms＝遅い道）→ PSVT {r(m.OO_SVT_RR):.0f}/分 {m.OO_SVT_N}拍 → "
         f"突然止まり、{m.OO_PAUSE:.2f}秒あけて洞調律 → 少しずつ {' → '.join(f'{r(x):.0f}' for x in m.OO_SINUS_RR)}/分。"
-        f"カウンターは {' '.join(f'{b:.0f}' for _, b, j in m.STRIP_HR if j == 7)}",
+        f"カウンターは {' '.join(f'{b:.0f}' for _, _, b, j in m.crossings() if j == 7)}",
         f"幅の狭いQRS が {r(0.30):.0f}/分。QRSのすぐあとに下向きの逆行性P（short RP：RP＝QRSの始まり → Pの始まり {m.avrt_rp_ms()[0]:.0f}ms、"
         f"QRSの終わりから {m.avrt_rp_ms()[1]:.0f}ms 後にPが始まる）",
         f"幅の狭いQRS が {r(0.52):.0f}/分で規則正しい。QRSの直前に下向きのP（約−0.2mV、PR {m.pr_ms('J'):.0f}ms）",
@@ -85,16 +91,17 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     hook_t = m.HOOK_T0 + 3*m.HOOK_STEP + 0.2
     i8 = 7
-    hr5 = [b for _, b, j in m.STRIP_HR if j == 4]
+    hr5 = [b for _, _, b, j in m.crossings() if j == 4]
+    k8 = pac_index(i8)
     i5_k = int(np.argmax(hr5))
     frames = [('冒頭0〜1秒：問いかけ「この10個、全部わかる？」', 0.5),
               ('冒頭のフック（止めた波形を変形しているところ）', hook_t),
               ('クイズの例：① の始まり（名前の前に「これは？」）', m.WINDOWS[0][0] + 1.2)] \
         + [x for i, p in enumerate(m.PATTERNS) for x in (
             # ⑧は、突然始まるPSVT（カウンター 170）、突然止まる（75）、少しずつ変わる洞頻脈（135）の3ページ
-            [(f"{p['no']} {p['name']}（PSVT：1拍で跳ぶ。カウンター 170）", beat_time(i, m.OO_PRE_N + 1)),
-             (f"{p['no']} {p['name']}（突然止まる。カウンター 75）", beat_time(i, m.OO_PRE_N + 1 + m.OO_SVT_N, 0.3)),
-             (f"{p['no']} {p['name']}（洞頻脈：少しずつ。カウンター 135）", beat_time(i, m.OO_PRE_N + 1 + m.OO_SVT_N + 4))]
+            [(f"{p['no']} {p['name']}（PSVT：1拍で跳ぶ。カウンター 170）", beat_time(i, k8 + 1)),
+             (f"{p['no']} {p['name']}（突然止まる。カウンター 75）", beat_time(i, k8 + m.OO_SVT_N + 1, 0.3)),
+             (f"{p['no']} {p['name']}（洞頻脈：少しずつ。カウンター 135）", beat_time(i, k8 + m.OO_SVT_N + 5))]
             if i == i8 else
             # ⑤は拍ごとの値が大きく変わるので、いちばん速い拍（176/分）のところ
             [(f"{p['no']} {p['name']}（カウンターは拍ごとの値。いちばん速い拍）", beat_time(i, i5_k))] if i == 4
@@ -214,7 +221,7 @@ def main():
         a, b = m.WINDOWS[i]
         lines.append(f"[{a:5.1f}〜{b:5.1f}秒] {pat['no']} {m.QUIZ} → {pat['no']} {pat['name']}（{a + m.QUIZ_T:.1f}秒から） ／ "
                      f"{pat['one']} {m.TAGS[pat['tag']][0]} ／ ヒント：{pat['hint']}")
-        lines.append(f"    心拍数カウンター：{' '.join(f'{x:.0f}' for _, x, j in m.STRIP_HR if j == i)} /分")
+        lines.append(f"    心拍数カウンター：{' '.join(f'{x:.0f}' for _, _, x, j in m.crossings() if j == i)} /分")
     lines += ['', f'[最後] {m.END_1} ／ {m.END_2} ／ {m.END_3}',
               f'[左下] {m.NOTE1} ／ {m.NOTE2}', '[右下] @nurse_polarbearden（透かし）']
     txt = os.path.join(OUT, 'screen_text_reel24.txt')
