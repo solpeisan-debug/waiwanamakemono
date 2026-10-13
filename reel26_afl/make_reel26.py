@@ -3,7 +3,8 @@
 配置：
 - 上部：①〜⑧ のミニ波形（2列×4段。心房細動のはじまり → f波 → 心拍数 → QRSの形）
 - 中部：いま紹介中の波形（大きく流れる）と、名前・ひとこと（うしろに、看護師の動きを色で）。
-  波形の下に「R-R のものさし」（拍と拍のあいだの長さを横棒で。そろう＝規則的、バラバラ＝不規則）
+  波形の下に「R-R のものさし」（拍と拍のあいだの長さを横棒で。そろう＝規則的、バラバラ＝不規則）。
+  帯の左上に心拍数カウンター「♥ 150 /分」（第24弾と同じ見た目。拍が中央を通る＝ピッのたびに、その拍の R-R から計算）
 - 下部：⑨〜⑭ のミニ波形（2列×3段。WPW → 止まるとき（徐脈頻脈症候群）→ 心房粗動 4:1 → 2:1 → 伝導比が変わる → 1:1）
 - ⑩ 徐脈頻脈症候群：止まったあとの休み（ポーズ）のあいだ、秒数がカウントアップする
 - 冒頭0〜3秒：問いかけ「細動？粗動？見分けられる？」。最後：「保存して見返してね」と「何個わかった？コメントで教えてね」
@@ -1317,6 +1318,127 @@ def draw_pause_timer(im, t, a):
         a=a*ramp(el, 1.1, 0.2))
 
 
+# --- 心拍数カウンター「♥ 150 /分」（第24弾と同じ見た目・大きさ。2026-10-13） ------------------------------
+# 帯の拍（R）が画面の中央を通る（＝ピッという音が鳴る）たびに、その拍とひとつ前の拍の R-R（画面の拍の位置）から計算した心拍数に変わる。
+# 1拍に1回だけ変わる（モニターのように拍ごと）。形が変わるあいだも、実際に中央を通った拍の間隔なので、数字はなめらかに変わる。
+# - 置き場所：波形の帯の左上（ひとことの下、R の頂点の高さ）。ものさし・「長い／短い」・⑩のタイマー（基線の 0.45mV 上）・
+#   ひとこと・枠と重ならない高さ。字のまわりに背景の色をぼかして敷き、波形が後ろを通っても読めるようにする
+# - 心房細動など不規則なリズムでは、数字の右に小さく「1拍ごとの値／（モニターは平均）」（第24弾のレビューの直し）
+# - ⑧ 完全房室ブロック：心室（QRS）の数＝48/分。f波は数えない
+# - ⑩ の休み：中央を拍が通らないあいだ、ハートは光らず、数字は最後の値のまま。次の拍まで 2秒より長くあくところ（休み）では、
+#   1.2秒たったら数字を灰色に（いまの値ではないことを示す）。休みのあとの最初の拍で 60÷3.2秒＝19/分、次から 60/分
+C_HEART = (255, 92, 112)
+CNT_X0 = 130                        # カウンターの左端（左の安全域）
+CNT_CY = 960                        # 数字の中心の高さ。字の上下 943〜992（ひとことの下端 916、R の頂点 954、⑩のタイマーの上端 1012）
+CNT_SUB = ('1拍ごとの値', '（モニターは平均）')
+CNT_STALE_GAP, CNT_STALE_AFTER = 2.0, 1.2
+IRREG = {0, 1, 2, 3, 4, 5, 6, 8, 12}    # 不規則なリズム（①〜⑦・⑨・⑬）：「1拍ごとの値」を出す
+CNT_IN = T_TITLE                     # ①の名前と一緒に出す
+_HR = []
+
+
+def cnt_out():
+    """消し始める時刻：⑭→基準の洞調律に変わり終わり、基準の拍（75/分）が中央を通って 0.6秒たったら（最後の画面）。"""
+    t1 = BOUNDARY[-1][2]
+    return next(tx for tx, b, _ in hr_crossings() if tx >= t1) + 0.6
+
+
+def hr_crossings():
+    """[(中央を通った時刻, 心拍数, 次に通るまでの秒)]。中央を通る拍（center_crossings＝ピッの音）と同じ時刻。"""
+    if _HR:
+        return _HR
+    cr = center_crossings()
+    for n, (tx, kind, k) in enumerate(cr):
+        bs = {kk: r for r, _, _, kk in chain_beats(tx, margin=4.0)}
+        bpm = 60.0 / (bs[k] - bs[k - 1]) if (k in bs and k - 1 in bs) else None
+        nxt = cr[n + 1][0] - tx if n + 1 < len(cr) else 9.0
+        _HR.append((tx, bpm, nxt))
+    return _HR
+
+
+def hr_at(t):
+    """(心拍数, 中央を通ってからの秒, 次の拍まで 2秒より長くあくか)。"""
+    hc = hr_crossings()
+    lo, hi = 0, len(hc)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if hc[mid][0] <= t:
+            lo = mid + 1
+        else:
+            hi = mid
+    j = lo - 1
+    while j >= 0 and hc[j][1] is None:
+        j -= 1
+    if j < 0:
+        return None
+    tx, bpm, nxt = hc[j]
+    return bpm, t - tx, nxt > CNT_STALE_GAP
+
+
+def irreg_weight(t):
+    X, Y, w = state_at(t)
+    return (1 - w)*(X.pat in IRREG) + w*(Y.pat in IRREG)
+
+
+def draw_heart(im, cx, cy, size, col, a):
+    """ハート（2つの円＋三角）。拍ごとに明るくする（第24弾と同じ）。"""
+    if a <= 0.004:
+        return
+    ss = 4
+    n = int(size*ss)
+    lay = Image.new('L', (n, n), 0)
+    d = ImageDraw.Draw(lay)
+    r = n*0.27
+    d.ellipse((n*0.5 - 2*r, n*0.12, n*0.5, n*0.12 + 2*r), fill=255)
+    d.ellipse((n*0.5, n*0.12, n*0.5 + 2*r, n*0.12 + 2*r), fill=255)
+    d.polygon([(n*0.5 - 2*r + n*0.02, n*0.12 + r*1.25), (n*0.5 + 2*r - n*0.02, n*0.12 + r*1.25), (n*0.5, n*0.94)], fill=255)
+    lay = lay.resize((int(size), int(size)), Image.LANCZOS)
+    col_im = Image.new('RGBA', lay.size, col + (0,))
+    col_im.putalpha(lay.point(lambda q: int(q*a)))
+    im.alpha_composite(col_im, (int(cx - size/2), int(cy - size/2)))
+
+
+CNT_BOX = (CNT_X0 - 40, CNT_CY - 60, CNT_X0 + 520, CNT_CY + 60)   # カウンターを描く範囲（字のまわりのぼかしを含む）
+
+
+def draw_counter(im, t, a):
+    """心拍数カウンター「♥ 150 /分」。並べ方は第24弾と同じ（数字は3けたぶんの幅で右ぞろえ、ハートは数字のすぐ左）。"""
+    if a <= 0.004:
+        return
+    h = hr_at(t)
+    if h is None:
+        return
+    bpm, since, gap = h
+    stale = ramp(since, CNT_STALE_AFTER, 0.3) if gap else 0.0      # ⑩の休み：いまの値ではない
+    flash = math.exp(-since/0.18)                   # 拍の瞬間に明るく、すぐ戻る
+    bx0, by0, bx1, by1 = CNT_BOX
+    lay = Image.new('RGBA', (bx1 - bx0, by1 - by0), (0, 0, 0, 0))
+    num = f'{bpm:.0f}'
+    im_n, _ = text_img(num, 64, 800, WHITE)
+    w3 = text_img('888', 64, 800, WHITE)[0].size[0] - 8      # 3けたぶんの幅（数字が変わっても「/分」は動かない）
+    im_u, _ = text_img('/分', 32, 700, GREY)
+    hs, gap_h = 44, 14
+    cy = CNT_CY - by0
+    xr = CNT_X0 - bx0 + hs + gap_h + w3              # 数字は右ぞろえ
+    wn = im_n.size[0] - 8                            # ハートは数字のすぐ左（2けたでも離れない）
+    draw_heart(lay, xr - wn - gap_h - hs/2, cy + 7, hs*(1 + 0.12*flash), C_HEART, (0.55 + 0.45*flash)*(1 - 0.45*stale))
+    put(lay, num, 64, 800, mix(WHITE, GREY, stale), right=xr, cy=cy + 4, a=1 - 0.4*stale)
+    put(lay, '/分', 32, 700, GREY, x=xr + 10, cy=cy + 14)
+    a_sub = irreg_weight(t)
+    if a_sub > 0.004:                                # 不規則なリズム：数字の右に小さく2行
+        xs = xr + 10 + im_u.size[0] - 8 + 22
+        put(lay, CNT_SUB[0], 22, 600, GREY, x=xs, cy=cy - 6, a=a_sub)
+        put(lay, CNT_SUB[1], 22, 600, GREY, x=xs - 9, cy=cy + 22, a=a_sub)
+    # 字のまわりに背景の色（ぼかし）：波形が後ろを通っても読めるように
+    al = lay.getchannel('A').filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(6))
+    halo = Image.new('RGBA', lay.size, BG + (0,))
+    halo.putalpha(al.point(lambda q: int(min(255, q*1.8)*0.92*a)))
+    if a < 0.999:
+        lay.putalpha(lay.getchannel('A').point(lambda q: int(q*a)))
+    im.alpha_composite(halo, (bx0, by0))
+    im.alpha_composite(lay, (bx0, by0))
+
+
 def frame(t):
     global _GRID
     if _GRID is None:
@@ -1392,6 +1514,8 @@ def frame(t):
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     im.alpha_composite(featured(t, base_col, 1.0, cur, al), (0, F_Y0))
     draw_ruler(im, t, cur, ramp(t, T_GO, 0.5)*keep, al)
+    # 心拍数カウンター：①の名前が出てから、⑭のあと基準の洞調律に変わり終わるまで（形が変わるあいだも出したまま）
+    draw_counter(im, t, ramp(t, CNT_IN + 0.1, 0.3)*(1 - ramp(t, cnt_out(), 0.5)))
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         # コピーはうすい状態から（帯と重なる最初の一瞬に、二重に見えないように）
@@ -1596,6 +1720,25 @@ def check():
     print(f'画面の拍の動き：1コマで紙送りより余分に動く最大 {jump*F_PXS:.1f}px、となりの拍との最小の間隔 {min_rr:.3f}秒')
     cr = center_crossings()
     print(f'中央を通る拍（モニター音） {len(cr)}拍')
+    print('--- 心拍数カウンター（中央を通った拍ごとの値。［ ］は形が変わるあいだ。! は次の拍まで 2秒より長い＝休み） ---')
+    hc = hr_crossings()
+    rows = []
+    for tx, bpm, nxt in hc:
+        if not (CNT_IN <= tx < cnt_out()) or bpm is None:
+            continue
+        i = current(tx)
+        _, _, w = state_at(tx)
+        lab = PATTERNS[i]['no'] if i is not None else ('～' if w > 0 else '・')
+        s = f'{bpm:.0f}' + ('!' if nxt > CNT_STALE_GAP else '')
+        if rows and rows[-1][0] == lab:
+            rows[-1][1].append(s)
+        else:
+            rows.append((lab, [s]))
+    for lab, vals in rows:
+        print(f"  {lab} " + (' '.join(vals) if lab not in ('～', '・') else '［' + ' '.join(vals) + '］'))
+    gaps = [nxt for tx, bpm, nxt in hc if CNT_IN <= tx < cnt_out()]
+    print(f'  中央を通る間隔の最大 {max(gaps):.2f}秒（⑩の休み {TB_PAUSE:.2f}秒）。1拍に1回だけ変わる。'
+          f'出ている時間 {CNT_IN + 0.1:.2f}〜{cnt_out() + 0.5:.2f}秒')
     print('ひとこと＋色の文字の幅（上限 %dpx、文字 32px）' % ONE_W)
     for pat in PATTERNS:
         sz, w = one_size(pat)
@@ -1664,7 +1807,7 @@ _CROSS = []
 
 
 def center_crossings(dt=0.004):
-    """中部の帯の拍（R）が画面の中央を通る時刻と、そのときの拍の種類 [(t, 種類)]。拍ごとに1回だけ（左へ通りすぎたとき）。"""
+    """中部の帯の拍（R）が画面の中央を通る時刻と、そのときの拍の種類・通しの番号 [(t, 種類, k)]。拍ごとに1回だけ（左へ通りすぎたとき）。"""
     if _CROSS:
         return _CROSS
     prev, done = {}, set()
@@ -1678,7 +1821,7 @@ def center_crossings(dt=0.004):
             d = r - tc
             if k in prev and prev[k][1] > 0 >= d and k not in done:
                 tp, dp = prev[k]
-                _CROSS.append((tp + (t - tp)*dp/(dp - d), kx if w < 0.5 else ky))
+                _CROSS.append((tp + (t - tp)*dp/(dp - d), kx if w < 0.5 else ky, k))
                 done.add(k)
             prev[k] = (t, d)
     return _CROSS
@@ -1688,7 +1831,7 @@ def beeps(path, sr=44100):
     """中部の波形の R が画面の中央を通るときに「ピッ」。幅の広い拍は低い音。"""
     n = int(DUR*sr)
     a = np.zeros(n, dtype=np.float32)
-    for ts, k in center_crossings():
+    for ts, k, _ in center_crossings():
         if not (0.0 <= ts <= DUR - 0.3) or (T_STOP <= ts < T_GO):
             continue
         f = 720.0 if k in WIDE else 960.0
