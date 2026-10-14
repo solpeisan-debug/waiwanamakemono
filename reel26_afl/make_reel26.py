@@ -155,7 +155,8 @@ def band_noise(rel, L, f_lo, f_hi, amp, seed, n_max=400):
 
 
 # 心房細動のf波：5〜8Hz（300〜480/分）の不規則な揺れ。LITFL：粗い f波は 0.5mm（0.05mV）より大きい、細かい f波は 0.5mm 未満
-F_COARSE, F_MID, F_FINE = 0.045, 0.028, 0.011     # RMS（mV）。山の高さは RMS の約2〜2.5倍
+# 2026-10-14 専門医レビュー：③の細かいf波は山から谷 0.03〜0.04mV に（前は 0.056mV で、山から谷で測ると 0.5mm を少しこえていた）
+F_COARSE, F_MID, F_FINE = 0.045, 0.028, 0.0068    # RMS（mV）。山の高さは RMS の約2〜2.5倍
 
 
 def art_f(amp, seed):
@@ -164,11 +165,19 @@ def art_f(amp, seed):
     return f
 
 
-# 心房粗動のF波：II誘導で下向きの「のこぎり」。ゆるやかに下がる → 急に下がる → 急に戻る、を 0.2秒（300/分）ごとに
-# （LITFL：inverted flutter waves in II, III, aVF）。1周期の形を決めて、なめらかに（12倍音まで）くり返す。山から谷まで約 0.25mV
+# 心房粗動のF波：II誘導で下向きの「のこぎり」。ゆっくり下がる（0.144秒）→ すばやく上がる（0.056秒）、を 0.2秒（300/分）ごとに。
+# 平らな区間（基線）を作らない（LITFL Atrial Flutter：inverted flutter waves in II, III, aVF／Loss of the isoelectric baseline）。
+# 2026-10-14 専門医レビュー：前の形は1周期の約60%がほぼ平らで、「平らな基線の上に下向きのP波」にも見えたので直した。
+# 1周期の形を決めて、なめらかに（12倍音まで）くり返す。山から谷まで約 0.25mV
+FL_DOWN = 0.72                    # 1周期のうち、下がっている割合（0.72×0.2秒＝0.144秒。残り 0.056秒で上がる）
+
+
 def _flutter_coef(n_h=12):
     x = np.linspace(0, 1, 2048, endpoint=False)
-    y = np.interp(x, [0.0, 0.50, 0.70, 0.88, 1.0], [0.0, -0.18, -1.0, 0.02, 0.0])
+    xd = np.clip(x / FL_DOWN, 0, 1)
+    xu = np.clip((x - FL_DOWN) / (1 - FL_DOWN), 0, 1)
+    # 下がり：はじめは少しゆるく、しだいに急に（下に凸のカーブ）。上がり：すばやく、上でなめらかに
+    y = np.where(x < FL_DOWN, -(0.55*xd + 0.45*xd**2), -1.0 + (1 - (1 - xu)**2))
     c = np.fft.rfft(y) / len(x)
     return [(k, 2*c[k]) for k in range(1, n_h + 1)]
 
@@ -226,6 +235,7 @@ PAF_F0 = 1.98                                               # f波が始まる�
 RR_TB_AF = [0.48, 0.42, 0.56, 0.40]                         # 心房細動の R-R
 TB_PAUSE = 3.20                                             # 最後の心房細動の拍 → 最初の洞調律の拍（LITFL：洞停止は 3秒超）
 TB_SINUS_RR = 1.00                                          # 回復した洞調律（60/分）
+TB_SINUS_N = 3                                              # 1周期の中の洞調律の拍の数（2026-10-14 2→3：タイマーを中央の基準にして、止まった値を見せる時間をとったため）
 
 
 def _paf_ev():
@@ -242,8 +252,8 @@ def _tb_ev():
         t = round(t + d, 4); ev.append((t, 'A'))
     t_last = t
     t1 = round(t_last + TB_PAUSE, 4)
-    ev += [(t1, 'N'), (round(t1 + TB_SINUS_RR, 4), 'N')]
-    return ev, t_last, t1, round(t1 + 2*TB_SINUS_RR, 4)
+    ev += [(round(t1 + j*TB_SINUS_RR, 4), 'N') for j in range(TB_SINUS_N)]
+    return ev, t_last, t1, round(t1 + TB_SINUS_N*TB_SINUS_RR, 4)
 
 
 EV_PAF, L_PAF = _paf_ev()
@@ -282,7 +292,7 @@ PATTERNS = [
          one='P波なし、R-Rがバラバラ', tag='new',
          ev=EV_COARSE, L=L_COARSE, art=art_f(F_COARSE, 31), hl=ALL),
     dict(no='③', name='心房細動（f波が細かい）', col=C_AF, hint='ほぼ平ら',
-         one='P波なし・基線は平ら。R-Rで判断', tag='new',
+         one='P波なし・基線はほぼ平ら。R-Rで判断', tag='new',
          ev=EV_FINE, L=L_FINE, art=art_f(F_FINE, 32), hl=ALL),
     dict(no='④', name='頻脈性の心房細動', col=C_AF, hint='速くバラバラ',
          one='バラバラで速い（100/分超）', tag='vital',
@@ -382,7 +392,7 @@ def hl_mask(pat, rel):
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
 T_TITLE = 4.6                     # 冒頭の1文（声 4.42秒、0.10秒から）が入り、見出しと枠が出そろう長さ
-END_HOLD = 7.0                    # 14個そろってからの時間（⑭→基準へ形が変わる 1.15秒・まとめ 3.97秒・保存 1.38秒の2文、冒頭へ戻る時間）
+END_HOLD = 7.55                   # 14個そろってからの時間（⑭→基準へ形が変わる 1.15秒・まとめ 4.51秒（2026-10-14 録り直し）・保存 1.38秒の2文、冒頭へ戻る時間）
 HOOK = [1, 7, 8, 10, 13]          # ②粗い心房細動 → ⑧完全房室ブロック → ⑨WPW → ⑪粗動4:1 → ⑭粗動1:1
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 HANDOFF_EARLY = 0.35
@@ -596,21 +606,24 @@ class Arr:
         return local_art(self.pat, tau - self.A)
 
 
-VO_LEN = {'①': 3.567, '②': 3.920, '③': 2.830, '④': 2.649, '⑤': 2.610, '⑥': 3.726, '⑦': 3.597,
+VO_LEN = {'①': 3.567, '②': 3.920, '③': 4.087, '④': 2.649, '⑤': 2.610, '⑥': 3.726, '⑦': 3.597,
           '⑧': 4.026, '⑨': 4.271, '⑩': 4.836, '⑪': 3.164, '⑫': 3.275, '⑬': 2.549, '⑭': 2.759}   # 声の長さ（align_vo.py で切った長さ）
+# ③は 2026-10-14 に録り直した「平らに見えても、P波がなくR-Rがバラバラなら細動。」（out/vo/fix_1014_x1.2.mp3。2.830 → 4.087秒）
 TITLE_VO_END = 4.52                    # 冒頭の文の終わり（0.10＋4.42）
 LEAD = 0.55                            # 名前が出てから話し始めるまで（align_vo.py と同じ）
 NAME_TAIL = 0.35                       # 話し終わってから名前が消えるまで
 MORPH_DELAY, MORPH_T = 0.15, 1.00      # 名前が消えてから形が変わり始めるまで・直接変わる時間
 VIA_T, VIA_HOLD = 0.70, 0.30           # 基準を通るとき：基準へ・基準のまま・次の形へ
 NAME_AFTER = 0.15                      # 形が変わり終わってから次の名前が出るまで
-# 前のパターンから直接変わる（関係のある並び）：
-#   ②〜⑤ 心房細動の f波の大きさ・心拍数（①→②→③→④→⑤）、⑥ 遅い心房細動 → 1拍だけ幅広い、⑦ 1拍 → 全部の拍が幅広い、
-#   ⑫〜⑭ 心房粗動の伝導比（4:1 → 2:1 → 変わる → 1:1。F波は同じまま、QRS の数だけ変わる）
-# それ以外（⑦→⑧ 脚ブロック→完全房室ブロック、⑧→⑨ →WPW、⑨→⑩ →徐脈頻脈症候群、⑩→⑪ →心房粗動）は基準を通る
-DIRECT = {1, 2, 3, 4, 5, 6, 11, 12, 13}
+# 前のパターンから直接変わる（同じ状態の中だけ。第24〜26弾の共通ルール、2026-10-14）：
+#   ②〜⑤ 心房細動の f波の大きさ・心拍数（①→②→③→④→⑤）、
+#   ⑫〜⑭ 心房粗動の伝導比（⑪→⑫→⑬→⑭。4:1 → 2:1 → 変わる → 1:1。F波は同じまま、QRS の数だけ変わる）
+# それ以外のつなぎ目（⑤→⑥・⑥→⑦・⑦→⑧・⑧→⑨・⑨→⑩・⑩→⑪）は、灰色の「つなぎ」の洞調律（75/分）を通る。
+#   ⑤→⑥・⑥→⑦ は前は直接だった（専門医レビュー 2026-10-14：⑥→⑦ が「アシュマン現象が進むと脚ブロック」と読まれうる）
+DIRECT = {1, 2, 3, 4, 11, 12, 13}
 ASH_ENTER = (1.4, 2.0)                 # ⑥ 幅の広い拍が右端に入るのは、名前が出てから この秒のあいだ（「長い」「短い」が声のあいだに見える）
-TB_ENTER = 0.8                         # ⑩ 最後の心房細動の拍が右端に入るのは、名前が出てから この秒（左に心房細動が見えてから止まる）
+TB_ENTER = 0.5                         # ⑩ 最後の心房細動の拍が右端に入るのは、名前が出てから この秒（左に心房細動が見えてから止まる）
+TB_STOP_HOLD = 0.8                     # ⑩ 休みのタイマーが止まって（次の洞調律の拍が中央に来て）から、名前を出しておく秒
 
 
 def _place(X, ypat, t0, t1, enter=None):
@@ -683,14 +696,33 @@ for _i, _pat in enumerate(PATTERNS):
     ARRS.append(_Y)
     _v = _a + LEAD
     _b = _v + VO_LEN[_no] + NAME_TAIL
-    if _i == I_TB:     # 休みのタイマーが止まり、次の洞調律が2拍入るまで
-        _b = max(_b, t_of(_Y.A + L_TB - HANDOFF_EARLY - HALF))
+    if _i == I_TB:     # 休みのタイマーが止まり（次の洞調律の拍が中央＝ピッの位置に来たとき）、止まった値が見えるまで
+        _b = max(_b, t_of(_Y.A + L_TB - HANDOFF_EARLY - HALF), t_of(_Y.A + TB_P1) + TB_STOP_HOLD)
     CH_WIN.append((_a, _b))
 _t0 = CH_WIN[-1][1] + MORPH_DELAY                      # ⑭のあと：基準の洞調律へ
 ARR_END = _place(ARRS[-1], None, _t0, _t0 + MORPH_T)
 SHAPE_EV.append((_t0, _t0 + MORPH_T, ARRS[-1], ARR_END))
 BOUNDARY.append(('end', _t0, _t0 + MORPH_T))
 MORPHS = [(t0, t1) for t0, t1, *_ in SHAPE_EV]
+
+
+def neutral_w(t):
+    """灰色の「つなぎ」の濃さ（0〜1）。基準の洞調律を通るつなぎ目で、基準の形に近づくほど 1（基準のままのあいだは 1）。
+    ⑭のあと（最後の画面）は基準の洞調律へもどり、そのまま 1。"""
+    for kind, t0, t1 in BOUNDARY:
+        if kind == 'via' and t0 <= t < t1:
+            return min(ease((t - t0) / VIA_T), ease((t1 - t) / VIA_T))
+        if kind == 'end' and t >= t0:
+            return ease((t - t0) / MORPH_T)
+    return 0.0
+
+
+def next_label_a(t):
+    """「▶ 次の例」の濃さ：基準を通るつなぎ目のあいだだけ（最後の画面へ移るところには出さない）。"""
+    for kind, t0, t1 in BOUNDARY:
+        if kind == 'via' and t0 <= t < t1:
+            return ease((t - t0) / 0.25) * (1 - ease((t - (t1 - 0.25)) / 0.25))
+    return 0.0
 
 
 def state_at(t):
@@ -1102,12 +1134,18 @@ TITLE = '心房細動・心房粗動'
 HEADER = [(TITLE, 1.0, WHITE), (str(N_PAT), 2.0, (255, 214, 64)), ('パターン', 1.0, WHITE)]
 QUESTION = ('細動？粗動？', '見分けられる？')    # 冒頭の問いかけ（0秒から。見出しが出る前に消す）
 COMMENT = '何個わかった？コメントで教えてね'   # 最後の呼びかけ
-END_SWAP = 4.55                     # 一覧がそろってから、まとめの文 → 呼びかけに入れかえるまで（秒）。まとめの声（⑭が基準へもどり終わってから 3.97秒）が終わってから入れかえる
+END_SWAP = 5.10                     # 一覧がそろってから、まとめの文 → 呼びかけに入れかえるまで（秒）。まとめの声（⑭が基準へもどり終わってから 4.51秒）が終わってから入れかえる
 HEADER_BASE = 348                   # 見出しのベースライン（y）
 NOTE1 = '実際の速さ（前後のふつうの拍は75/分）'
 NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
-END_LINE = 'のこぎりは粗動、R-Rバラバラは細動'     # 最後の画面（見分けのポイント）
+END_LINES = ('のこぎりがあれば粗動。', 'なくて、R-Rバラバラなら細動')   # 最後の画面（見分けのポイント。2行）
+# 2026-10-14 専門医レビュー（要修正）：前は「のこぎりは粗動、R-Rバラバラは細動」。後半だけだと「R-Rがバラバラなら細動」になり、
+# ⑬（伝導比が変わる粗動）と食いちがう。のこぎりを先に探す順にした
+END_LINE = ''.join(END_LINES)
+END_Y = (816, 865, 916)             # 最後の画面：見分けのポイント2行・「保存して見返してね」（上の枠の下端 780、帯の R の頂点 954 のあいだ）
+NEUTRAL_COL = (118, 126, 128)       # 「つなぎ」の洞調律の線の色（緑・パターンの色と分ける、うすい灰色）
+NEXT_LABEL = '▶ 次の例'              # 灰色のつなぎのあいだに出す小さな文字
 
 
 def current(t):
@@ -1141,7 +1179,7 @@ _GRID = None
 
 
 # ひとことのうしろに、見るところ・動き方を色で（ナレーションでは「すぐ報告」と言わない）
-ONE_W = 760                         # ひとこと＋色の文字の幅の上限（左右に 160px 以上の余白。端で切れて見えないように）
+ONE_W = 806                         # ひとこと＋色の文字の幅の上限（左右に 137px 以上の余白＝安全域 130px の内側。2026-10-14 ③「ほぼ」を足したので 760→806。③は 31px）
 TAGS = {
     'new': ('→ 初めてなら報告', (130, 232, 172)),      # 新しく出た心房細動・心房粗動は医師へ
     'vital': ('→ 脈拍と血圧も確認', (255, 170, 80)),    # 速い・遅い：症状と循環をみる
@@ -1181,6 +1219,7 @@ QUESTION_Y = (392, 488)             # 冒頭の問いかけ（2行・76px）。�
 QUESTION_SIZE = 76
 RULER_X0 = 140                      # ものさしの棒は、ラベル「R-R」の右から
 RULER_DIM = (70, 112, 98)           # いま紹介中でない拍のあいだの棒
+RULER_NEUTRAL = (84, 90, 92)        # 灰色の「つなぎ」の洞調律のあいだの棒
 
 
 def draw_pair(im, parts, size, cy, a=1.0, gap=22):
@@ -1225,7 +1264,29 @@ def _dashed_bar(d, xa, xb, yc, col, dash=16, gap=9):
         x += dash + gap
 
 
-def draw_ruler(im, t, cur, a, cmix=1.0):
+RULER_CLIP = {4, 7}                 # ⑤ 徐脈性・⑧ 完全房室ブロック：端で切れる棒も描く
+RULER_FADE = 70                     # 切れた側をうすくする長さ（px）
+
+
+def _fade_bar(lay, xa, xb, yc, col, alpha, fade_l, fade_r):
+    """端で切れる棒：切れた側（fade_l／fade_r）を RULER_FADE px でうすくする。"""
+    xa, xb = int(round(xa)), int(round(xb))
+    w = xb - xa
+    m = Image.new('L', (w, 40), 0)
+    ImageDraw.Draw(m).rounded_rectangle((0, yc - RULER_H/2, w - 1, yc + RULER_H/2), radius=3, fill=255)
+    g = np.ones(w, np.float32)
+    xx = np.arange(w, dtype=np.float32)
+    if fade_l:
+        g = np.minimum(g, 0.15 + 0.85*np.clip(xx / RULER_FADE, 0, 1))
+    if fade_r:
+        g = np.minimum(g, 0.15 + 0.85*np.clip((w - 1 - xx) / RULER_FADE, 0, 1))
+    am = (np.asarray(m, np.float32) * g[None, :] * alpha / 255).astype(np.uint8)
+    bar = Image.new('RGBA', (w, 40), col + (0,))
+    bar.putalpha(Image.fromarray(am))
+    lay.alpha_composite(bar, (xa, 0))
+
+
+def draw_ruler(im, t, cur, a, cmix=1.0, gn=0.0):
     """R-R のものさし：拍と拍のあいだを横棒で。そろう＝規則的、バラバラ＝不規則が一目でわかる。
     両端の拍が見えている区間だけ棒を描く（端の半端な棒は描かない）。
     例外：⑩の休みは、最後の心房細動の拍から右端までのびていく点線（タイマーと同じ動き）。
@@ -1235,16 +1296,19 @@ def draw_ruler(im, t, cur, a, cmix=1.0):
     lay = Image.new('RGBA', (W, 40), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay)
     yc = 20
+    dim = mix(RULER_DIM, RULER_NEUTRAL, gn)          # 灰色の「つなぎ」のあいだは、棒も灰色に
     for x0, x1, i, rr, k0, m0 in ruler_items(t):
-        col = mix(RULER_DIM, PATTERNS[i]['col'], cmix) if (i is not None and i == cur) else RULER_DIM
+        col = mix(RULER_DIM, PATTERNS[i]['col'], cmix) if (i is not None and i == cur) else dim
         if i == 0 and k0 == 'N':
             col = RULER_DIM
         is_pause = i == I_TB and m0 == TB_LAST
         if is_pause and cur == I_TB:
-            # 休みの点線：右はのびていく（右端まで）。休みが全部入ったあとも、タイマーと一緒に左へ流れるあいだは描く（左は R-R の字の右で切る）
+            # 休みの点線：最後の拍が中央を通ってから、中央までのびていく（タイマー・カウンターと同じ「中央」の基準）。
+            # 休みが全部過ぎたあとも、タイマーと一緒に左へ流れるあいだは描く（左は R-R の字の右で切る）
             pc = mix(RULER_DIM, C_STOP, cmix)
-            if x1 - 5 > RULER_X0 + 4:
-                _dashed_bar(d, max(x0 + 5, RULER_X0), min(x1, W) - 5, yc, pc + (int(235*a),))
+            xe = min(x1, XC)
+            if xe - 5 > max(x0 + 5, RULER_X0) + 4:
+                _dashed_bar(d, max(x0 + 5, RULER_X0), xe - 5 if xe == x1 else xe, yc, pc + (int(235*a),))
             for xt in (x0, x1):
                 if RULER_X0 - 2 <= xt <= W:
                     d.line([(xt, yc - 9), (xt, yc + 9)], fill=pc + (int(235*a),), width=3)
@@ -1253,6 +1317,16 @@ def draw_ruler(im, t, cur, a, cmix=1.0):
             # ⑥：長い R-R が左端で切れても、棒は左端まで描く（長い → 短い を、名前が出ているあいだ見せる）
             d.rounded_rectangle((RULER_X0, yc - RULER_H/2, x1 - 5, yc + RULER_H/2), radius=3, fill=col + (int(235*a),))
             d.line([(x1, yc - 9), (x1, yc + 9)], fill=col + (int(235*a),), width=3)
+            continue
+        if cur in RULER_CLIP and i == cur and (x0 < RULER_X0 or x1 > W - 4):
+            # ⑤⑧：R-R が長く、両端の見える棒が1本になるコマがあるので、端で切れる棒も描く（切れた側はうすくして「画面の外へ続く」とわかるように）。
+            # 2026-10-14 専門医レビュー：棒がいつも2本以上見えるように
+            xa, xb = max(x0 + 5, RULER_X0), min(x1 - 5, W - 4)
+            if xb - xa >= 40:
+                _fade_bar(lay, xa, xb, yc, col, 235*a, x0 < RULER_X0, x1 > W - 4)
+            for xt in (x0, x1):
+                if RULER_X0 - 2 <= xt <= W:
+                    d.line([(xt, yc - 9), (xt, yc + 9)], fill=col + (int(235*a),), width=3)
             continue
         if x0 < RULER_X0 or x1 > W - 4:
             for xt in (x0, x1):                   # 目盛りは描く
@@ -1299,48 +1373,57 @@ TIMER_SIZE = 46
 
 
 def draw_pause_timer(im, t, a):
-    """⑩ 休みのタイマー。数えているあいだ（休みが右端から入ってくるあいだ）は右に止め、
-    休みが全部入ったら（モデルの休みの長さで止まって）波形と一緒に左へ流れる。
-    1.1秒まで数えてから出す（最後の拍のT波と重ならないよう）。字の幅は「休み 3.2秒」で固定。"""
+    """⑩ 休みのタイマー。カウンター・ピッという音と同じ「画面の中央」で数える（2026-10-14 専門医レビューの直し）：
+    最後の心房細動の拍が中央を通ったときに 0 から数え始め、次の洞調律の拍が中央を通ったときに休みの長さ（3.2秒）で止まる。
+    字は中央のすぐ左（＝もう過ぎた休みの平らな線の上）に右ぞろえで置き、止まったあとは波形と一緒に左へ流れる。
+    最後の拍のT波と重ならないよう、1.1秒まで数えてから出す。字の幅は「休み 3.2秒」で固定。"""
     if a <= 0.01:
         return
     s0 = ARRS[I_TB].A
     p0, p1 = s0 + TB_P0, s0 + TB_P1
-    right = tau_c(t) + HALF
-    el = min(right, p1) - p0
+    tc = tau_c(t)
+    el = min(tc, p1) - p0
     if el < 1.1:
         return
     tw = text_img(f'休み {TB_PAUSE:.1f}秒', TIMER_SIZE, 900, C_STOP)[0].size[0] - 8
-    cx = W - 72 - tw/2 - max(0.0, right - p1)*F_PXS
-    if cx - tw/2 < 72:
+    xr = XC - TIMER_GAP - max(0.0, tc - p1)*F_PXS          # 字の右端
+    if xr - tw < 72:
         return
-    put(im, f'休み {el:.1f}秒', TIMER_SIZE, 900, C_STOP, x=cx - tw/2, cy=F_BASE - 0.45*F_MV,
+    put(im, f'休み {el:.1f}秒', TIMER_SIZE, 900, C_STOP, x=xr - tw, cy=F_BASE - 0.45*F_MV,
         a=a*ramp(el, 1.1, 0.2))
+
+
+TIMER_GAP = 34                      # タイマーの字の右端と、画面の中央（拍が通る位置）のあいだ
 
 
 # --- 心拍数カウンター「♥ 150 /分」（第24弾と同じ見た目・大きさ。2026-10-13） ------------------------------
 # 帯の拍（R）が画面の中央を通る（＝ピッという音が鳴る）たびに、その拍とひとつ前の拍の R-R（画面の拍の位置）から計算した心拍数に変わる。
-# 1拍に1回だけ変わる（モニターのように拍ごと）。形が変わるあいだも、実際に中央を通った拍の間隔なので、数字はなめらかに変わる。
+# 1拍に1回だけ変わる（モニターのように拍ごと）。
 # - 置き場所：波形の帯の左上（ひとことの下、R の頂点の高さ）。ものさし・「長い／短い」・⑩のタイマー（基線の 0.45mV 上）・
-#   ひとこと・枠と重ならない高さ。字のまわりに背景の色をぼかして敷き、波形が後ろを通っても読めるようにする
-# - 心房細動など不規則なリズムでは、数字の右に小さく「1拍ごとの値／（モニターは平均）」（第24弾のレビューの直し）
+#   ひとこと・枠と重ならない高さ
+# - 2026-10-14 専門医レビューの直し：
+#   - 後ろに角の丸い暗い板（不透明度 86%）を敷く。R 波が数字を突き抜けて読めなくならないように（前は字のまわりのぼかしだけ）
+#   - 形が変わるあいだ（つなぎ目 t0〜t1）は「--」（0.2秒で切りかえ）。2つの形がまざった値・基準の洞調律の値は出さない。
+#     形が変わり終わったら、次の形の値（モデルの R の位置から計算）から再開する
+#   - ⑩ の休み：次の拍まで 2秒より長くあくところでは、1.2秒たったら「--」。休みのあとの最初の拍（60÷3.2秒＝19/分）も「--」のまま
+#   - 「1拍ごとの値／（モニターは平均）」は ⑩ の心房細動の区間にも出す（「--」のあいだは出さない）
 # - ⑧ 完全房室ブロック：心室（QRS）の数＝48/分。f波は数えない
-# - ⑩ の休み：中央を拍が通らないあいだ、ハートは光らず、数字は最後の値のまま。次の拍まで 2秒より長くあくところ（休み）では、
-#   1.2秒たったら数字を灰色に（いまの値ではないことを示す）。休みのあとの最初の拍で 60÷3.2秒＝19/分、次から 60/分
 C_HEART = (255, 92, 112)
 CNT_X0 = 130                        # カウンターの左端（左の安全域）
 CNT_CY = 960                        # 数字の中心の高さ。字の上下 943〜992（ひとことの下端 916、R の頂点 954、⑩のタイマーの上端 1012）
 CNT_SUB = ('1拍ごとの値', '（モニターは平均）')
 CNT_STALE_GAP, CNT_STALE_AFTER = 2.0, 1.2
-IRREG = {0, 1, 2, 3, 4, 5, 6, 8, 12}    # 不規則なリズム（①〜⑦・⑨・⑬）：「1拍ごとの値」を出す
+CNT_DASH_T = 0.2                    # 「--」への切りかえの時間
+IRREG = {0, 1, 2, 3, 4, 5, 6, 8, 9, 12}    # 不規則なリズム（①〜⑦・⑨・⑩の心房細動・⑬）：「1拍ごとの値」を出す
 CNT_IN = T_TITLE                     # ①の名前と一緒に出す
+PLATE_FILL = (4, 10, 9)              # カウンターの後ろの板
+PLATE_A = 0.86
 _HR = []
 
 
 def cnt_out():
-    """消し始める時刻：⑭→基準の洞調律に変わり終わり、基準の拍（75/分）が中央を通って 0.6秒たったら（最後の画面）。"""
-    t1 = BOUNDARY[-1][2]
-    return next(tx for tx, b, _ in hr_crossings() if tx >= t1) + 0.6
+    """消し始める時刻：⑭のあと、基準の洞調律へ形が変わり始めて「--」になったら（最後の画面）。"""
+    return BOUNDARY[-1][1] + CNT_DASH_T
 
 
 def hr_crossings():
@@ -1356,8 +1439,7 @@ def hr_crossings():
     return _HR
 
 
-def hr_at(t):
-    """(心拍数, 中央を通ってからの秒, 次の拍まで 2秒より長くあくか)。"""
+def _last_cross(t):
     hc = hr_crossings()
     lo, hi = 0, len(hc)
     while lo < hi:
@@ -1366,13 +1448,57 @@ def hr_at(t):
             lo = mid + 1
         else:
             hi = mid
-    j = lo - 1
-    while j >= 0 and hc[j][1] is None:
-        j -= 1
+    return lo - 1
+
+
+def morph_span(t):
+    """t が、形が変わるあいだ（つなぎ目 t0〜t1）なら (t0, t1)。"""
+    for _, t0, t1 in BOUNDARY:
+        if t0 <= t < t1:
+            return t0, t1
+    return None
+
+
+def _model_bpm(t):
+    """形が変わっていないとき、中央より左のいちばん近い拍と、その1つ前の拍の R-R（モデルの位置）からの値。"""
+    X, _, _ = state_at(t)
+    k = X.k_lo(tau_c(t)) - 1
+    return 60.0 / (X.pos(k) - X.pos(k - 1))
+
+
+def _cnt_plain(t):
+    """形が変わるあいだを除いた (値 or None, 「--」の濃さ)。"""
+    hc = hr_crossings()
+    j = _last_cross(t)
+    ends = [t1 for _, _, t1 in BOUNDARY if t1 <= t]
+    if ends and (j < 0 or hc[j][0] < ends[-1]):      # 形が変わり終わってから、まだ拍が中央を通っていない
+        return _model_bpm(t), 1 - ramp(t, ends[-1], CNT_DASH_T)
     if j < 0:
-        return None
+        return None, 1.0
     tx, bpm, nxt = hc[j]
-    return bpm, t - tx, nxt > CNT_STALE_GAP
+    if bpm is None or bpm < 60.0 / CNT_STALE_GAP:      # ⑩ 休みのあとの最初の拍（19/分）は出さない
+        return None, 1.0
+    if nxt > CNT_STALE_GAP:                            # ⑩ 休み：1.2秒たったら「--」
+        return bpm, ramp(t - tx, CNT_STALE_AFTER, 0.3)
+    return bpm, 0.0
+
+
+def cnt_state(t):
+    """カウンターの表示：(値 or None, 「--」の濃さ 0〜1, 最後に拍が中央を通ってからの秒)。"""
+    j = _last_cross(t)
+    since = t - hr_crossings()[j][0] if j >= 0 else 9.0
+    sp = morph_span(t)
+    if sp is not None:
+        val, d0 = _cnt_plain(sp[0] - 1e-4)            # 形が変わり始めたときの値が、うすくなりながら「--」へ
+        return val, max(d0, ramp(t, sp[0], CNT_DASH_T)), since
+    val, d = _cnt_plain(t)
+    return val, (1.0 if val is None else d), since
+
+
+def cnt_text(t):
+    """--check・依頼文用：そのときのカウンターの表示（「75」「--」）。"""
+    val, d, _ = cnt_state(t)
+    return '--' if (val is None or d >= 0.5) else f'{val:.0f}'
 
 
 def irreg_weight(t):
@@ -1398,44 +1524,49 @@ def draw_heart(im, cx, cy, size, col, a):
     im.alpha_composite(col_im, (int(cx - size/2), int(cy - size/2)))
 
 
-CNT_BOX = (CNT_X0 - 40, CNT_CY - 60, CNT_X0 + 520, CNT_CY + 60)   # カウンターを描く範囲（字のまわりのぼかしを含む）
+CNT_BOX = (CNT_X0 - 40, CNT_CY - 60, CNT_X0 + 560, CNT_CY + 60)   # カウンターを描く範囲（板を含む）
 
 
 def draw_counter(im, t, a):
-    """心拍数カウンター「♥ 150 /分」。並べ方は第24弾と同じ（数字は3けたぶんの幅で右ぞろえ、ハートは数字のすぐ左）。"""
+    """心拍数カウンター「♥ 150 /分」。並べ方は第24弾と同じ（数字は3けたぶんの幅で右ぞろえ、ハートは数字のすぐ左）。
+    後ろに角の丸い暗い板を敷く（R 波が後ろを通っても数字が読める）。"""
     if a <= 0.004:
         return
-    h = hr_at(t)
-    if h is None:
-        return
-    bpm, since, gap = h
-    stale = ramp(since, CNT_STALE_AFTER, 0.3) if gap else 0.0      # ⑩の休み：いまの値ではない
+    val, dash, since = cnt_state(t)
     flash = math.exp(-since/0.18)                   # 拍の瞬間に明るく、すぐ戻る
     bx0, by0, bx1, by1 = CNT_BOX
     lay = Image.new('RGBA', (bx1 - bx0, by1 - by0), (0, 0, 0, 0))
-    num = f'{bpm:.0f}'
-    im_n, _ = text_img(num, 64, 800, WHITE)
     w3 = text_img('888', 64, 800, WHITE)[0].size[0] - 8      # 3けたぶんの幅（数字が変わっても「/分」は動かない）
     im_u, _ = text_img('/分', 32, 700, GREY)
     hs, gap_h = 44, 14
     cy = CNT_CY - by0
-    xr = CNT_X0 - bx0 + hs + gap_h + w3              # 数字は右ぞろえ
-    wn = im_n.size[0] - 8                            # ハートは数字のすぐ左（2けたでも離れない）
-    draw_heart(lay, xr - wn - gap_h - hs/2, cy + 7, hs*(1 + 0.12*flash), C_HEART, (0.55 + 0.45*flash)*(1 - 0.45*stale))
-    put(lay, num, 64, 800, mix(WHITE, GREY, stale), right=xr, cy=cy + 4, a=1 - 0.4*stale)
+    x_left = CNT_X0 - bx0
+    xr = x_left + hs + gap_h + w3                    # 数字は右ぞろえ
+    a_sub = irreg_weight(t)*(1 - dash)
+    xs = xr + 10 + im_u.size[0] - 8 + 22             # 注記の左端
+    w_sub = max(text_img(s_, 22, 600, GREY)[0].size[0] - 8 for s_ in CNT_SUB)
+    x_end = xr + 10 + im_u.size[0] - 8 + a_sub*(22 + w_sub)
+    # 板（注記が出るときは、のびる）
+    pd = ImageDraw.Draw(lay, 'RGBA')
+    pd.rounded_rectangle((x_left - 16, cy - 34, x_end + 16, cy + 38), radius=16,
+                         fill=PLATE_FILL + (int(255*PLATE_A),), outline=CARD_EDGE + (90,), width=1)
+    if val is not None and dash < 0.999:             # 数字（「--」へ切りかわるときは、うすくなる）
+        num = f'{val:.0f}'
+        wn = text_img(num, 64, 800, WHITE)[0].size[0] - 8
+        put(lay, num, 64, 800, WHITE, right=xr, cy=cy + 4, a=1 - dash)
+    else:
+        wn = w3
+    if dash > 0.001:
+        wd = text_img('--', 64, 800, GREY)[0].size[0] - 8
+        put(lay, '--', 64, 800, GREY, right=xr, cy=cy + 4, a=dash)
+        wn = wn + (wd - wn)*dash
+    draw_heart(lay, xr - wn - gap_h - hs/2, cy + 7, hs*(1 + 0.12*flash), C_HEART, (0.55 + 0.45*flash)*(1 - 0.4*dash))
     put(lay, '/分', 32, 700, GREY, x=xr + 10, cy=cy + 14)
-    a_sub = irreg_weight(t)
     if a_sub > 0.004:                                # 不規則なリズム：数字の右に小さく2行
-        xs = xr + 10 + im_u.size[0] - 8 + 22
         put(lay, CNT_SUB[0], 22, 600, GREY, x=xs, cy=cy - 6, a=a_sub)
         put(lay, CNT_SUB[1], 22, 600, GREY, x=xs - 9, cy=cy + 22, a=a_sub)
-    # 字のまわりに背景の色（ぼかし）：波形が後ろを通っても読めるように
-    al = lay.getchannel('A').filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(6))
-    halo = Image.new('RGBA', lay.size, BG + (0,))
-    halo.putalpha(al.point(lambda q: int(min(255, q*1.8)*0.92*a)))
     if a < 0.999:
         lay.putalpha(lay.getchannel('A').point(lambda q: int(q*a)))
-    im.alpha_composite(halo, (bx0, by0))
     im.alpha_composite(lay, (bx0, by0))
 
 
@@ -1499,9 +1630,10 @@ def frame(t):
     a_end = ramp(t, T_END + FLY, 0.6)*keep
     if a_end > 0:
         sw = ramp(t, T_END + FLY + END_SWAP, 0.4)            # 一覧がそろってから END_SWAP 秒で、コメントの呼びかけに入れかえる
-        put(im, END_LINE, 42, 800, WHITE, cx=540, cy=Y_NAME, a=a_end*(1 - sw), max_w=820)
-        put(im, COMMENT, 42, 900, (255, 214, 64), cx=540, cy=Y_NAME, a=a_end*sw, max_w=820)
-        put(im, '保存して見返してね', 36, 700, GREEN, cx=540, cy=Y_ONE,
+        for line, cy in zip(END_LINES, END_Y):
+            put(im, line, 40, 800, WHITE, cx=540, cy=cy, a=a_end*(1 - sw), max_w=820)
+        put(im, COMMENT, 42, 900, (255, 214, 64), cx=540, cy=(END_Y[0] + END_Y[1])/2, a=a_end*sw, max_w=820)
+        put(im, '保存して見返してね', 34, 700, GREEN, cx=540, cy=END_Y[2],
             a=ramp(t, T_END + FLY + 1.5, 0.6)*keep)
 
     # ⑩ 休みのタイマー（休みが右端から入ってきたら、秒数をカウントアップ）
@@ -1512,10 +1644,16 @@ def frame(t):
     # 中部の波形：最初から最後まで消さない。紹介が終わると、見えている波形のコピーだけが縮んで枠へ移り、
     # 帯の拍は、その場で次のパターンの形へ変わる（state_at）
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
-    im.alpha_composite(featured(t, base_col, 1.0, cur, al), (0, F_Y0))
-    draw_ruler(im, t, cur, ramp(t, T_GO, 0.5)*keep, al)
+    # 基準を通るつなぎ目：基準の洞調律に近づくほど灰色・少しうすく（病態の一部ではない「つなぎ」。2026-10-14 第24〜26弾の共通ルール）
+    gn = neutral_w(t)*keep
+    base_col = mix(base_col, NEUTRAL_COL, gn)
+    im.alpha_composite(featured(t, base_col, 1.0 - 0.25*gn, cur, al), (0, F_Y0))
+    a_nx = next_label_a(t)
+    if a_nx > 0.004:
+        put(im, NEXT_LABEL, 34, 700, (168, 178, 180), cx=540, cy=Y_NAME, a=a_nx)
+    draw_ruler(im, t, cur, ramp(t, T_GO, 0.5)*keep, al, gn)
     # 心拍数カウンター：①の名前が出てから、⑭のあと基準の洞調律に変わり終わるまで（形が変わるあいだも出したまま）
-    draw_counter(im, t, ramp(t, CNT_IN + 0.1, 0.3)*(1 - ramp(t, cnt_out(), 0.5)))
+    draw_counter(im, t, ramp(t, CNT_IN + 0.1, 0.3)*(1 - ramp(t, cnt_out(), 0.4)))
     if flying is not None:
         uu = ease((t - WINDOWS[flying][1]) / FLY)
         # コピーはうすい状態から（帯と重なる最初の一瞬に、二重に見えないように）
@@ -1720,25 +1858,32 @@ def check():
     print(f'画面の拍の動き：1コマで紙送りより余分に動く最大 {jump*F_PXS:.1f}px、となりの拍との最小の間隔 {min_rr:.3f}秒')
     cr = center_crossings()
     print(f'中央を通る拍（モニター音） {len(cr)}拍')
-    print('--- 心拍数カウンター（中央を通った拍ごとの値。［ ］は形が変わるあいだ。! は次の拍まで 2秒より長い＝休み） ---')
+    print('--- 心拍数カウンター（中央を通った拍ごとの表示。［ ］は形が変わるあいだ。-- は数字を出さない） ---')
     hc = hr_crossings()
     rows = []
     for tx, bpm, nxt in hc:
-        if not (CNT_IN <= tx < cnt_out()) or bpm is None:
+        if not (CNT_IN <= tx < cnt_out()):
             continue
         i = current(tx)
-        _, _, w = state_at(tx)
-        lab = PATTERNS[i]['no'] if i is not None else ('～' if w > 0 else '・')
-        s = f'{bpm:.0f}' + ('!' if nxt > CNT_STALE_GAP else '')
+        lab = PATTERNS[i]['no'] if i is not None else ('～' if morph_span(tx) else '・')
+        sh = cnt_text(tx + 0.02)
         if rows and rows[-1][0] == lab:
-            rows[-1][1].append(s)
+            rows[-1][1].append(sh)
         else:
-            rows.append((lab, [s]))
+            rows.append((lab, [sh]))
     for lab, vals in rows:
         print(f"  {lab} " + (' '.join(vals) if lab not in ('～', '・') else '［' + ' '.join(vals) + '］'))
+    # 形が変わるあいだ（t0＋0.2秒〜t1）は、数字を出さない
+    bad = [round(n/60, 2) for n in range(int(DUR*60)) if (sp := morph_span(n/60)) and n/60 >= sp[0] + CNT_DASH_T
+           and cnt_text(n/60) != '--']
+    print(f'  形が変わるあいだに数字が出るコマ：{len(bad)}')
+    assert not bad, bad[:5]
     gaps = [nxt for tx, bpm, nxt in hc if CNT_IN <= tx < cnt_out()]
     print(f'  中央を通る間隔の最大 {max(gaps):.2f}秒（⑩の休み {TB_PAUSE:.2f}秒）。1拍に1回だけ変わる。'
-          f'出ている時間 {CNT_IN + 0.1:.2f}〜{cnt_out() + 0.5:.2f}秒')
+          f'出ている時間 {CNT_IN + 0.1:.2f}〜{cnt_out() + 0.4:.2f}秒')
+    s0 = ARRS[I_TB].A
+    print(f'  ⑩ 最後の心房細動の拍が中央 {t_of(s0 + TB_P0):.2f}秒 → タイマー 0 から → 次の洞調律の拍が中央 {t_of(s0 + TB_P1):.2f}秒'
+          f'（タイマー {TB_PAUSE:.1f}秒で止まる。名前は {WINDOWS[I_TB][1]:.2f}秒まで）')
     print('ひとこと＋色の文字の幅（上限 %dpx、文字 32px）' % ONE_W)
     for pat in PATTERNS:
         sz, w = one_size(pat)
@@ -1767,7 +1912,7 @@ def check():
           f'QRS {_qrs_ms(_preex(*PREEX["D1"], with_t=False)):.0f}〜{_qrs_ms(_preex(*PREEX["D3"], with_t=False)):.0f}ms'
           '（デルタ波つき。拍ごとに少しちがう。向きは同じ）')
     print(f'⑩ 心房細動 平均 {_rate(RR_TB_AF):.0f}/分 → 最後の拍 {TB_P0:.2f}s → 休み {TB_P1 - TB_P0:.2f}s（f波もP波もない）'
-          f' → 洞調律 {60/TB_SINUS_RR:.0f}/分 ×2拍。タイマーの最後の値 {TB_P1 - TB_P0:.1f}秒')
+          f' → 洞調律 {60/TB_SINUS_RR:.0f}/分 ×{TB_SINUS_N}拍。タイマーの最後の値 {TB_P1 - TB_P0:.1f}秒')
     fl = f_peak(PAT['⑪'])[0]
     print(f'F波（心房粗動）：{60/FF:.0f}/分、山から谷 {fl:.2f}mV（⑭は {f_peak(PAT["⑭"])[0]:.2f}mV）')
     print(f'⑪ 4:1 → {60/(4*FF):.0f}/分　⑫ 2:1 → {60/(2*FF):.0f}/分　⑭ 1:1 → {60/FF:.0f}/分')
@@ -1859,9 +2004,9 @@ def main():
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--thumb', action='store_true')
     ap.add_argument('--jobs', type=int, default=2)
-    ap.add_argument('--hq', action='store_true', help='高画質（CRF 10・slow）。out/reel26_afl_hq.mp4')
+    ap.add_argument('--hq', action='store_true', help='高画質（CRF 11・slow）。out/reel26_afl_hq.mp4')
     o = ap.parse_args()
-    crf, preset = (10, 'slow') if o.hq else (18, 'medium')
+    crf, preset = (11, 'slow') if o.hq else (18, 'medium')   # 高画質版 CRF 10→11（2026-10-14：96.6秒になり、GitHub の 100MB をこえないように）
     if o.hq and o.out == ap.get_default('out'):
         o.out = os.path.join(HERE, 'out', 'reel26_afl_hq.mp4')
     if o.check:

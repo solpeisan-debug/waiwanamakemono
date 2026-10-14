@@ -127,7 +127,7 @@ def plan(lines_len):
     # ⑧：「突然始まり…PSVT」がカウンターの跳ぶところに重なるよう、PAC がカウンターの位置を通る 0.5秒前から話し始める
     #    （make_reel24.py の窓の計算と同じ）
     starts['⑧'] = max(starts['⑧'], m.PAC_CROSS - 0.5)
-    starts['まとめ'] = m.MORPHS[-1][1] + 0.10       # ⑩が①の形へもどり終わってから（形が変わるあいだは声を入れない）
+    starts['まとめ'] = m.MORPHS[-1][1] + 0.10       # ⑩が中立の形へもどり終わってから（形が変わるあいだは声を入れない）
     starts['保存'] = starts['まとめ'] + lines_len['まとめ'] + 0.30
     return starts
 

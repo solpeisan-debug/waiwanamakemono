@@ -10,7 +10,8 @@
     python3 align_vo.py out/vo/narration_raw.mp3            # out/vo/mix.wav と配置表を作る
     python3 align_vo.py out/vo/narration_raw.mp3 --mux      # 映像（out/reel26_afl.mp4）に入れる
     python3 align_vo.py out/vo/narration_raw.mp3 --mux --hq # 高画質版（out/reel26_afl_hq.mp4）に入れる
-    python3 align_vo.py out/vo/narration_raw.mp3 --fix out/vo/narration_fix.mp3 --mux
+    python3 align_vo.py out/vo/narration_raw.wav --fix out/vo/fix_1014_x1.2.mp3 --mux        # 2026-10-14〜（③・まとめを録り直し）
+    python3 align_vo.py out/vo/narration_raw.wav --fix out/vo/fix_1014_x1.2.mp3 --mux --hq
         # 録り直した文（FIX_LINES）だけ、--fix のファイルから差し替える
 """
 import argparse
@@ -49,14 +50,19 @@ LINES = [
     ('保存', [28]),            # 保存して、見返してね
 ]
 # 録り直した文（--fix のファイルの声のかたまり番号。0.05秒未満のかたまり＝雑音は数えない）
-FIX_LINES = {}
+# 2026-10-14 専門医レビューの直し：out/vo/fix_1014_x1.2.mp3（ElevenLabs 同じ声、atempo=1.2 済み・声の高さは変えない）。5 かたまり。
+# Whisper で中身を確かめた（1〜2＝③、3〜5＝まとめ）
+FIX_LINES = {
+    '③': [1, 2],               # 平らに見えても、／P波がなくR-Rがバラバラなら細動。
+    'まとめ': [3, 4, 5],       # のこぎりがあれば粗動。／なくて、／R-Rがバラバラなら細動。
+}
 # 文の中の息継ぎ（無音）を、この長さまで縮める（離脱を防ぐ）。録音が届いたら間の長さを見て決める
 GAP_CAP = {n: 0.45 for n, _ in LINES}
 TEXT = {
     '冒頭': '心房細動と心房粗動。まず覚えたいのは、この14パターン。',
     '①': '洞調律から急にバラバラ。心房細動の始まり。',
     '②': 'P波がなく、R-Rがバラバラ。f波の粗い心房細動。',
-    '③': '平らでも、R-Rがバラバラなら心房細動。',
+    '③': '平らに見えても、P波がなくR-Rがバラバラなら細動。',
     '④': '速くてバラバラ、頻脈性の心房細動。',
     '⑤': '遅くてバラバラ、徐脈性の心房細動。',
     '⑥': '長い間隔のあと、早く来た拍が幅広い。アシュマン現象。',
@@ -68,7 +74,7 @@ TEXT = {
     '⑫': '150で規則正しければ、2対1の粗動を疑う。',
     '⑬': '伝導比が変わる心房粗動は、細動に似る。',
     '⑭': 'F波が全部伝わる1対1は、とても危険。',
-    'まとめ': 'のこぎりなら粗動。P波がなく、R-Rがバラバラなら細動。',
+    'まとめ': 'のこぎりがあれば粗動。なくて、R-Rがバラバラなら細動。',
     '保存': '保存して、見返してね',
 }
 PAD_IN, PAD_OUT = 0.06, 0.15          # 声の前後に残す無音（無音の中で切る）
