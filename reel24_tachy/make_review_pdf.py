@@ -1,7 +1,9 @@
 """第24弾 頻脈（幅の狭いQRS） ― 専門医レビュー用の資料。
 
-- out/review_reel24_frames.pdf：映像のコマを等倍（1080×1920）・無圧縮で1ページずつ（冒頭・10パターン・一覧・サムネイル）
-- review_request.md：依頼文（作品の概要・ページ一覧・描き方の数値・ナレーション・キャプション・見てほしい点）
+- release/review_reel24_frames.pdf（と out/review_reel24_frames.pdf）：映像のコマを等倍（1080×1920）・無圧縮で1ページずつ。
+  冒頭・10パターン（名前とひとことが出そろったところ）・つなぎ目（形が変わるまん中、①の形を通るところは①の形のまま）・最後・サムネイル。
+  コマは今のコード（make_reel24.frame）から書き出す（映像は書き出し直さない）。PNG は out/review_frames/
+- review_request.md：依頼文（作品の概要・ページ一覧・描き方の数値・ナレーション（秒つき）・キャプション・見てほしい点）
 - out/screen_text_reel24.txt：画面の文字の書き出し
 
 画面に出す数値・依頼文の数値は、モデルの波形から計算した値を使う（手打ちしない）。
@@ -9,7 +11,9 @@
 使い方:
     python3 make_review_pdf.py
 """
+import glob
 import os
+import re
 
 import numpy as np
 from PIL import Image
@@ -19,6 +23,7 @@ import make_reel24 as m
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'out')
+REL = os.path.join(HERE, 'release')
 
 L = 'https://litfl.com/'
 SRC = {
@@ -46,6 +51,12 @@ def pac_index(i):
     return min(range(len(rs)), key=lambda n: abs(rs[n] - m.PAC_CROSS))
 
 
+def named(i):
+    """パターン i の名前（「これは？」のあとの名前）とひとことが、どちらもはっきり出ている時間 (始まり, 終わり)。"""
+    a, b = m.WINDOWS[i]
+    return a + m.QUIZ_T + 0.05, b - 0.3
+
+
 def key_time(i, c=None):
     """パターン i の見どころ（区間の始まりからの時刻 c）が、中部の帯の中央を少し過ぎたあたりに来る t。"""
     pat = m.PATTERNS[i]
@@ -58,7 +69,8 @@ def key_time(i, c=None):
         c = (a + b) / 2
     t = m.t_of(m.SEGS[i][0] + c + 0.25)
     a, b = m.WINDOWS[i]
-    return min(max(t, a + m.QUIZ_T + 0.4), b - 0.2)
+    lo, hi = named(i)
+    return min(max(t, lo + 0.3), hi)
 
 
 def describe():
@@ -87,37 +99,64 @@ def describe():
     ]
 
 
-def main():
-    os.makedirs(OUT, exist_ok=True)
-    hook_t = m.HOOK_T0 + 3*m.HOOK_STEP + 0.2
-    i8 = 7
-    hr5 = [b for _, _, b, j in m.crossings() if j == 4]
-    k8 = pac_index(i8)
-    i5_k = int(np.argmax(hr5))
-    frames = [('冒頭0〜1秒：問いかけ「この10個、全部わかる？」', 0.5),
-              ('冒頭のフック（止めた波形を変形しているところ）', hook_t),
-              ('クイズの例：① の始まり（名前の前に「これは？」）', m.WINDOWS[0][0] + 1.2)] \
-        + [x for i, p in enumerate(m.PATTERNS) for x in (
-            # ⑧は、突然始まるPSVT（カウンター 170）、突然止まる（75）、少しずつ変わる洞頻脈（135）の3ページ
-            [(f"{p['no']} {p['name']}（PSVT：1拍で跳ぶ。カウンター 170）", beat_time(i, k8 + 1)),
-             (f"{p['no']} {p['name']}（突然止まる。カウンター 75）", beat_time(i, k8 + m.OO_SVT_N + 1, 0.3)),
-             (f"{p['no']} {p['name']}（洞頻脈：少しずつ。カウンター 135）", beat_time(i, k8 + m.OO_SVT_N + 5))]
-            if i == i8 else
-            # ⑤は拍ごとの値が大きく変わるので、いちばん速い拍（176/分）のところ
-            [(f"{p['no']} {p['name']}（カウンターは拍ごとの値。いちばん速い拍）", beat_time(i, i5_k))] if i == 4
-            else [(f"{p['no']} {p['name']}", key_time(i))])] \
-        + [(f'最後：{m.N_PAT}個の一覧と「何個わかった？コメントで教えてね」', m.T_END + m.FLY + 2.8)]
-    fdir = os.path.join(OUT, 'review_frames')
-    os.makedirs(fdir, exist_ok=True)
-    pngs, index = [], []
-    for k, (name, t) in enumerate(frames, 1):
-        fp = os.path.join(fdir, f'{k:02d}.png')
-        m.frame(t).save(fp)
-        pngs.append(fp); index.append(f'- {k}ページ：{name}（{t:.1f}秒）')
-    thumb = os.path.join(OUT, 'thumb_reel24_list.png')
-    m.thumbnail_list().save(thumb)
-    pngs.append(thumb); index.append(f'- {len(pngs)}ページ：サムネイル（投稿の表紙・透かしなし）')
-    fpdf = os.path.join(OUT, 'review_reel24_frames.pdf')
+def narration_rows():
+    """narration.md の「秒数つき」の表（声を置いた秒）を、align_vo.py の文の名前と組にする：[(名前, 始まり, 終わり, 文)]。"""
+    rows = []
+    with open(os.path.join(HERE, 'narration.md'), encoding='utf-8') as f:
+        for line in f:
+            mm = re.match(r'^\|\s*(\d+\.\d+)\s*[–-]\s*(\d+\.\d+)\s*\|\s*(.+?)\s*\|\s*$', line)
+            if mm:
+                rows.append((float(mm.group(1)), float(mm.group(2)), mm.group(3)))
+    names = [n for n, _ in vo.LINES]
+    assert len(rows) == len(names), (len(rows), len(names))
+    out = []
+    for n, (a, b, s) in zip(names, rows):
+        if s.rstrip('。') != vo.TEXT[n].rstrip('。'):
+            print('注意：narration.md の表と align_vo.TEXT がちがう', n, s, vo.TEXT[n])
+        out.append((n, a, b, s))
+    return out
+
+
+def boundaries():
+    """つなぎ目ごとに：(前の番号, 次の番号 or None（最後）, 'direct'／'via'／'end', [形が変わる (t0, t1, A, B)])。"""
+    ev = list(m.SHAPE_EV)
+    out, p = [], 0
+    for i in range(1, m.N_PAT):
+        if i in m.DIRECT:
+            out.append((i - 1, i, 'direct', [ev[p]])); p += 1
+        else:
+            out.append((i - 1, i, 'via', [ev[p], ev[p + 1]])); p += 2
+    out.append((m.N_PAT - 1, None, 'end', [ev[p]]))
+    assert p + 1 == len(ev)
+    return out
+
+
+DIRECT_WHAT = {1: '洞頻脈が速くなる（115 → 150/分、P波がT波の下り坂へ）',
+               3: 'P波の形がばらばらになり、R-R が不規則に',
+               4: 'P波が細動波に溶け、R-R がさらに不規則・速く',
+               5: '細動波が粗動波（のこぎり）にまとまり、R-R がそろう（2:1・150/分）'}
+
+
+def morph_frames():
+    """つなぎ目のコマ：直接は形が変わるまん中、①の形を通るところは、①へ変わるまん中・①のまま・次へ変わるまん中。"""
+    no = lambda P: m.PATTERNS[P]['no']
+    out = []
+    for A, B, kind, evs in boundaries():
+        if kind == 'direct':
+            t0, t1 = evs[0][:2]
+            out.append(((t0 + t1)/2, f'つなぎ目 {no(A)}→{no(B)}（直接）：形が変わるまん中。{DIRECT_WHAT[B]}。{no(A)}のコピーは枠へ飛んでいる途中'))
+        elif kind == 'via':
+            (a0, a1, *_), (b0, b1, *_) = evs
+            out.append(((a0 + a1)/2, f'つなぎ目 {no(A)}→{no(B)}（①の形を通る）：{no(A)} → ①の形へ変わるまん中。{no(A)}のコピーは枠へ飛んでいる途中'))
+            out.append(((a1 + b0)/2, f'つなぎ目 {no(A)}→{no(B)}（①の形を通る）：①洞頻脈の形のまま（{b0 - a1:.1f}秒）'))
+            out.append(((b0 + b1)/2, f'つなぎ目 {no(A)}→{no(B)}（①の形を通る）：①の形 → {no(B)} へ変わるまん中'))
+        else:
+            t0, t1 = evs[0][:2]
+            out.append(((t0 + t1)/2, f'{no(A)}のあと：①の形へもどるまん中（最後の画面へ。冒頭とつながる）'))
+    return out
+
+
+def write_pdf(pngs, fpdf):
     try:
         import img2pdf
         with open(fpdf, 'wb') as f:
@@ -125,37 +164,127 @@ def main():
     except ImportError:
         ims = [Image.open(q).convert('RGB') for q in pngs]
         ims[0].save(fpdf, save_all=True, append_images=ims[1:], resolution=72, quality=95, subsampling=0)
-    print(fpdf, len(pngs), 'ページ（等倍）')
+
+
+def hr_list(i):
+    return [round(b) for _, _, b, j in m.crossings() if j == i]
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    hook_t = m.HOOK_T0 + 3*m.HOOK_STEP + 0.2
+    i8 = 7
+    k8 = pac_index(i8)
+    # ⑤：名前とひとことが出ているあいだで、いちばん速い拍（カウンターは拍ごとの値）
+    lo5, hi5 = named(4)
+    cr5 = [(b, t) for t, _, b, j in m.crossings() if j == 4 and lo5 <= t + 0.15 <= hi5]
+    b5, t5 = max(cr5)
+    frames = [(0.5, '冒頭0〜1秒：問いかけ「この10個、全部わかる？」'),
+              (hook_t, '冒頭のフック（止めた波形を変形しているところ）'),
+              (m.WINDOWS[0][0] + 1.2, 'クイズの例：① の始まり（名前の前に「これは？」。カウンターは名前の行が出ているあいだだけ）')]
+    for i, p in enumerate(m.PATTERNS):
+        if i == i8:
+            # ⑧は、突然始まるPSVT（カウンター 170）、突然止まる（75）、少しずつ変わる洞頻脈（135）の3ページ
+            frames += [(beat_time(i, k8 + 1), f"{p['no']} {p['name']}（PSVT：1拍で跳ぶ。カウンター 170）"),
+                       (beat_time(i, k8 + m.OO_SVT_N + 1, 0.3), f"{p['no']} {p['name']}（突然止まる。カウンター 75）"),
+                       (beat_time(i, k8 + m.OO_SVT_N + 5), f"{p['no']} {p['name']}（洞頻脈：少しずつ。カウンター 135。「別の場面の例・実際はもっとゆっくり」）")]
+        elif i == 4:
+            frames.append((t5 + 0.15, f"{p['no']} {p['name']}（カウンターは拍ごとの値。名前が出ているあいだでいちばん速い拍 {b5:.0f}/分。「1拍ごとの値（モニターは平均）」）"))
+        elif i == 3:
+            frames.append((key_time(i), f"{p['no']} {p['name']}（「1拍ごとの値（モニターは平均）」）"))
+        else:
+            frames.append((key_time(i), f"{p['no']} {p['name']}"))
+    for i in range(m.N_PAT):              # 名前とひとことが出そろっているか
+        lo, hi = named(i)
+        assert any(lo <= t <= hi + 1e-6 for t, _ in frames if m.current(t) == i), i
+    frames += morph_frames()
+    frames.append((m.T_END + m.FLY + 2.8, f'最後：{m.N_PAT}個の一覧と「何個わかった？コメントで教えてね」'))
+    frames.sort(key=lambda x: x[0])
+
+    fdir = os.path.join(OUT, 'review_frames')
+    os.makedirs(fdir, exist_ok=True)
+    for q in glob.glob(os.path.join(fdir, '*.png')):
+        os.remove(q)
+    pngs, index = [], []
+    for k, (t, name) in enumerate(frames, 1):
+        fp = os.path.join(fdir, f'{k:02d}.png')
+        im = m.frame(t)
+        assert im.size == (1080, 1920)
+        im.save(fp)
+        pngs.append(fp); index.append(f'- {k}ページ（{t:.2f}秒）：{name}')
+    thumb = os.path.join(fdir, f'{len(pngs) + 1:02d}.png')
+    m.thumbnail_list().save(thumb)
+    m.thumbnail_list().save(os.path.join(OUT, 'thumb_reel24_list.png'))
+    pngs.append(thumb); index.append(f'- {len(pngs)}ページ：サムネイル（投稿の表紙・透かしなし）')
+    for fpdf in (os.path.join(OUT, 'review_reel24_frames.pdf'), os.path.join(REL, 'review_reel24_frames.pdf')):
+        write_pdf(pngs, fpdf)
+        print(fpdf, len(pngs), 'ページ（等倍）')
 
     # 依頼文
-    narr = '\n'.join(f"- {n}：{vo.TEXT[n]}" for n, _ in vo.LINES)
+    narr = '\n'.join(f"| {n} | {a:.2f}–{b:.2f} | {s} |" for n, a, b, s in narration_rows())
     caption = open(os.path.join(HERE, 'caption.txt'), encoding='utf-8').read().strip()
     srcs = '\n'.join(f'- {k}：{u}' for k, u in SRC.items())
     tagtxt = {k: v[0] for k, v in m.TAGS.items()}
     rows = '\n'.join(f"| {p['no']} {p['name']} | {p['one']} ＋「{tagtxt[p['tag']]}」 | {d} |"
                      for p, d in zip(m.PATTERNS, describe()))
+    no = lambda P: m.PATTERNS[P]['no']
+    flow = []
+    for i, (a, b) in enumerate(m.WINDOWS):
+        flow.append(f"| {no(i)} {m.PATTERNS[i]['name']} | 名前の行 {a:.2f}–{b:.2f}（「これは？」→ 名前 {a + m.QUIZ_T:.2f}） | "
+                    f"{' '.join(str(x) for x in hr_list(i))} |")
+    flow = '\n'.join(flow)
+    bnd = []
+    for A, B, kind, evs in boundaries():
+        t0, t1 = evs[0][0], evs[-1][1]
+        if kind == 'direct':
+            bnd.append(f'| {no(A)}→{no(B)} | 直接：{DIRECT_WHAT[B]} | {t0:.2f}–{t1:.2f} |')
+        elif kind == 'via':
+            bnd.append(f'| {no(A)}→{no(B)} | ①洞頻脈の形を通る（{m.VIA_T:.1f}秒で①へ・{m.VIA_HOLD:.1f}秒そのまま・{m.VIA_T:.1f}秒で{no(B)}へ） | {t0:.2f}–{t1:.2f} |')
+        else:
+            bnd.append(f'| {no(A)}→最後 | ①の形へもどす（冒頭の帯も①の形なので、動画の終わりが冒頭とつながる） | {t0:.2f}–{t1:.2f} |')
+    bnd = '\n'.join(bnd)
+    direct_list = '、'.join(f'{no(i - 1)}→{no(i)}' for i in sorted(m.DIRECT))
+    via_list = '、'.join(f'{no(i - 1)}→{no(i)}' for i in range(1, m.N_PAT) if i not in m.DIRECT)
     txt = f'''あなたは循環器専門医として、看護師・看護学生向けの心電図教育リール（Instagram）を医学的にレビューしてください。
-添付は「映像のコマを等倍で1ページずつ並べたPDF」です。ナレーションとキャプションは、この依頼文の中にあります。
+添付は「映像のコマを等倍（1080×1920）で1ページずつ並べたPDF」です。ナレーションとキャプションは、この依頼文の中にあります。
 
 ## 作品の概要
-- 第24弾「頻脈（幅の狭いQRS）、10パターン」。縦 1080×1920・60fps・約{m.DUR:.0f}秒・ナレーション入り（録音前。下の台本で録る）
+- 第24弾「頻脈（幅の狭いQRS）、10パターン」。縦 1080×1920・60fps・約{m.DUR:.0f}秒・ナレーション入り（録音済み。下の秒は動画の中で声が流れる位置）
 - 見る人：看護師・看護学生（病棟でモニター心電図を見る人）
-- 第21弾と同じ作り：冒頭3秒で波形を止めて5パターンに素早く変形（フック）→ 10パターンを1つずつ紹介 → 紹介が終わった波形は縮んで上下の枠に移り、ミニ波形として流れ続ける → 最後に10個の一覧
+- 流れ：冒頭3秒で波形を止めて5パターンに素早く変形（フック）→ 10パターンを1つずつ紹介 → 最後に10個の一覧
+- **中部の帯は最初から最後まで消えない（今回の作り）**：
+  - 名前が消えると、紹介したパターンの「コピー」だけが縮んで上下の枠へ飛び、ミニ波形として流れ続ける（帯はそのまま流れる）
+  - 同時に、帯に見えている拍が、その場で全部いっしょに次のパターンの形へ変わる（P波の形・向き・PR、偽S波・逆行性P、T波、拍の間隔と不規則さ、細動波・粗動波の大きさ）。
+    形は山の高さ・位置・幅の数値を少しずつ変えるので、こぶが2つになったりしない。拍が跳んだり、消えたり、増えたりもしない
+  - 近いもの（{direct_list}）は、次の形へ直接（{m.MORPH_T:.1f}秒）
+  - 関係のないもの（{via_list}）は、いったん①洞頻脈の形にもどしてから次の形へ（「前のリズムが次のリズムに変わる」と読まれないように）
+  - ⑩のあとは①の形へもどして最後の画面へ。冒頭の帯も①の形なので、動画の終わりが冒頭とつながる
+  - 名前・ひとこと・声のあいだは、波形はそのパターンの形そのもの。形が変わるあいだは声なし・名前なし
 - 波形はモデルで作った模式図。**II誘導・実際の速さ（25mm/秒）**。画面とキャプションに「数値はこの波形での一例」と明記
 - 背景のマス目は心電図用紙と同じ（小さいマス 0.04秒・0.1mV、大きいマス 0.2秒・0.5mV）。中部の帯の基線は太い線の上
 - 名前の色で3つの群に分けた：洞結節から（水色：①②）、心房から（オレンジ：③〜⑥）、房室結節・副伝導路のあたり（ピンク：⑦〜⑩）。上の枠に①〜⑥（2列×3段）、下の枠に⑦〜⑩（2列×2段）
 - 各パターンのひとことのうしろに、看護師がまずすることを色の文字で出す：緑「→ まず患者さん」（①④）、黄「→ すぐ報告」（⑤⑥⑦⑨⑩）、青「→ 12誘導で確認」（②③）、紫「→ 数字を見る」（⑧）。
   ナレーションでは「すぐ報告」と言わない（画面とキャプションで伝える）
 - **この回だけの見せ方**
-  - 心拍数カウンター（波形の下のまん中「♥ 150 /分」）：帯の右のほう（x={m.COUNT_X}px）を R が通るたびに、その拍の R-R（モデルの値）から計算した心拍数に変わる。ピッという音も同じ瞬間。
+  - 心拍数カウンター（波形の下のまん中「♥ 150 /分」）：帯の右のほう（x={m.COUNT_X}px）を R が通るたびに、その拍の R-R（モデルの値）から計算した心拍数に変わる。ハートはその瞬間に光る。ピッという音も同じ瞬間。
+    **名前の行（「これは？」と名前）が出ているあいだだけ出す**（形が変わっているあいだは出さない。混ざった形の心拍数を見せないため）。
     ⑧ では、PSVT が 90 → {m.rate(m.OO_PAC_C):.0f} → {m.rate(m.OO_SVT_RR):.0f}/分と1拍で跳び、突然止まる（{m.rate(m.OO_PAUSE):.0f}/分）。そのあと洞調律が {' → '.join(f'{m.rate(x):.0f}' for x in m.OO_SINUS_RR)}/分と少しずつ変わる
+  - ④⑤ のあいだ、カウンターの下に小さく「{m.CNT_SUB_IRREG}」。⑧ の洞調律が少しずつ変わるところでは「{m.CNT_SUB_GRAD}」
   - クイズ：各パターンで、名前の行にまず「これは？」を出し、波形が見えてから約0.7秒で名前に変わる（声も「特徴 → 名前」の順）
   - 冒頭0〜1秒に問いかけ「この10個、全部わかる？」、最後に「何個わかった？コメントで教えてね」
-- 前の版（12パターン）から、PACの連発（期外収縮の回の内容）と WPW（洞調律。頻脈ではない。見分けマップ③にある）を外した
 - 心房細動・心房粗動のくわしいバリエーション（f波の粗い・細かい、伝導比、変行伝導）は別の回（第26弾）で扱うので、ここでは代表の1つずつ。幅の広いQRSの頻拍も別の回（第27弾）
 - 出典は LITFL ECG Library（下に一覧）。LITFL 以外の資料は使っていない
 
-## PDFのページ
+## 動画の流れ（秒）
+| パターン | 名前の出ている時間（秒） | 心拍数カウンター（名前の行が出ているあいだに表示した値・/分） |
+|---|---|---|
+{flow}
+
+| つなぎ目 | 変わり方 | 形が変わる時間（秒） |
+|---|---|---|
+{bnd}
+
+## PDFのページ（時刻の順）
 {chr(10).join(index)}
 
 ## 各パターンの描き方（モデルの値）
@@ -163,7 +292,9 @@ def main():
 |---|---|---|
 {rows}
 
-## ナレーション（録音前の台本。1パターン1文・声で3〜4秒。数字は画面に出ているので、声では読まない）
+## ナレーション（録音済み。1パターン1文・数字は画面に出ているので、声では読まない）
+| 文 | 動画の秒 | 台本 |
+|---|---|---|
 {narr}
 
 ## キャプション
@@ -172,38 +303,45 @@ def main():
 ```
 
 ## とくに見てほしい点
-1. 10パターンの選び方（洞頻脈、P波がT波に重なる洞頻脈、心房頻拍、多源性心房頻拍、速い心房細動、心房粗動2:1、PSVT、始まり方の対比、順方向性の房室回帰性頻拍、接合部頻拍）。入れるべきもの・外すべきものはあるか
-2. 色の文字の振り分け（「→ まず患者さん」①④／「→ すぐ報告」⑤⑥⑦⑨⑩／「→ 12誘導で確認」②③／「→ 数字を見る」⑧）は、看護師の初動として妥当か。
-   とくに ④ 多源性心房頻拍を「まず患者さん」、⑩ 接合部頻拍を「すぐ報告」、② を「12誘導で確認」にしたこと
-3. ⑧ 始まり方の対比：PSVT は PAC をきっかけに「突然始まり、突然止まる」（90→170/分、止まって0.8秒あけて洞調律）、そのあと洞調律が「少しずつ速くなり、少しずつ戻る」（75→135→90/分）。
-   画面のひとことは「突然はPSVT、少しずつは洞頻脈が多い」、台本は「…少しずつ変わるなら、洞頻脈が多い。」（言い切らない）。
-   洞調律が少しずつ変わるところでは、カウンターの下に小さく「別の場面の例・実際はもっとゆっくり」と出している（PSVTの続きではないこと、実際の変化は数十秒〜数分）。
-   カウンターの横に小さく「↑ 1拍で跳ぶ」「↓ 突然止まる」「↗ 少しずつ」「↘ 少しずつ」。きっかけのPACのPRを長く（約210ms）描いたことも。この見せ方に誤解がないか
-4. 心拍数カウンター：1拍ごとの R-R から計算した値を出している（モニターの表示は平均することが多い）。④⑤ のように不規則なリズムでは数字が拍ごとに大きく変わる
-   （⑤ 心房細動は拍ごとの値で 98〜176/分、平均約{m.rate(np.mean(m.AF_RR)):.0f}/分。PDF の⑤のページは、いちばん速い拍のところ）。
-   ④⑤ のあいだは、カウンターの下に小さく「1拍ごとの値（モニターは平均）」と出している。キャプションにも、実際のモニターは平均値と書いた。見せ方に誤解がないか
-5. ③ 心房頻拍：画面と台本は「いつもと違うP波」（前回のレビューで直した）。P'を「II誘導で、小さくとがった上向き → 下向きの二相性」で描いた（第17弾のPACの形を、二相性がわかるよう強めた）。LITFL の例は「下向き（inverted in inferior leads）」。
-   ⑩ 接合部頻拍（QRSの直前に下向きのP）と見分けやすくするためだが、代表の形として妥当か
-6. ⑦ PSVT：P波なし、QRSの終わりに小さな偽S波（LITFL：Pseudo S waves in II, III, aVF）。名前「PSVT（房室結節リエントリー）」の言い方
-7. ⑨ 房室回帰性頻拍：200/分、QRSのすぐあとに下向きの逆行性P（RP {m.avrt_rp_ms()[0]:.0f}ms・QRSの終わりから {m.avrt_rp_ms()[1]:.0f}ms。前回のレビューで short RP に直した）。II誘導のモニターで見えるものとして妥当か
-8. ⑩ 接合部頻拍の逆行性P：大きさ（約−0.2mV）と位置（QRSの直前、PR 約90ms）。モニターで見える代表の形として大きすぎないか
-9. ② 洞頻脈（150/分、P波がT波の下り坂にこぶのように重なる）を「PSVTに見える」としたこと。⑥ 心房粗動（2:1、150/分）と並べて「150/分前後で規則正しい」ときの見分けを伝えたい
-10. P波の形（スマホで見えるよう強めた）：③ のP'、④ の下向きのP（約−0.15mV）・二相性のP。強調しすぎて別の意味に見えないか
-11. 台本のまとめ「規則正しいか、P波はどこか。まずこの2つ。」（LITFL SVT：起源と規則性で分ける）。短くしたことで誤解を招く文はないか
-12. キャプションの「めまい・失神・胸痛・息苦しさ・血圧低下があれば、急変として対応します」（LITFL SVT の症状と、AVRT の「unstable → urgent DC cardioversion」から）。言い方として妥当か
-13. スマホの大きさで、② のT波に重なるP、③ のとがったP'、⑨ の逆行性P、⑩ の下向きのP が読み取れるか
+### 今回の作り（帯を消さずに、その場で形が変わる）について
+1. **その場で形が変わる見せ方で、誤解を招かないか**。とくに直接変わるつなぎ目（{direct_list}）：
+   - ①→② 洞頻脈 115/分 → 150/分（P波がT波に重なる）：同じ洞頻脈が速くなる、という見せ方として妥当か
+   - ③→④→⑤→⑥ 心房頻拍 → 多源性心房頻拍 → 心房細動 → 心房粗動：画面の拍がつぎつぎに変わるので、「心房頻拍が多源性心房頻拍になり、心房細動になり、心房粗動になる」
+     （1人の患者さんの中で、この順に移っていく）と読まれないか。直接変えずに、①の形を通すべきつなぎ目はあるか（PDF のつなぎ目のページ）
+2. **①の形を通すつなぎ目**（{via_list}）：いったん①洞頻脈（115/分）の形にもどしてから次の形へ変えている。
+   ①自体が頻脈のパターンなので、「⑥心房粗動が洞頻脈にもどってから⑦PSVTが始まる」のような、実際の経過として読まれないか。もっとよい通し方（たとえば 75/分の洞調律）があるか
+3. 心拍数カウンターを、名前の行が出ているあいだだけ出し、形が変わっているあいだは消したこと。カウンターの値（上の「動画の流れ」の表）に、おかしなものはないか
+   （④⑤ は拍ごとの値なので、④ {min(hr_list(3))}〜{max(hr_list(3))}/分、⑤ {min(hr_list(4))}〜{max(hr_list(4))}/分と大きく変わる）
+4. 名前が消えた直後、紹介したパターンのコピーが枠へ飛ぶあいだに、帯の拍は次の形へ変わり始める。コピーと帯の両方が動くことで、見分けにくくならないか（PDF のつなぎ目のページ）
+5. 声と名前の時間：声は名前が出てから 0.55秒で話し始め、形が変わるあいだは声なし（上の「ナレーション」と「動画の流れ」の秒）。名前・ひとことと声の内容がずれて見えるところはないか
 
-## 前回のレビュー（2026-10-06）を反映したところ
-- ③ ひとこと・台本「いつもと違うP波が、規則正しく」（MATとまぎれないように）
-- ④ 台本「P波の形が3種類以上で、不規則。多源性心房頻拍。」
-- ⑤ キャプションに、実際のモニターの心拍数は平均値で、動画ほど毎拍は変わらないことを追記
-- ⑨ 逆行性P波をQRSに近づけた（short RP）
+### パターンごと
+6. 10パターンの選び方（洞頻脈、P波がT波に重なる洞頻脈、心房頻拍、多源性心房頻拍、速い心房細動、心房粗動2:1、PSVT、始まり方の対比、順方向性の房室回帰性頻拍、接合部頻拍）。入れるべきもの・外すべきものはあるか
+7. 色の文字の振り分け（「→ まず患者さん」①④／「→ すぐ報告」⑤⑥⑦⑨⑩／「→ 12誘導で確認」②③／「→ 数字を見る」⑧）は、看護師の初動として妥当か。
+   とくに ④ 多源性心房頻拍を「まず患者さん」、⑩ 接合部頻拍を「すぐ報告」、② を「12誘導で確認」にしたこと
+8. ⑧ 始まり方の対比：PSVT は PAC をきっかけに「突然始まり、突然止まる」（90→170/分、止まって{m.OO_PAUSE:.1f}秒あけて洞調律）、そのあと洞調律が「少しずつ速くなり、少しずつ戻る」（75→135→90/分）。
+   画面のひとことは「突然はPSVT、少しずつは洞頻脈が多い」、台本は「…少しずつ変わるなら、洞頻脈が多い。」（言い切らない）。
+   洞調律が少しずつ変わるところでは、カウンターの下に小さく「{m.CNT_SUB_GRAD}」と出している（PSVTの続きではないこと、実際の変化は数十秒〜数分）。
+   カウンターの横に小さく「↑ 1拍で跳ぶ」「↓ 突然止まる」「↗ 少しずつ」「↘ 少しずつ」。きっかけのPACのPRを長く（約{m.pr_ms('B'):.0f}ms）描いたことも。この見せ方に誤解がないか
+9. 心拍数カウンター：1拍ごとの R-R から計算した値を出している（モニターの表示は平均することが多い）。④⑤ のあいだは、カウンターの下に小さく「{m.CNT_SUB_IRREG}」と出している
+   （⑤ 心房細動は拍ごとの値で {min(hr_list(4))}〜{max(hr_list(4))}/分、平均約{m.rate(np.mean(m.AF_RR)):.0f}/分）。この言い方で、モニターの値との違いが伝わるか。キャプションにも、実際のモニターは平均値と書いた
+10. ③ 心房頻拍：画面と台本は「いつもと違うP波」。P'を「II誘導で、小さくとがった上向き → 下向きの二相性」で描いた。LITFL の例は「下向き（inverted in inferior leads）」。
+   ⑩ 接合部頻拍（QRSの直前に下向きのP）と見分けやすくするためだが、代表の形として妥当か
+11. ⑦ PSVT：P波なし、QRSの終わりに小さな偽S波（LITFL：Pseudo S waves in II, III, aVF）。名前「PSVT（房室結節リエントリー）」の言い方
+12. ⑨ 房室回帰性頻拍：200/分、QRSのすぐあとに下向きの逆行性P（RP {m.avrt_rp_ms()[0]:.0f}ms・QRSの終わりから {m.avrt_rp_ms()[1]:.0f}ms）。II誘導のモニターで見えるものとして妥当か
+13. ⑩ 接合部頻拍の逆行性P：大きさ（約−0.2mV）と位置（QRSの直前、PR 約{m.pr_ms('J'):.0f}ms）。モニターで見える代表の形として大きすぎないか
+14. ② 洞頻脈（150/分、P波がT波の下り坂にこぶのように重なる）を「PSVTに見える」としたこと。⑥ 心房粗動（2:1、150/分）と並べて「150/分前後で規則正しい」ときの見分けを伝えたい
+15. P波の形（スマホで見えるよう強めた）：③ のP'、④ の下向きのP（約−0.15mV）・二相性のP。強調しすぎて別の意味に見えないか
+16. 台本のまとめ「規則正しいか、P波はどこか。まずこの2つ。」（LITFL SVT：起源と規則性で分ける）。短くしたことで誤解を招く文はないか
+17. キャプションの「めまい・失神・意識の変化・胸痛・息苦しさ・血圧低下があれば、急変として人を呼び、すぐ医師に知らせます」（LITFL SVT の症状と、AVRT の「unstable → urgent DC cardioversion」から）。言い方として妥当か
+18. スマホの大きさで、② のT波に重なるP、③ のとがったP'、⑨ の逆行性P、⑩ の下向きのP が読み取れるか
 
 ## 返してほしい形
 - パターン番号（またはページ）ごとに：判定（OK／要修正／推奨）・理由・直し方（数値や言い換えまで具体的に）
 - 「要修正」は医学的に誤りのもの、「推奨」はより良くなるもの、と分けてください
+- 上の「とくに見てほしい点」の番号ごとにも、判定・理由・直し方をください
 - LITFL 以外を根拠にするときは、出典名を書いてください
-- ナレーションの台本を変えたほうがよいものは、その文を書いてください（このあと録音します）
+- ナレーションの台本を変えたほうがよいものは、その文を書いてください
 
 ## 出典
 {srcs}
@@ -221,8 +359,9 @@ def main():
         a, b = m.WINDOWS[i]
         lines.append(f"[{a:5.1f}〜{b:5.1f}秒] {pat['no']} {m.QUIZ} → {pat['no']} {pat['name']}（{a + m.QUIZ_T:.1f}秒から） ／ "
                      f"{pat['one']} {m.TAGS[pat['tag']][0]} ／ ヒント：{pat['hint']}")
-        lines.append(f"    心拍数カウンター：{' '.join(f'{x:.0f}' for _, _, x, j in m.crossings() if j == i)} /分")
-    lines += ['', f'[最後] {m.END_1} ／ {m.END_2} ／ {m.END_3}',
+        lines.append(f"    心拍数カウンター：{' '.join(str(x) for x in hr_list(i))} /分")
+    lines += ['', f'[④⑤ カウンターの下] {m.CNT_SUB_IRREG}', f'[⑧ 少しずつのところ・カウンターの下] {m.CNT_SUB_GRAD}',
+              '', f'[最後] {m.END_1} ／ {m.END_2} ／ {m.END_3}',
               f'[左下] {m.NOTE1} ／ {m.NOTE2}', '[右下] @nurse_polarbearden（透かし）']
     txt = os.path.join(OUT, 'screen_text_reel24.txt')
     with open(txt, 'w', encoding='utf-8') as f:
