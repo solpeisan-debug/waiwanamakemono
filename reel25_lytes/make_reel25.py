@@ -93,8 +93,8 @@ def qrs_k3(t):                    # 高K：幅が広く、形のくずれたQRS�
     return 0.62*_ga(t, 0.0, 0.030, 0.045) - 0.30*_g(t, 0.105, 0.036)
 
 
-def qrs_sine(t):                  # 高K：サイン波（QRSとTが1つのなめらかな波になる）
-    return 0.62*_g(t, 0.0, 0.125) - 0.50*_g(t, 0.45, 0.125)
+def qrs_sine(t):                  # 高K：サイン波（QRSとTが1つのなめらかな波になる）。52/分（RR 1.15秒）の波で RR を埋める
+    return 0.62*_g(t, 0.0, 0.16) - 0.50*_g(t, 0.575, 0.16)
 
 
 def st_sag(t, a, c, sl, sr):      # STの低下（なだらかに下がり、終わりで戻る）
@@ -183,16 +183,17 @@ QRS_PAR = {
     'K2': [(-0.06, -0.036, 0.010, 0.010), (0.95, 0.0, 0.014, 0.014), (-0.24, 0.036, 0.012, 0.012)],
     'K3': [(-0.05, -0.040, 0.012, 0.012), (0.90, 0.0, 0.018, 0.018), (-0.26, 0.046, 0.016, 0.016)],
     'K4': [(0.0, -0.040, 0.012, 0.012), (0.62, 0.0, 0.030, 0.045), (-0.30, 0.105, 0.036, 0.036)],
-    'SW': [(0.0, -0.040, 0.012, 0.012), (0.62, 0.0, 0.125, 0.125), (-0.50, 0.45, 0.125, 0.125)],
+    'SW': [(0.0, -0.040, 0.012, 0.012), (0.62, 0.0, 0.16, 0.16), (-0.50, 0.575, 0.16, 0.16)],
 }
 _QN = [(-0.08, -0.030, 0.008, 0.008), (1.00, 0.0, 0.011, 0.011), (-0.20, 0.028, 0.009, 0.009)]
-for _k in ('L1', 'L2', 'C1', 'D1', 'C2'):
+for _k in ('L1', 'L2', 'C1', 'D1', 'C2', 'NS'):
     QRS_PAR[_k] = _QN                    # ⑦〜⑪のQRSは①と同じ
 # ふつうの形のT波（下の KINDS と同じ値）。⑧のT波は左右同じ幅
 TG_PAR = {'N': (0.27, 0.270, 0.060, 0.042), 'L1': (0.13, 0.270, 0.060, 0.045), 'L2': (0.035, 0.280, 0.040, 0.040),
-          'C1': (0.27, 0.385, 0.048, 0.042), 'D1': (0.21, 0.375, 0.110, 0.055), 'C2': (0.28, 0.170, 0.045, 0.038)}
+          'C1': (0.27, 0.385, 0.048, 0.042), 'D1': (0.21, 0.375, 0.110, 0.055), 'C2': (0.28, 0.170, 0.045, 0.038),
+          'NS': (0.27, 0.255, 0.058, 0.040)}
 T_PAR = {'T1': (0.240, 0.82, 0.115), 'K2': (0.255, 0.86, 0.120), 'K3': (0.280, 0.86, 0.130),
-         'K4': (0.320, 0.62, 0.165), 'SW': (0.400, 0.0, 0.300)}   # ⑥へは、T波が低く広く溶けていく
+         'K4': (0.320, 0.62, 0.165), 'SW': (0.450, 0.0, 0.350)}   # ⑥へは、T波が低く広く溶けていく
 
 
 P_N = (-0.160, 0.15, 0.022)       # 洞調律のP波（PR 約170ms）
@@ -224,11 +225,15 @@ KINDS = {
     'D1': Beat(p=P_N, t=lambda t: 0.21*_ga(t, 0.375, 0.110, 0.055)),
     # ⑪ 高Ca：STがほとんどなく、T波がQRSのすぐあと → QT短縮
     'C2': Beat(p=P_N, t=lambda t: 0.28*_ga(t, 0.170, 0.045, 0.038)),
+    # つなぎ（病態が変わるところ）：どのパターンでもない、ふつうの洞調律 75/分。うすい灰色で描く（2026-10-14）
+    'NS': Beat(p=P_N, t=lambda t: 0.27*_ga(t, 0.255, 0.058, 0.040)),
 }
-WIN = (-0.50, 0.95)                # 1拍の部品がある範囲（R頂点からの秒）
+WIN = (-0.60, 1.20)                # 1拍の部品がある範囲（R頂点からの秒）。⑥サイン波（RR 1.15秒）の谷が切れないよう広げた
 ALL = [(-1e9, 1e9)]               # 全部をその色で
 
-RR_K3, RR_K4, RR_SW = 1.40, 1.20, 0.90
+# 2026-10-14 専門医レビュー R2：悪くなるほど速くなる（43→50→67/分）と「持ち直した」と見えるので、⑤は④と同じ 43/分、⑥は 52/分
+RR_K3, RR_K4, RR_SW = 1.40, 1.40, 1.15
+RR_NS = 0.80                       # つなぎの洞調律 75/分
 
 
 def beats_every(rr, n, kind):
@@ -324,7 +329,7 @@ PATTERNS = [
     _pat('⑩', 'QT延長（薬剤など）', C_LONG, 'T波が遅く広い',
          f'T波が遅く広い。QTc {QTC_D1}ms', 'qtc_report', RR, 4, 'D1', (0.06, 0.55)),
     _pat('⑪', '高Ca：QT短縮', C_SHORT, 'STがほぼない',
-         f'STがほぼない。QTc {QTC_C2}ms', 'lab', RR, 4, 'C2', (0.04, 0.30)),
+         f'STがほぼない。QTc {QTC_C2}ms', 'lab_report', RR, 4, 'C2', (0.04, 0.30)),
 ]
 
 N_PAT = len(PATTERNS)
@@ -381,7 +386,8 @@ def hl_mask(pat, rel):
 T_STOP, T_GO = 0.6, 2.9
 FREEZE = T_GO - T_STOP
 T_TITLE = 4.4                     # 冒頭の1文（声 4.36秒：0.10〜4.46秒）のあと、①の声が 4.7秒から入る長さ（2026-10-10 文の中の間を正しく残したため 4.0→4.4）
-END_HOLD = 6.0                    # 11個そろってからの時間（まとめ・保存の2文、「何個わかった？」を読む時間と、冒頭へ戻る時間）
+END_HOLD = 7.5                    # 11個そろってからの時間（まとめ・保存の2文、「何個わかった？」を読む時間と、冒頭へ戻る時間）。
+                                  # 2026-10-14 ⑪のあとがつなぎを通るぶん（まとめの声が遅れて始まる）と、録り直したまとめ（3.8秒）が入るよう 6.0→7.5
 HOOK = [1, 3, 5, 7, 9]            # ②テント状T → ④P波消失 → ⑥サイン波 → ⑧低K（高度）→ ⑩QT延長
 HOOK_T0, HOOK_STEP, HOOK_MORPH = 0.8, 0.38, 0.12
 
@@ -431,10 +437,13 @@ def t_of(tau_center):
 # 形は動画の時刻 t だけで決まる（shape_at）。名前・声のあいだは、そのパターンの形そのもの。名前が消えると形が変わり、
 # そのあいだ、画面に見えている拍がすべて、いっしょに同じ形へ変わる（P波・PR、QRSの幅と形、ST、T波、U波、拍の間隔）。
 # 帯は最初から最後まで消えない（名前が消えると、そのパターンのコピーだけが縮んで枠へ飛ぶ）。
-# - 進み方（①→②→③→④→⑤→⑥ の高K、⑦→⑧ の低K）：次の形へ直接、MORPH_T 秒で
-# - 関係のない病態へ移るところ（⑥→⑦、⑧→⑨、⑨→⑩、⑩→⑪）：いったん①基準の形にもどしてから（VIA_T 秒で基準へ、
-#   VIA_HOLD 秒そのまま、VIA_T 秒で次の形へ）。「⑥が低Kに変わる」と読まれないように
-# - ⑪のあと：①基準へもどして、最後の画面へ。動画の終わりが冒頭とつながる
+# - 同じ病態の中（①→②→③→④→⑤→⑥ の高K、⑦→⑧ の低K）だけ、次の形へ直接、MORPH_T 秒で
+# - それ以外のつなぎ目（⑥→⑦、⑧→⑨、⑨→⑩、⑩→⑪、⑪→最後）：どのパターンでもない「つなぎ」の洞調律 75/分（NS）を
+#   うすい灰色で描いて通る（VIA_T 秒でつなぎへ、VIA_HOLD 秒そのまま、VIA_T 秒で次の形へ）。そのあいだ「▶ 次の例」を出す
+#   （2026-10-14 専門医レビュー M1 と、第24〜26弾の共通ルール）。前は①基準（60/分・緑）を通っていた
+# - ⑥サイン波 → つなぎ：形を変えずに、サイン波をうすくしてから灰色のつなぎを重ねて出す（XF_T 秒のクロスフェード。
+#   サイン波が⑤のような幅広いQRSにもどりながら正常になる＝「サイン波が自然にもどる」と見えないように）。「▶ 次の例（別の病態）」
+# - ⑪のあと：つなぎを通って①基準（60/分）へもどし、最後の画面へ。動画の終わりが冒頭とつながる
 # 拍の位置は、画面の中央を通った拍の数（位相 Θ）を積み上げて決める：中央の拍は紙送りの速さで流れ、
 # 拍の間隔が変わるとき、中央から離れた拍は少しずつ寄ったり離れたりする（拍が消えたり増えたり、跳んだりしない）
 VO_LEN = {'①': 2.57, '②': 2.77, '③': 3.05, '④': 2.45, '⑤': 2.54, '⑥': 2.89,
@@ -443,13 +452,20 @@ TITLE_VO_END = 4.46                    # 冒頭の文の終わり（0.10＋4.36�
 LEAD = 0.55                            # 名前が出てから話し始めるまで（align_vo.py と同じ）
 NAME_TAIL = 0.35                       # 話し終わってから名前が消えるまで
 MORPH_DELAY, MORPH_T = 0.15, 1.00      # 名前が消えてから形が変わり始めるまで・直接変わる時間
-VIA_T, VIA_HOLD = 0.70, 0.30           # 基準を通るとき：基準へ・基準のまま・次の形へ
+VIA_T, VIA_HOLD = 0.60, 0.50           # つなぎを通るとき：つなぎへ・つなぎのまま・次の形へ
+XF_T = 0.90                            # ⑥サイン波 → つなぎ のクロスフェード
 NAME_AFTER = 0.15                      # 形が変わり終わってから次の名前が出るまで
 DIRECT = {1, 2, 3, 4, 5, 7}            # 前のパターンから直接変わる（進み方）：②〜⑥、⑧
 KIND_RR = {p['kind']: p['rr'] for p in PATTERNS}
 KIND_RR['N'] = RR
+KIND_RR['NS'] = RR_NS
+NEUTRAL_COL = (118, 128, 128)          # つなぎの洞調律：うすい灰色（どのパターンの色でもない）
+NEUTRAL_A = 0.62
+NEXT_LABEL = '▶ 次の例'
+NEXT_LABEL_SW = '▶ 次の例（別の病態）'
 HYPERK = [0, 1, 2, 3, 4, 5]            # 高Kの道（ゲージ用）
-CH_WIN, SHAPE_EV = [], []              # 名前の時間・形が変わる時間 (t0, t1, 前の形, 次の形)
+CH_WIN, SHAPE_EV = [], []              # 名前の時間・形が変わる時間 (t0, t1, 前の形, 次の形, 'morph'／'xf')
+NEXT_WIN = []                          # 「▶ 次の例」を出す時間 (t0, t1, 文字)
 for _i in CHAIN:
     _no = PATTERNS[_i]['no']
     if _i == 0:
@@ -459,17 +475,21 @@ for _i in CHAIN:
         _t0 = CH_WIN[-1][1] + MORPH_DELAY
         _kp, _kn = PATTERNS[_i - 1]['kind'], PATTERNS[_i]['kind']
         if _i in DIRECT:
-            SHAPE_EV.append((_t0, _t0 + MORPH_T, _kp, _kn))
+            SHAPE_EV.append((_t0, _t0 + MORPH_T, _kp, _kn, 'morph'))
             _t1 = _t0 + MORPH_T
         else:
-            SHAPE_EV.append((_t0, _t0 + VIA_T, _kp, 'N'))
-            SHAPE_EV.append((_t0 + VIA_T + VIA_HOLD, _t0 + 2*VIA_T + VIA_HOLD, 'N', _kn))
-            _t1 = _t0 + 2*VIA_T + VIA_HOLD
+            _xf = _kp == 'SW'
+            _d = XF_T if _xf else VIA_T
+            SHAPE_EV.append((_t0, _t0 + _d, _kp, 'NS', 'xf' if _xf else 'morph'))
+            SHAPE_EV.append((_t0 + _d + VIA_HOLD, _t0 + _d + VIA_HOLD + VIA_T, 'NS', _kn, 'morph'))
+            _t1 = _t0 + _d + VIA_HOLD + VIA_T
+            NEXT_WIN.append((_t0, _t1, NEXT_LABEL_SW if _xf else NEXT_LABEL))
         _a = _t1 + NAME_AFTER
         _v = _a + LEAD
     CH_WIN.append((_a, _v + VO_LEN[_no] + NAME_TAIL))
-_t0 = CH_WIN[-1][1] + MORPH_DELAY                      # ⑪のあと：①基準へ
-SHAPE_EV.append((_t0, _t0 + MORPH_T, PATTERNS[-1]['kind'], 'N'))
+_t0 = CH_WIN[-1][1] + MORPH_DELAY                      # ⑪のあと：つなぎを通って①基準へ（「次の例」は出さない）
+SHAPE_EV.append((_t0, _t0 + VIA_T, PATTERNS[-1]['kind'], 'NS', 'morph'))
+SHAPE_EV.append((_t0 + VIA_T + VIA_HOLD, _t0 + 2*VIA_T + VIA_HOLD, 'NS', 'N', 'morph'))
 MORPHS = [(t0, t1) for t0, t1, *_ in SHAPE_EV]
 HK_MORPHS = MORPHS[:len(HYPERK) - 1]                    # ①→②〜⑤→⑥（ゲージ）
 
@@ -482,7 +502,7 @@ def _smooth(u):
 def shape_at(t):
     """動画の時刻 t の形：(前の形, 次の形, まぜる割合 0〜1)。"""
     k = 'N'
-    for t0, t1, ka, kb in SHAPE_EV:
+    for t0, t1, ka, kb, _ in SHAPE_EV:
         if t < t0:
             return k, k, 0.0
         if t < t1:
@@ -491,7 +511,29 @@ def shape_at(t):
     return k, k, 0.0
 
 
+def xf_at(t):
+    """⑥サイン波 → つなぎ のクロスフェード中なら (t0, t1, 進み具合 0〜1)、ちがえば None。"""
+    for t0, t1, ka, kb, mode in SHAPE_EV:
+        if mode == 'xf' and t0 <= t < t1:
+            return t0, t1, (t - t0) / (t1 - t0)
+    return None
+
+
+def neutral_f(t):
+    """帯の色をつなぎの灰色にする割合（0＝ふつう、1＝灰色）。"""
+    ka, kb, w = shape_at(t)
+    if ka == 'NS' and kb == 'NS':
+        return 1.0
+    if kb == 'NS':
+        return w
+    if ka == 'NS':
+        return 1.0 - w
+    return 0.0
+
+
 def rr_at(t):
+    if xf_at(t) is not None:             # クロスフェード：サイン波は固定の位置で描くので、拍の数え方はつなぎの間隔で
+        return KIND_RR['NS']
     ka, kb, w = shape_at(t)
     return KIND_RR[ka] + (KIND_RR[kb] - KIND_RR[ka])*w
 
@@ -515,7 +557,7 @@ def beat_at(t):
     ka, kb, w = shape_at(t)
     if w < 1e-6:
         return KINDS[ka]
-    if w > 1 - 1e-6:
+    if w > 1 - 1e-6 or xf_at(t) is not None:
         return KINDS[kb]
     key = (ka, kb, round(w, 4))
     if key not in _SB:
@@ -787,6 +829,7 @@ SINE_I = 5                         # ⑥サイン波：ゴーストのとがっ�
 GHOST_COL = (226, 236, 236)        # 基準のゴースト：白っぽく、うすく、細く（主役の波形より目立たない）
 GHOST_A = 0.40
 GHOST_W = 2.6
+GHOST_NO_P = {3, 4}                # ④⑤（P波なし）：ゴーストのP波を消す。「P波が見えない」のに うすいP が見えないように
 
 
 def _ghost_spans():
@@ -834,7 +877,10 @@ def chain_arrays(t, cur):
         if not m.any():
             continue
         v[m] += beat(tau[m] - r)
-        g[m] += KINDS['N'](tau[m] - r)
+        if cur in GHOST_NO_P:                # P波のないパターン：ゴーストのP波も出さない（専門医レビュー R3）
+            g[m] += KINDS['N'].part(tau[m] - r, 'qrs', 'st', 't', 'u')
+        else:
+            g[m] += KINDS['N'](tau[m] - r)
         if pure:
             if hl is ALL:
                 cid[m] = cur
@@ -851,6 +897,32 @@ def featured(t, base_col, a, cur=None):
         return draw_wave(v0 + (v1 - v0)*u, c1 if u >= 0.5 else c0, base_col, a)
     v, cid, gv = chain_arrays(t, cur)
     gm = np.ones(len(FX), dtype=bool)
+    xf = xf_at(t)
+    if xf is not None:
+        # ⑥サイン波 → つなぎ：サイン波（その場の位置のまま流れる）をまずうすくし、灰色のつなぎを重ねて出す
+        t0, _, u = xf
+        tc0, th0 = tau_c(t0), theta(t0)
+        tau = tau_c(t) + (FX - XC) / F_PXS
+        k0 = math.floor(th0 + (tau[0] - tc0) / RR_SW) - 2
+        k1 = math.ceil(th0 + (tau[-1] - tc0) / RR_SW) + 2
+        vs = np.zeros_like(tau)
+        for k in range(k0, k1 + 1):
+            r = tc0 + (k - th0)*RR_SW
+            m = (tau - r > WIN[0]) & (tau - r < WIN[1])
+            if m.any():
+                vs[m] += KINDS['SW'](tau[m] - r)
+        a_sw = 1 - ease(u / 0.65)
+        a_ns = ease((u - 0.25) / 0.6)
+        out = Image.new('RGBA', (W, F_Y1 - F_Y0), (0, 0, 0, 0))
+        if a_ns > 0.004:
+            out.alpha_composite(draw_wave(v, np.full(len(FX), -1), NEUTRAL_COL, a*NEUTRAL_A*a_ns))
+        if a_sw > 0.004:
+            out.alpha_composite(draw_wave(vs, np.full(len(FX), -1), base_col, a*a_sw))
+        return out
+    nf = neutral_f(t)
+    if nf > 0:
+        base_col = mix(base_col, NEUTRAL_COL, nf)
+        a = a*(1 - (1 - NEUTRAL_A)*nf)
     out = draw_wave(v, cid, base_col, a)
     if cur is not None and cur >= 1 and cur != SINE_I and ghost_alpha(t) > 0.004:   # ②〜⑪（⑥は除く）：①基準をうすく重ねる
         lay = draw_ghost(gv, gm, a * ghost_alpha(t))
@@ -966,7 +1038,7 @@ HEADER_BASE = 372                   # 見出しのベースライン（y）
 NOTE1 = '実際の速さ（基準の拍は60/分）'
 NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
-END_LINE = '高カリウムは、波形が軽く見えても急変しうる'
+END_LINE = '高カリウムは、どの段階でも急変しうる'      # 2026-10-14 専門医レビュー R1(b)：まとめの声とそろえた
 SAVE_LINE = '保存して見返してね'
 COMMENT_LINE = '何個わかった？コメントで教えてね'
 HOOK_Q = 'この変化、気づける？'
@@ -1046,7 +1118,11 @@ def one_size(pat):
 
 # 高Kの進み具合ゲージ（②〜⑥）。左の余白（ミニ波形の枠の左、x 72〜128）に縦に。Kの数値は書かない
 GAUGE_X, GAUGE_W = 96, 16
-GAUGE_Y0, GAUGE_Y1 = 420, 736          # 上（進む）〜 下（はじめ）。下の字は③の枠の下端（746）より下に置く
+GAUGE_Y0, GAUGE_Y1 = 456, 736          # 上（進む）〜 下（はじめ）。下の字は③の枠の下端（746）より下に置く。
+                                       # 上に見出し「高Kの／心電図／変化」の3行が入るよう 420→456（2026-10-14）
+GAUGE_TITLE = ['高Kの', '心電図', '変化']  # 専門医レビュー R1(c)：Kの値ではなく、心電図の段階であること
+GAUGE_NOTE = '順番どおりとはかぎらない／どの段階でも急変あり'   # 専門医レビュー R1(a)
+GAUGE_NOTE_Y = 778
 K_STAGES = [1, 2, 3, 4, 5]             # ②〜⑥ のパターン番号（0始まり）
 
 
@@ -1078,8 +1154,10 @@ def draw_gauge(im, t, a):
         glow = lay.filter(ImageFilter.GaussianBlur(6))
         im.alpha_composite(glow)
     im.alpha_composite(lay)
-    put(im, '高K', 21, 800, C_K1, cx=GAUGE_X, cy=GAUGE_Y0 - 54, a=a)
+    for k, s_ in enumerate(GAUGE_TITLE):
+        put(im, s_, 19, 800, C_K1, cx=GAUGE_X + 2, cy=GAUGE_Y0 - 104 + 23*k, a=a)
     put(im, '進む', 20, 700, C_K3 if lev > 0.999 else GREY, cx=GAUGE_X, cy=GAUGE_Y0 - 22, a=a)
+    put(im, GAUGE_NOTE, 22, 700, (214, 222, 222), x=135, cy=GAUGE_NOTE_Y, a=a*0.9)
     # 「はじめ」は3字で幅があるので、左72px以上・枠の下（y 750 より下）に置く
     w0 = text_img('はじめ', 19, 700, GREY)[0].size[0] - 8
     put(im, 'はじめ', 19, 700, GREY, cx=max(GAUGE_X, 73 + w0/2), cy=GAUGE_Y1 + 28, a=a)
@@ -1101,10 +1179,10 @@ PQRST_LABELS = [
 LABEL_X0, LABEL_X1, LABEL_FADE = 210, 870, 80   # 拍のR頂点がこの範囲にあるときだけ（端は LABEL_FADE px でうすく）
 
 
-def _label_img(ch, col):
-    k = ('lab', ch, col)
+def _label_img(ch, col, size=WAVE_LABEL_SIZE):
+    k = ('lab', ch, col, size)
     if k not in _TXT:
-        f = font(WAVE_LABEL_SIZE, 900)
+        f = font(size, 900)
         x0, y0, x1, y1 = f.getbbox(ch, stroke_width=5)
         im = Image.new('RGBA', (x1 - x0 + 8, y1 - y0 + 8), (0, 0, 0, 0))
         ImageDraw.Draw(im).text((4 - x0, 4 - y0), ch, font=f, fill=col + (255,),
@@ -1113,10 +1191,10 @@ def _label_img(ch, col):
     return _TXT[k]
 
 
-def put_label(base, ch, x, y, a):
+def put_label(base, ch, x, y, a, size=WAVE_LABEL_SIZE):
     if a <= 0.004:
         return
-    im = _label_img(ch, WAVE_LABEL_COL[ch])
+    im = _label_img(ch, WAVE_LABEL_COL[ch], size)
     if a < 0.999:
         im = im.copy(); im.putalpha(im.getchannel('A').point(lambda q: int(q*a)))
     base.alpha_composite(im, (int(x - im.size[0]/2), int(y - im.size[1]/2)))
@@ -1135,10 +1213,10 @@ def draw_wave_labels(im, t, cur, a):
         if not (LABEL_X0 - LABEL_FADE < xr < LABEL_X1 + LABEL_FADE):
             continue
         ae = a * cl((xr - (LABEL_X0 - LABEL_FADE)) / LABEL_FADE) * cl(((LABEL_X1 + LABEL_FADE) - xr) / LABEL_FADE)
-        for ch, dt, dy in LABELED[cur](k):
+        for ch, dt, dy, *sz in LABELED[cur](k):
             xl = xr + dt*F_PXS
             if 96 <= xl <= W - 96:               # 文字が左右の安全域（72px）の内側に入るときだけ
-                put_label(im, ch, xl, F_BASE + dy, ae)
+                put_label(im, ch, xl, F_BASE + dy, ae, *sz)
 
 
 def _u_label(k):
@@ -1150,7 +1228,15 @@ def _u_label(k):
     return [('U', float(tt[j]), -float(st_t[j])*F_MV - 32)]
 
 
-LABELED = {0: lambda k: PQRST_LABELS, 6: _u_label, 7: _u_label}   # ①、⑦⑧
+def _t_label(k):
+    """低いT波の頂点の上に、小さめ（28px）の「T」（⑦。T と U が同じくらいの高さで並ぶので。専門医レビュー R4）。"""
+    tt = np.arange(0.15, 0.36, 0.002)
+    v = KINDS[k].part(tt, 'st', 't')
+    j = int(np.argmax(v))
+    return [('T', float(tt[j]), -float(v[j])*F_MV - 28, 28)]
+
+
+LABELED = {0: lambda k: PQRST_LABELS, 6: lambda k: _t_label(k) + _u_label(k), 7: _u_label}   # ①、⑦（T・U）、⑧（U）
 
 
 def frame(t):
@@ -1220,6 +1306,12 @@ def frame(t):
             a=ramp(t, T_END + FLY + 1.8, 0.6)*keep)
         put(im, COMMENT_LINE, 30, 700, (255, 214, 64), cx=540, cy=END_Y[2],
             a=ramp(t, T_END + FLY + 2.4, 0.6)*keep)
+
+    # 病態が変わるつなぎ目：「▶ 次の例」（つなぎの灰色の洞調律を通るあいだ）
+    for n0, n1, lbl in NEXT_WIN:
+        if n0 <= t < n1 + 0.1:
+            a_n = ramp(t, n0 + 0.4, 0.25) * (1 - ramp(t, n1 - 0.2, 0.25))   # ⑥のあとはゲージ・注記が消えてから
+            put(im, lbl, 34, 700, (176, 186, 186), cx=540, cy=Y_NAME, a=a_n*keep)
 
     # 中部の波形：紹介が終わった瞬間に、見えている波形がそのまま縮んで枠へ移る。
     # 中部の帯はそのあいだ消して、次のパターンの途中から戻す。
@@ -1470,6 +1562,9 @@ def beeps(path, sr=44100):
         j = int(np.searchsorted(_TH, kk))
         if 0 < j < len(_TG):
             ts = _TG[j]
+            xf = xf_at(ts)
+            if xf is not None and xf[2] < 0.5:      # サイン波がうすくなるあいだは鳴らさない（見えている拍とずれるので）
+                continue
             ev.append((ts, beat_at(ts).wide))
     for ts, wide in ev:
         if not (0.0 <= ts <= DUR - 0.3) or (T_STOP <= ts < T_GO):
