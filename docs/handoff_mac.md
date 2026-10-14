@@ -25,6 +25,9 @@ for d in reel24_tachy reel25_lytes reel26_afl reel28_st; do cp -R reel21_arrest/
 - 第21弾の作り直し：v3（場面ごと＋キャラクター）・v4（切りかえなし・大きくゆっくり＋まとめの表）は**保留**（2026-10-12、ユーザー「今のままではクオリティが足りない。他を優先」）。
   再開するときは `reel21_v4/`（最新）から。録音・AI専門医レビューはまだ
 
+- 2026-10-14：第24・25・26弾は「帯を消さずにその場で形が変わる」作りに直し、Claude の AI専門医レビュー（各回 `review_result_1014-*.md`）の直しも入れた。
+  Gemini には、各回の `release/review_*_frames.pdf` と `review_request.md`（どちらも 10-14 に作り直した最新版）を渡す
+
 ## 3. 次にやること：第24〜27弾の Gemini ダブルチェック（Chrome）
 1. Chrome で https://gemini.google.com を開く（ユーザーのアカウントでログイン済み）。モデルを **Pro**・**Deep Think** にする
 2. 1本ずつ、新しいチャットで：PDF を添付し、依頼文の全文を貼って送る
