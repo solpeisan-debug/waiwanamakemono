@@ -366,7 +366,7 @@ def main():
         lines.append(f"    心拍数カウンター：{' '.join(str(x) for x in hr_list(i))} /分")
     lines += ['', f'[④⑤ カウンターの下] {m.CNT_SUB_IRREG}', f'[⑧ 少しずつのところ・カウンターの下] {m.CNT_SUB_GRAD}',
               '', f'[最後] {m.END_1} ／ {m.END_2} ／ {m.END_3}',
-              f'[左下] {m.NOTE1} ／ {m.NOTE2}', '[右下] @nurse_polarbearden（透かし）']
+              f'[左下] {m.NOTE1} ／ {m.NOTE2}', '[中部の波形の上・まん中] @nurse_polarbearden（透かし・白16%）']
     txt = os.path.join(OUT, 'screen_text_reel24.txt')
     with open(txt, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines) + '\n')

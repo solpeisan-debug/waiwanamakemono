@@ -1158,6 +1158,9 @@ ASK_END = 1.0                        # 冒頭の問いかけを消しはじめ�
 NOTE1 = '実際の速さ（II誘導・25mm/秒）'
 NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
+# 透かしの位置：字の上端が中部の帯の基線の約140px上（R頂点の高さ）。ひとこと（下端 928）と 29px、
+# 心拍数カウンター（上端 1157）とも離れる
+WM_CY = int(F_BASE - 113)
 
 
 def current(t):
@@ -1386,7 +1389,9 @@ def frame(t):
 
     put(im, NOTE1, 24, 400, GREY, x=135, cy=NOTE_Y[0], a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, NOTE2, 24, 400, GREY, x=135, cy=NOTE_Y[1], a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
+    # 透かし：シリーズ共通（2026-10-21）。まん中・64px太字・白16%。中部の波形の帯の上に重ねる（切り取られないように）。
+    # 動かさない。うすいので波形は隠れない。サムネイルには入れない
+    put(im, WATERMARK, 64, 800, WHITE, cx=540, cy=WM_CY, a=0.16)
     return im.convert('RGB')
 
 

@@ -1038,6 +1038,8 @@ HEADER_BASE = 372                   # 見出しのベースライン（y）
 NOTE1 = '実際の速さ（基準の拍は60/分）'
 NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
+# 透かしの位置：字の上端が中部の帯の基線の約140px上（R頂点の高さ）。ひとこと（下端 912）と 25px あける
+WM_CY = int(F_BASE - 117)
 END_LINE = '高カリウムは、どの段階でも急変しうる'      # 2026-10-14 専門医レビュー R1(b)：まとめの声とそろえた
 SAVE_LINE = '保存して見返してね'
 COMMENT_LINE = '何個わかった？コメントで教えてね'
@@ -1324,6 +1326,10 @@ def frame(t):
     base_col = mix(PURPLE, WAVE_GREEN, ramp(t, T_GO - 0.4, 0.8)*keep)
     if a_strip > 0.01:
         im.alpha_composite(featured(t, base_col, a_strip, cur), (0, F_Y0))
+    # 透かし：シリーズ共通（2026-10-21）。まん中・64px太字・白16%。中部の波形の帯の上に重ねる（切り取られないように）。
+    # 動かさない。うすいので波形は隠れない。波の名前（P・Q・R・S・T・U）はこの上に描く。サムネイルには入れない
+    put(im, WATERMARK, 64, 800, WHITE, cx=540, cy=WM_CY, a=0.16)
+    if a_strip > 0.01:
         if cur is not None and cur in LABELED:     # 波の名前：名前が出てから、紹介の終わりの少し前まで
             a_i, b_i = WINDOWS[cur]
             draw_wave_labels(im, t, cur, a_strip * ramp(t, a_i + 0.5, 0.4) * (1 - ramp(t, b_i - 0.45, 0.3)))
@@ -1334,7 +1340,6 @@ def frame(t):
 
     put(im, NOTE1, 24, 400, GREY, x=135, cy=1561, a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, NOTE2, 24, 400, GREY, x=135, cy=1588, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
     return im.convert('RGB')
 
 

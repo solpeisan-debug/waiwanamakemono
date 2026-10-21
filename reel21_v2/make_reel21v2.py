@@ -983,6 +983,9 @@ NOTE1 = '実際の速さ（25mm/秒）'
 NOTE2 = '※数値はこの波形での一例'
 NOTE_CY = (1560, 1586)              # 注記の字の中心（字は y 1549〜1599。下の枠の下端 1544 と、y 1600 のあいだ）
 WATERMARK = '@nurse_polarbearden'
+# 透かし（シリーズ共通・2026-10-21）：まん中・大きく（64px・太字）・白 16%。中部の帯の上に置き、切り取られないようにする
+WM_SIZE, WM_WEIGHT, WM_A = 64, 800, 0.16
+WM_CY = int(round(F_BASE - 150))            # 仮
 MARGIN = 130
 
 
@@ -1155,7 +1158,7 @@ def frame(t, watermark=True):
     put(im, NOTE1, 24, 400, GREY, x=135, cy=NOTE_CY[0], a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, NOTE2, 24, 400, GREY, x=135, cy=NOTE_CY[1], a=0.85*ramp(t, T_GO, 0.5)*keep)
     if watermark:
-        put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=1576, a=0.42)
+        put(im, WATERMARK, WM_SIZE, WM_WEIGHT, WHITE, cx=XC, cy=WM_CY, a=WM_A)
     return im.convert('RGB')
 
 

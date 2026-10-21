@@ -637,6 +637,10 @@ COUNT_NOTE = '正解の数を数えてね'
 NOTE1 = '※II誘導のモニター（実際の速さ）'
 NOTE2 = '※数値はこの波形での一例'
 WATERMARK = '@nurse_polarbearden'
+# 透かし（シリーズ共通・2026-10-21）：まん中・大きく（64px・太字）・白 16%。中部の帯の上（基線の約150px上）に置き、
+# 切り取られないようにする。問題・ヒント・答え・冒頭と最後の字とは重ならない位置（字は y 890 まで、透かしは 935〜1000）
+WM_SIZE, WM_WEIGHT, WM_A = 64, 800, 0.16
+WM_CY = int(round(F_BASE - 150))            # 958
 
 
 def cell_rect(i):
@@ -1229,7 +1233,7 @@ def frame(t):
 
     put(im, NOTE1, 24, 400, GREY, x=135, cy=1554, a=0.85*ramp(t, T_GO, 0.5)*keep)
     put(im, NOTE2, 24, 400, GREY, x=135, cy=1580, a=0.85*ramp(t, T_GO, 0.5)*keep)
-    put(im, WATERMARK, 28, 500, WHITE, right=W - 184, cy=1570, a=0.42)
+    put(im, WATERMARK, WM_SIZE, WM_WEIGHT, WHITE, cx=540, cy=WM_CY, a=WM_A)
     return im.convert('RGB')
 
 

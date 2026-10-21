@@ -369,7 +369,7 @@ def main():
               '[波形の下] R-R のものさし（拍と拍のあいだの横棒。左に「R-R」。⑤⑧は端で切れる棒もうすく描く）',
               '[帯の左上] ♥ NNN /分（拍が中央を通るたびに変わる。後ろに暗い板。形が変わるあいだは「--」）',
               '', f'[最後] {m.END_LINES[0]} ／ {m.END_LINES[1]} ／ 保存して見返してね　→ {m.END_SWAP:.1f}秒後に上の2行が「{m.COMMENT}」（黄・42px）に入れかわる',
-              f'[左下] {m.NOTE1} ／ {m.NOTE2}', '[右下] @nurse_polarbearden（透かし）']
+              f'[左下] {m.NOTE1} ／ {m.NOTE2}', '[帯の中央・基線とものさしのあいだ] @nurse_polarbearden（透かし・白16%・64px。全コマ同じ位置）']
     txt = os.path.join(OUT, 'screen_text_reel26.txt')
     with open(txt, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines) + '\n')
