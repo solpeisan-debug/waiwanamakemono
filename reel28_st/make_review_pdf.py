@@ -223,7 +223,7 @@ Q10「ねじれる、トルサード。持続して脈がなければ、ショ�
         lines.append(f"[{m.T_HINT[i]:5.1f}〜{m.T_REV[i]:5.1f}秒] {p['no']} これは？（時間のリング。最後の3秒だけ数字 3・2・1） ／ ヒント：{p['hint']}（紫）")
         lines.append(f"[{m.T_REV[i]:5.1f}〜{b:5.1f}秒] {p['name']} ／ {p['one']} ／ {p['guide']}（{LEVEL_JA[p['level']]}） ／ 枠：{p['no']} {p['name']}")
     lines += ['', f'[最後] {m.END_Q}（黄） ／ {m.END_SAVE}（緑）',
-              f'[左下] {m.NOTE1} ／ {m.NOTE2}', '[右下] @nurse_polarbearden（透かし）']
+              f'[左下] {m.NOTE1} ／ {m.NOTE2}', f'[中央・帯の上] {m.WATERMARK}（透かし。64px・白16%・どのコマも同じ位置）']
     txt = os.path.join(OUT, 'screen_text_reel28_quiz.txt')
     with open(txt, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines) + '\n')

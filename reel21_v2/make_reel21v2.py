@@ -983,9 +983,12 @@ NOTE1 = '実際の速さ（25mm/秒）'
 NOTE2 = '※数値はこの波形での一例'
 NOTE_CY = (1560, 1586)              # 注記の字の中心（字は y 1549〜1599。下の枠の下端 1544 と、y 1600 のあいだ）
 WATERMARK = '@nurse_polarbearden'
-# 透かし（シリーズ共通・2026-10-21）：まん中・大きく（64px・太字）・白 16%。中部の帯の上に置き、切り取られないようにする
+# 透かし（シリーズ共通・2026-10-21）：まん中・大きく（64px・太字）・白 16%。中部の帯の上に置き、切り取られないようにする。
+# 字の上下は cy-23〜cy+42。基線の約150px上（cy 856）だと最後の5か所の一覧（③④）に、基線のすぐ上（cy 976）だと
+# 最後の問いかけに重なるので、帯の下のほう（基線の下 133px）に置く：最後の「保存して見返してね」（下端 1112）と、
+# 下のかたまりの見出し「③ T波の上」（上端 1186）のあいだ。名前・次の対応・冒頭の字とも重ならない
 WM_SIZE, WM_WEIGHT, WM_A = 64, 800, 0.16
-WM_CY = int(round(F_BASE - 150))            # 仮
+WM_CY = F_BASE + 133                        # 1139（字は 1116〜1181）
 MARGIN = 130
 
 
@@ -1330,6 +1333,19 @@ def check():
     end_bot = text_box(END_SAVE, 40, 800, END_Y_SAVE)[1]
     print(f'最後：保存の字の下端 {end_bot}（下の枠 {_BOT_TOP}）')
     ok &= end_bot <= _BOT_TOP - 20
+    # 透かし：ほかの字と重ならない（どのコマも同じ位置）
+    wm = text_box(WATERMARK, WM_SIZE, WM_WEIGHT, WM_CY)
+    boxes = [text_box(s, ACT_SZ, 600, cy) for p in PATTERNS for s, _, cy, _ in act_layout(p)[0]]
+    boxes += [text_box(p['name'], NAME_SZ, 900, Y_NAME, max_w=820) for p in PATTERNS]
+    boxes += [text_box(p['name'], 48, 900, HOOK_NAME_CY, max_w=820) for p in PATTERNS]
+    boxes += [text_box(f"{p['no']} {p['name']}", END_SZ, 800, END_Y0 + k*END_PITCH) for k, p in enumerate(PLACES)]
+    boxes += [text_box(END_ASK, 36, 700, END_Y_ASK, max_w=W - 2*170), text_box(END_SAVE, 40, 800, END_Y_SAVE)]
+    boxes += [text_box(head_text(pl), HEAD_SZ, 800, y + HEAD_CY) for pl, y in HEAD_TOP.items()]
+    hit = [b for b in boxes if b[0] <= wm[1] and b[1] >= wm[0]]
+    gap = min(min(abs(wm[0] - b[1]), abs(b[0] - wm[1])) for b in boxes)
+    print(f'透かし：cy {WM_CY}、字 {wm[0]}〜{wm[1]}（帯 {F_Y0}〜{F_Y1}）、ほかの字とのすき間 最小 {gap}px'
+          + ('' if not hit else f'  ← 重なる {hit}'))
+    ok &= not hit and F_Y0 <= wm[0] and wm[1] <= F_Y1 + 2
     # ミニ波形が枠に収まるか
     for i, pat in enumerate(PATTERNS):
         rel = np.arange(0, pat['L'], 0.002)

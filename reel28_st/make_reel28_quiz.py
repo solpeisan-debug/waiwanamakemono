@@ -1392,6 +1392,28 @@ def check():
         hl = '全体' if pat['hint_hl'] is ALL else '・'.join(f'{x:.2f}〜{y:.2f}' for x, y in pat['hint_hl'])
         print(f"  {pat['no']:>3} 「ヒント：{pat['hint']}」 {text_w('ヒント：' + pat['hint'], 36, 800)}px  色：{hl}")
     print('枠の名前（上限 370px）：', ', '.join(f"{p['no']} {text_w(p['no'] + ' ' + p['name'], 22, 700)}" for p in PATTERNS))
+    # 透かし：問題・ヒント・答え・冒頭と最後の字と重ならない（どのコマも同じ位置）
+    def ink(s, size, weight, cy, max_w=None):
+        im, asc = text_img(s, size, weight, WHITE, max_w)
+        bb = im.getchannel('A').getbbox()
+        py = int(cy - 4 - asc*0.62)
+        return py + bb[1], py + bb[3]
+    boxes = []
+    for pat in PATTERNS:
+        up = NOTE_UP if pat['note'] else (0, 0, 0)
+        boxes += [ink(pat['name'], 50, 900, Y_NAME - up[0], 820), ink(pat['one'], 30, 500, Y_ONE - up[1], 820),
+                  ink(pat['guide'], 28, 800, Y_GUIDE - up[2], 820), ink('ヒント：' + pat['hint'], 36, 800, Y_HINT, 820),
+                  ink(pat['no'], 52, 900, Y_NAME)]
+        if pat['note']:
+            boxes.append(ink(pat['note'], 24, 700, Y_GUIDE - up[2] + NOTE_DY, 820))
+    boxes += [ink('これは？', 56, 900, Y_NAME), ink(COUNT_NOTE, 24, 500, Y_HINT), (int(Y_RING - RING_R), int(Y_RING + RING_R)),
+              ink(HOOK_Q, 72, 900, 520, 880), ink(TITLE_SUB, 36, 500, 670), ink(TITLE, 150, 900, 800, 880),
+              ink(END_Q, 52, 900, 803, 820), ink(END_SAVE, 44, 700, 866), ink(NOTE1, 24, 400, 1554), (_BOT_TOP, _BOT_TOP)]
+    wm = ink(WATERMARK, WM_SIZE, WM_WEIGHT, WM_CY)
+    hit = [b for b in boxes if b[0] <= wm[1] and b[1] >= wm[0]]
+    gap = min(min(abs(wm[0] - b[1]), abs(b[0] - wm[1])) for b in boxes)
+    print(f'透かし：cy {WM_CY}（基線 {F_BASE:.0f} の 150px 上）、字 {wm[0]}〜{wm[1]}（帯 {F_Y0}〜{F_Y1}）、'
+          f'ほかの字・枠とのすき間 最小 {gap}px' + ('' if not hit else f'  ← 重なる {hit}'))
 
 
 # =====================================================================================

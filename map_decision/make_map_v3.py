@@ -409,6 +409,10 @@ NOTE_CY, WM_CY = ((1566, 1592), 1576)
 NOTE3_SZ, NOTE3_CY = 24, (1522, 1553, 1584)
 if MAP == 3:
     WM_CY = NOTE3_CY[1]
+# ③の透かし（2026-10-21 シリーズ共通の形に変更。①②は投稿済みなので右下 28px のまま）：
+# 切り取られないよう、マップのまん中（「心房細動＋脚ブロック」のカードの波形の上）に置く。字の上下は cy-23〜cy+41。
+# そのカードの字（〜911）と、下のカード「心房細動＋WPW」の字（975〜）のあいだにちょうど入る高さ（934〜937 なら、どの字・質問の箱の字とも重ならない）
+WM3_SIZE, WM3_WEIGHT, WM3_A, WM3_CY = 64, 800, 0.16, 935
 
 
 def draw_notes3(im):
@@ -451,8 +455,11 @@ def frame(t, wm=True, highlight=True):
     else:
         put(im, CFG['notes'][0], 20, 400, (150, 160, 162), x=135, cy=NOTE_CY[0], max_w=470)
         put(im, CFG['notes'][1], 20, 400, (150, 160, 162), x=135, cy=NOTE_CY[1], max_w=470)
-    if wm:
-        put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=WM_CY, a=0.42)
+    if wm and MAP == 3:
+        # ③：シリーズ共通の透かし（2026-10-21）。中央・64px・太字・白 16%・どのコマも同じ位置
+        put(im, WATERMARK, WM3_SIZE, WM3_WEIGHT, WHITE, cx=540, cy=WM3_CY, a=WM3_A)
+    elif wm:
+        put(im, WATERMARK, 28, 500, WHITE, right=W - 130, cy=WM_CY, a=0.42)   # ①②は投稿済みなので前のまま
     return im.convert('RGB')
 
 

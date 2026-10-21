@@ -217,7 +217,7 @@ def main():
                      + ' ／ '.join(s for s, _ in pat['lines']) + f" ／ 枠：{m.cell_title(pat)}")
     lines += ['', '[最後] ' + ' ／ '.join(f"{p['no']} {p['name']}" for p in m.PLACES)
               + f' ／ {m.END_ASK} ／ {m.END_SAVE}（緑）',
-              f'[左下] {m.NOTE1} ／ {m.NOTE2}', f'[右下] {m.WATERMARK}（透かし）']
+              f'[左下] {m.NOTE1} ／ {m.NOTE2}', f'[中央・帯の下のほう] {m.WATERMARK}（透かし。64px・白16%・どのコマも同じ位置）']
     p = os.path.join(OUT, 'screen_text_reel21v2.txt')
     with open(p, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines) + '\n')
