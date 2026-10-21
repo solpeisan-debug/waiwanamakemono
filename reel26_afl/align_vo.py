@@ -12,6 +12,8 @@
     python3 align_vo.py out/vo/narration_raw.mp3 --mux --hq # 高画質版（out/reel26_afl_hq.mp4）に入れる
     python3 align_vo.py out/vo/narration_raw.wav --fix out/vo/fix_1014_x1.2.mp3 --mux        # 2026-10-14〜（③・まとめを録り直し）
     python3 align_vo.py out/vo/narration_raw.wav --fix out/vo/fix_1014_x1.2.mp3 --mux --hq
+    python3 align_vo.py out/vo/narration_raw.wav --fix out/vo/fix_1014_x1.2.mp3 --fix2 out/vo/fix_1021_x1.2.mp3 --mux [--hq]
+        # 2026-10-21〜（冒頭も録り直し）
         # 録り直した文（FIX_LINES）だけ、--fix のファイルから差し替える
 """
 import argparse
@@ -31,7 +33,7 @@ SR = 44100
 # 2026-10-07 の録音（narration_raw.wav＝narration_orig.mp3 を atempo=1.2 で1.2倍速、65.68秒）で 28 かたまり。
 # Whisper（faster-whisper small）の書き起こしで、順番と中身を確かめた。
 LINES = [
-    ('冒頭', [1, 2]),          # 心房細動と心房粗動。／まず覚えたいのは、この14パターン。
+    ('冒頭', [1, 2]),          # 心房細動と心房粗動。／まず覚えたいのは、この14パターン。（2026-10-21 録り直し → FIX2_LINES）
     ('①', [3, 4]),             # 洞調律から急にバラバラ。／心房細動の始まり。
     ('②', [5, 6]),             # P波がなく、R-Rがバラバラ。／f波の粗い心房細動。
     ('③', [7]),                # 平らでも、R-Rがバラバラなら心房細動。
@@ -56,10 +58,15 @@ FIX_LINES = {
     '③': [1, 2],               # 平らに見えても、／P波がなくR-Rがバラバラなら細動。
     'まとめ': [3, 4, 5],       # のこぎりがあれば粗動。／なくて、／R-Rがバラバラなら細動。
 }
+# 2026-10-21 冒頭の言い方を変えた（ユーザー「まず覚えたい、は範囲が広い。知っておくと慌てない、のように」）：
+# out/vo/fix_1021_x1.2.mp3（同じ声、atempo=1.2 済み）。--fix2 で渡す
+FIX2_LINES = {
+    '冒頭': [1, 2, 3],         # 心房細動と心房粗動。／知っておけば慌てない、／14パターン。（4テイクから、読みがはっきりした4つ目）
+}
 # 文の中の息継ぎ（無音）を、この長さまで縮める（離脱を防ぐ）。録音が届いたら間の長さを見て決める
 GAP_CAP = {n: 0.45 for n, _ in LINES}
 TEXT = {
-    '冒頭': '心房細動と心房粗動。まず覚えたいのは、この14パターン。',
+    '冒頭': '心房細動と心房粗動。知っておけば慌てない、14パターン。',
     '①': '洞調律から急にバラバラ。心房細動の始まり。',
     '②': 'P波がなく、R-Rがバラバラ。f波の粗い心房細動。',
     '③': '平らに見えても、P波がなくR-Rがバラバラなら細動。',
@@ -147,6 +154,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('src')
     ap.add_argument('--fix', help='録り直した文のファイル（FIX_LINES の文を差し替える）')
+    ap.add_argument('--fix2', help='2026-10-21 に録り直した文のファイル（FIX2_LINES の文を差し替える）')
     ap.add_argument('--mux', action='store_true')
     ap.add_argument('--hq', action='store_true', help='高画質版（out/reel26_afl_hq.mp4）に入れる。音声 320k')
     o = ap.parse_args()
@@ -165,6 +173,13 @@ def main():
         assert len(fb) == max(max(ix) for ix in FIX_LINES.values()), f'録り直しの声のかたまりが {len(fb)} 個'
         fa = load(o.fix)
         for name, ix in FIX_LINES.items():
+            segs[name] = cut(fa, fb, ix, GAP_CAP.get(name))
+            lens[name] = len(segs[name]) / SR
+    if o.fix2:
+        fb = speech_blocks(o.fix2, min_len=0.05)
+        assert len(fb) == max(max(ix) for ix in FIX2_LINES.values()), f'録り直し（10-21）の声のかたまりが {len(fb)} 個'
+        fa = load(o.fix2)
+        for name, ix in FIX2_LINES.items():
             segs[name] = cut(fa, fb, ix, GAP_CAP.get(name))
             lens[name] = len(segs[name]) / SR
     starts = plan(lens)

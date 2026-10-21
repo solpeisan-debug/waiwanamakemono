@@ -1,4 +1,4 @@
-"""第26弾 心房細動・心房粗動 まず覚えたい14パターン（第21弾と同じ作り＋この回だけの見せ方）
+"""第26弾 心房細動・心房粗動 知っておけば慌てない14パターン（第21弾と同じ作り＋この回だけの見せ方）
 
 配置：
 - 上部：①〜⑧ のミニ波形（2列×4段。心房細動のはじまり → f波 → 心拍数 → QRSの形）
@@ -1781,9 +1781,9 @@ def thumbnail_list():
         if r < NR - 1:
             d.line([(x0, y + RH - 1), (x1, y + RH - 1)], fill=(38, 54, 48, 255), width=1)
     by = Y0 + NR*RH + 24
-    d.rounded_rectangle([(230, by), (850, by + 96)], radius=18, fill=(16, 22, 21, 255),
+    d.rounded_rectangle([(190, by), (890, by + 96)], radius=18, fill=(16, 22, 21, 255),
                         outline=(70, 84, 80, 255), width=2)
-    parts = [('まず覚えたい', 40, WHITE), (str(N_PAT), 72, YEL), ('パターン', 40, WHITE)]
+    parts = [('知っておけば慌てない', 40, WHITE), (str(N_PAT), 72, YEL), ('パターン', 40, WHITE)]   # 2026-10-21 「まず覚えたい」から変えた
     ims = [text_img(t, sz, 900, col) for t, sz, col in parts]
     tw = sum(a.size[0] - 8 for a, _ in ims) + 8
     x = 540 - tw/2
