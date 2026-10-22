@@ -1,0 +1,1026 @@
+"""第29弾 心筋梗塞の場所（ST上昇の誘導 → 梗塞の場所 → 責任冠動脈）6パターン ― 試作（静止画まで）
+
+配置（1080×1920・60fps。文字は左右130px・上300px・下1600px の内側）：
+- 上（y 300〜360）：見出し「心筋梗塞の場所 6パターン」（冒頭0〜2.4秒は問いかけ）
+- 上部（y 372〜1100）：実際の12誘導の並び（3段×4列：I aVR V1 V4 ／ II aVL V2 V5 ／ III aVF V3 V6）。
+  各誘導は1拍だけ（25mm/秒・10mm/mV、方眼は1mm＝14px の正方形＝紙と同じ。拡大なし）。
+  ST上昇の誘導は ST の部分を赤く塗り、鏡像の ST低下は青く塗る。誘導名も同じ色。
+  4段め（追加の誘導）は、右室（V4R）・後壁（V7〜V9）のときだけ出る。ふだんは色の見かた（凡例）を置く
+- 中（y 1100〜1230）：パターンの名前と責任血管、看護の1行「→ 〜」
+- 下（y 1240〜1600）：心臓の輪切り（左室の短軸＋右室の三日月）。中隔・前壁・側壁・後壁・下壁・右室。
+  まわりに「どの誘導がその壁を見ているか」の誘導名。梗塞の壁を赤く塗り、責任血管（LAD・LCx・RCA）の線を光らせる
+- 透かし：中央・64px・太さ800・白16%。4段め（追加の誘導）の基線の下（どの文字とも重ならない高さ）。全コマ同じ位置
+
+形の変わり方（シームレス）：12誘導の枠と輪切りの図は消さない。ST・T・R の高さ、壁の塗り、誘導名の色を
+数値で補間して、その場で形を変える。別のパターンへは、いったん灰色の「正常」にもどして（▶ 次の例）から次へ。
+④下壁 → ⑤右室 だけは直接（右室梗塞は下壁梗塞に加わって起こる。LITFL：isolated RV infarction is extremely uncommon）。
+
+使い方:
+    python3 make_reel29.py --check          # 検算（タイムライン・字の幅・安全域・重なり・波形の高さ）
+    python3 make_reel29.py --still 1.2 40   # 1コマずつ（out/still_XXX.X.png）
+    python3 make_reel29.py --sheet          # 確認用の5枚と、5枚を並べた一覧（out/）
+"""
+import argparse
+import math
+import os
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+W, H = 1080, 1920
+SAFE_L, SAFE_R, SAFE_T, SAFE_B = 130, W - 130, 300, 1600
+IG_ZONE = (900, 1100, W, 1600)            # 右下：インスタのボタン（大事な文字を置かない）
+
+# --- 色（第26弾にそろえる） ---------------------------------------------------------
+BG = (2, 7, 6)
+G_MINOR = (10, 21, 17)
+G_MAJOR = (27, 46, 38)
+WHITE = (236, 241, 240)
+GREY = (150, 160, 162)
+LABEL_GREY = (176, 188, 186)            # ふだんの誘導名
+TOKEN_DIM = (104, 118, 116)             # 輪切りのまわりの誘導名（関係ないとき）
+DIM = (70, 82, 82)
+PURPLE = (178, 150, 240)
+GREEN = (130, 232, 172)
+YELLOW = (255, 214, 64)
+WAVE_GREEN = (40, 214, 128)
+NEUTRAL_COL = (118, 126, 128)           # 「つなぎ」の正常（灰色）
+RED = (255, 84, 84)                     # ST上昇
+BLUE = (96, 156, 255)                   # 鏡像の ST低下
+C_LAD = (255, 190, 70)                  # 左前下行枝
+C_LCX = (196, 150, 255)                 # 回旋枝
+C_RCA = (64, 214, 200)                  # 右冠動脈
+VES_COL = {'LAD': C_LAD, 'LCX': C_LCX, 'RCA': C_RCA}
+VES_NAME = {'LAD': 'LAD', 'LCX': 'LCx', 'RCA': 'RCA'}
+
+FONT = os.environ.get('REEL_FONT', os.path.join(HERE, 'fonts', 'NotoSansJP.ttf'))
+
+# --- 紙の目盛り（第24弾〜と同じ：1mm＝14px、25mm/秒、10mm/mV） ------------------------
+PXMM = 14.0
+PXS = 25 * PXMM                          # 実際の1秒 = 350px
+PXMV = 10 * PXMM                         # 1mV = 140px
+
+# --- 12誘導の枠 ---------------------------------------------------------------------
+LAYOUT = [['I', 'aVR', 'V1', 'V4'],
+          ['II', 'aVL', 'V2', 'V5'],
+          ['III', 'aVF', 'V3', 'V6']]
+EXTRA = {'V4R': 0, 'V7': 1, 'V8': 2, 'V9': 3}   # 4段め（追加の誘導）の列
+PANEL_X0, COL_W = 100, 230               # 4列 × 230px（＝0.657秒。1拍がちょうど入る）
+ROW_TOP0, ROW_PITCH, ROW_UP = 372, 182, 112      # 段の上端・段の間隔（13mm）・段の上端→基線
+BASES = [ROW_TOP0 + ROW_UP + k*ROW_PITCH for k in range(4)]   # 基線 484, 666, 848, 1030（4段め＝追加の誘導）
+PANEL_Y1 = BASES[3] + 70
+TAU0 = -0.24                             # 枠の左端の時刻（R頂点＝0）。R は枠の左から 84px
+TAU1 = TAU0 + COL_W / PXS
+WALL_LABEL_DX = 112                      # まとめ：枠の中の壁の名前（R波の右）
+
+
+def col_x(c):
+    return PANEL_X0 + c*COL_W
+
+
+def lead_cell(name):
+    """誘導の (列, 段)。"""
+    for r, row in enumerate(LAYOUT):
+        if name in row:
+            return row.index(name), r
+    return EXTRA[name], 3
+
+
+ALL_LEADS = [n for row in LAYOUT for n in row] + list(EXTRA)
+
+# --- 1拍の形（実際の時間・秒、mV） -------------------------------------------------
+# 誘導ごとのふつうの形：P・q・R・S・T の高さ（mV）。モニターや教科書の典型にそろえた低めの値
+# （12誘導を3段に並べて、上下の段の波形がぶつからない高さ。--check で確かめる）
+NORMAL = {
+    #        P      q      R      S      T
+    'I':   (0.08, -0.04, 0.55, -0.08, 0.20),
+    'II':  (0.12, -0.04, 0.75, -0.12, 0.25),
+    'III': (0.04, -0.04, 0.40, -0.12, 0.10),
+    'aVR': (-0.09, 0.00, 0.08, -0.50, -0.20),
+    'aVL': (0.04, -0.04, 0.30, -0.15, 0.08),
+    'aVF': (0.08, -0.04, 0.55, -0.12, 0.17),
+    'V1':  (0.06, 0.00, 0.15, -0.60, 0.06),
+    'V2':  (0.07, 0.00, 0.28, -0.58, 0.25),
+    'V3':  (0.07, 0.00, 0.45, -0.45, 0.25),
+    'V4':  (0.07, 0.00, 0.75, -0.30, 0.32),
+    'V5':  (0.07, -0.05, 0.75, -0.15, 0.26),
+    'V6':  (0.07, -0.05, 0.62, -0.08, 0.22),
+    'V7':  (0.05, -0.04, 0.45, -0.08, 0.15),
+    'V8':  (0.04, -0.04, 0.35, -0.10, 0.12),
+    'V9':  (0.04, -0.04, 0.28, -0.10, 0.10),
+    'V4R': (0.05, 0.00, 0.15, -0.35, 0.06),
+}
+J_T = 0.045                              # J点（R頂点からの秒）
+ST_FILL = (0.045, 0.255)                 # ST を塗る範囲（J点〜T波の立ち上がり）
+ST_LINE = (0.035, 0.30)                  # 線の色を変える範囲
+
+
+def _g(t, c, s):
+    return np.exp(-0.5*((t - c)/s)**2)
+
+
+def _ga(t, c, sl, sr):
+    s = np.where(t < c, sl, sr)
+    return np.exp(-0.5*((t - c)/s)**2)
+
+
+def _ss(x):
+    x = np.clip(x, 0, 1)
+    return x*x*(3 - 2*x)
+
+
+def st_plateau(tau):
+    """ST の持ち上がり（または下がり）の形：J点で立ち上がり、T波のうしろでもどる。高さ 1。"""
+    return _ss((tau - 0.028) / 0.030) * (1 - _ss((tau - 0.285) / 0.115))
+
+
+def beat(lead, par, tau):
+    """1拍（R頂点＝0）。par＝(st, dT, dR, dS, rw)：ST のずれ・T・R・S の高さの足し分・R の幅の倍率。"""
+    p, q, r, s, t = NORMAL[lead]
+    st, dT, dR, dS, rw = par
+    v = p*_g(tau, -0.160, 0.022)
+    v += q*_g(tau, -0.026, 0.008)
+    v += (r + dR)*_ga(tau, 0.0, 0.011*rw, 0.012*rw)
+    v += (s + dS)*_g(tau, 0.028 + 0.010*(rw - 1), 0.010*rw)
+    v += (t + dT)*_ga(tau, 0.270, 0.060, 0.042)
+    v += st*st_plateau(tau)
+    return v
+
+
+# --- パターン（LITFL で確かめた誘導。docs/reel29_spec.md の表） ------------------------
+# leads：{誘導: (ST のずれ mV, T の足し分, R の足し分, S の足し分, R の幅の倍率)}。書かない誘導は正常
+# seg：梗塞の壁（輪切りで赤く塗る）、ves：責任血管（1＝はっきり、0.6＝どちらか）
+SEGS = ['ant', 'sep', 'lat', 'post', 'inf', 'rv']
+SEG_NAME = {'ant': '前壁', 'sep': '中隔', 'lat': '側壁', 'post': '後壁', 'inf': '下壁', 'rv': '右室'}
+SEG_VES = {'ant': 'LAD', 'sep': 'LAD', 'lat': 'LCX', 'post': 'LCX', 'inf': 'RCA', 'rv': 'RCA'}
+LEAD_WALL = {'V1': 'sep', 'V2': 'sep', 'V3': 'ant', 'V4': 'ant', 'I': 'lat', 'aVL': 'lat', 'V5': 'lat', 'V6': 'lat',
+             'II': 'inf', 'III': 'inf', 'aVF': 'inf', 'V7': 'post', 'V8': 'post', 'V9': 'post', 'V4R': 'rv'}
+
+_INF = {'II': (0.20, 0.08, 0, 0, 1), 'III': (0.30, 0.10, 0, 0, 1), 'aVF': (0.25, 0.09, 0, 0, 1),
+        'aVL': (-0.20, -0.14, 0, 0, 1), 'I': (-0.07, -0.03, 0, 0, 1)}
+PATTERNS = [
+    dict(no='①', key='asep', name='前壁中隔', ves='LAD', vtxt='LAD（左前下行枝）',
+         nurse='→ 致死性不整脈（VF）に注意',
+         leads={'V1': (0.18, 0.05, 0, 0, 1), 'V2': (0.28, 0.10, 0, 0, 1),
+                'V3': (0.28, 0.10, 0, 0, 1), 'V4': (0.22, 0.08, 0, 0, 1)},
+         seg={'ant': 1, 'sep': 1}, vesw={'LAD': 1}),
+    dict(no='②', key='ext', name='広範囲前壁', ves='LAD', vtxt='LADの根もと',
+         nurse='→ 心不全・ショックに注意',
+         leads={'V1': (0.20, 0.05, 0, 0, 1), 'V2': (0.30, 0.10, 0, 0, 1), 'V3': (0.30, 0.10, 0, 0, 1),
+                'V4': (0.28, 0.08, 0, 0, 1), 'V5': (0.24, 0.10, 0, 0, 1), 'V6': (0.18, 0.06, 0, 0, 1),
+                'I': (0.15, 0.05, 0, 0, 1), 'aVL': (0.15, 0.06, 0, 0, 1),
+                'III': (-0.10, -0.04, 0, 0, 1), 'aVF': (-0.07, -0.03, 0, 0, 1)},
+         seg={'ant': 1, 'sep': 1, 'lat': 1}, vesw={'LAD': 1}),
+    dict(no='③', key='lat', name='側壁', ves='LCX', vtxt='LCx（回旋枝）など',
+         nurse='→ 上昇が小さくても見のがさない',
+         leads={'I': (0.16, 0.05, 0, 0, 1), 'aVL': (0.18, 0.06, 0, 0, 1),
+                'V5': (0.20, 0.08, 0, 0, 1), 'V6': (0.18, 0.06, 0, 0, 1),
+                'III': (-0.14, -0.06, 0, 0, 1), 'aVF': (-0.09, -0.04, 0, 0, 1)},
+         seg={'lat': 1}, vesw={'LCX': 1}),
+    dict(no='④', key='inf', name='下壁', ves='RCA', vtxt='RCA（右冠動脈）が多い',
+         nurse='→ 徐脈・房室ブロックに注意。V4Rもとる',
+         leads=dict(_INF),
+         seg={'inf': 1}, vesw={'RCA': 1}),
+    dict(no='⑤', key='rv', name='右室', ves='RCA', vtxt='RCAの根もと',
+         nurse='→ 血圧低下に注意',
+         leads=dict(_INF, **{'V1': (0.12, 0.04, 0, 0, 1), 'V4R': (0.15, 0.05, 0, 0, 1)}),
+         seg={'inf': 1, 'rv': 1}, vesw={'RCA': 1}, x_rv=1),
+    dict(no='⑥', key='post', name='後壁', ves='RCA', vtxt=[('RCA', C_RCA), ('か', (200, 210, 208)), ('LCx', C_LCX)],
+         nurse='→ V7〜V9 を追加でとる',
+         leads={'V1': (-0.14, 0.12, 0.25, 0.35, 1.5), 'V2': (-0.22, 0.06, 0.32, 0.40, 1.5),
+                'V3': (-0.16, 0.00, 0.15, 0.15, 1.3),
+                'V7': (0.12, 0.04, 0, 0, 1), 'V8': (0.12, 0.04, 0, 0, 1), 'V9': (0.10, 0.03, 0, 0, 1)},
+         seg={'post': 1}, vesw={'RCA': 0.75, 'LCX': 0.75}, x_post=1, mirror=1),
+]
+I_INF, I_RV = 3, 4
+N_PAT = len(PATTERNS)
+
+# --- 状態（数値の並び。補間で形を変える） ------------------------------------------
+_PAR0 = (0.0, 0.0, 0.0, 0.0, 1.0)
+KEYS = ([('lead', n, k) for n in ALL_LEADS for k in range(5)] + [('seg', s) for s in SEGS] +
+        [('ves', v) for v in VES_COL] + [('tint',), ('grey',), ('mirror',), ('x_rv',), ('x_post',), ('dimwave',)])
+KI = {k: i for i, k in enumerate(KEYS)}
+
+
+def mk_state(leads=None, seg=None, vesw=None, **kw):
+    v = np.zeros(len(KEYS))
+    for n in ALL_LEADS:
+        par = (leads or {}).get(n, _PAR0)
+        for k in range(5):
+            v[KI[('lead', n, k)]] = par[k]
+    for s, a in (seg or {}).items():
+        v[KI[('seg', s)]] = a
+    for s, a in (vesw or {}).items():
+        v[KI[('ves', s)]] = a
+    for k, a in kw.items():
+        v[KI[(k,)]] = a
+    return v
+
+
+STATES = {'N': mk_state(), 'G': mk_state(grey=1)}
+for _i, _p in enumerate(PATTERNS):
+    STATES[_i] = mk_state(_p['leads'], _p['seg'], _p['vesw'], x_rv=_p.get('x_rv', 0),
+                          x_post=_p.get('x_post', 0), mirror=_p.get('mirror', 0))
+STATES['S'] = mk_state(seg={}, vesw={'LAD': 1, 'LCX': 1, 'RCA': 1}, tint=1, x_rv=1, x_post=1, dimwave=1)
+
+
+class St:
+    """補間した状態を読みやすく。"""
+
+    def __init__(self, v):
+        self.v = v
+
+    def par(self, lead):
+        i = KI[('lead', lead, 0)]
+        return tuple(self.v[i:i + 5])
+
+    def __getattr__(self, k):
+        return self.v[KI[(k,)]]
+
+    def seg(self, s):
+        return self.v[KI[('seg', s)]]
+
+    def ves(self, s):
+        return self.v[KI[('ves', s)]]
+
+
+def red_w(st):
+    return float(np.clip(st / 0.10, 0, 1))
+
+
+def blue_w(st):
+    return float(np.clip(-st / 0.06, 0, 1))
+
+
+# --- タイムライン（声は仮。録音したら区間を決め直す） ---------------------------------
+VIA_T, VIA_HOLD, DIRECT_T = 0.70, 0.30, 1.00
+HOLD = 7.6                                # 1パターンの、形がそのまま見えている長さ（名前・声・看護の1行）
+Q_END = 2.4                               # 冒頭の問いかけが消える
+HOOK = [(1.00, 1.55, 0), (1.85, 2.40, I_INF), (2.70, 3.25, 2)]   # 冒頭：前壁中隔 → 下壁 → 側壁（その場で光る）
+HOOK_MORPH = 0.30
+HOW0, HOW1 = 4.6, 9.2                     # 見かた（となり合う誘導がまとまって上がる・色の見かた・すぐ報告）
+SUM_HOLD = 8.0
+LOOP_FADE = 0.75
+
+
+def _build():
+    kf = [(0.0, 'N')]
+    for a, b, i in HOOK:
+        kf += [(a - HOOK_MORPH, 'N'), (a, i), (b, i)]
+    kf += [(HOOK[-1][1] + 0.40, 'N')]
+    win = []                              # (名前が出る, 名前が消える, パターン番号)
+    t = HOW1
+    kf.append((t, 'N'))
+    for i in range(N_PAT):
+        if i == I_RV:                     # ④ → ⑤ は直接（下壁に右室が加わる）
+            t0 = t
+            t = t0 + DIRECT_T
+        else:
+            t = t + VIA_T
+        kf.append((t, i))
+        a = t
+        t = a + HOLD
+        kf.append((t, i))
+        win.append((a, t, i))
+        if i + 1 == I_RV:
+            continue
+        if i == N_PAT - 1:
+            break
+        t += VIA_T; kf.append((t, 'G'))
+        t += VIA_HOLD; kf.append((t, 'G'))
+    t += DIRECT_T; kf.append((t, 'S'))
+    sum0 = t
+    t += SUM_HOLD; kf.append((t, 'S'))
+    t += LOOP_FADE; kf.append((t, 'N'))
+    return kf, win, sum0, t
+
+
+KF, WINDOWS, SUM0, DUR = _build()
+
+
+def cl(x, a=0.0, b=1.0):
+    return max(a, min(b, x))
+
+
+def ease(u):
+    u = cl(u)
+    return u*u*(3 - 2*u)
+
+
+def ramp(t, t0, d=0.5):
+    return ease((t - t0) / d)
+
+
+def mix(a, b, u):
+    return tuple(int(round(a[i] + (b[i] - a[i])*u)) for i in range(3))
+
+
+def state_at(t):
+    for (t0, a), (t1, b) in zip(KF, KF[1:]):
+        if t0 <= t < t1:
+            u = 0.0 if a == b else ease((t - t0) / (t1 - t0))
+            return St(STATES[a]*(1 - u) + STATES[b]*u)
+    return St(STATES[KF[-1][1]])
+
+
+def current(t):
+    for a, b, i in WINDOWS:
+        if a <= t < b:
+            return i, a, b
+    return None, None, None
+
+
+# --- 道具（第26弾と同じ put / text_img。--check 用に字の外枠を記録する） ----------------
+_FONTS, _TXT = {}, {}
+REC = None                                # --check のとき：[(文字, 外枠, 濃さ, 種類)]
+
+
+def font(size, weight):
+    k = (size, weight)
+    if k not in _FONTS:
+        f = ImageFont.truetype(FONT, size)
+        try:
+            f.set_variation_by_axes([weight])
+        except Exception:
+            pass
+        _FONTS[k] = f
+    return _FONTS[k]
+
+
+def text_img(s, size, weight, col, max_w=None):
+    k = (s, size, weight, col, max_w)
+    if k in _TXT:
+        return _TXT[k]
+    sz = size
+    while True:
+        f = font(sz, weight)
+        x0, y0, x1, y1 = f.getbbox(s)
+        if max_w is None or (x1 - x0) <= max_w or sz <= 16:
+            break
+        sz -= 1
+    asc, desc = f.getmetrics()
+    im = Image.new('RGBA', (x1 - x0 + 8, asc + desc + 8), (0, 0, 0, 0))
+    ImageDraw.Draw(im).text((4 - x0, 4), s, font=f, fill=col + (255,))
+    _TXT[k] = (im, asc, (4, 4 + y0, 4 + x1 - x0, 4 + y1), sz)
+    return _TXT[k]
+
+
+def text_w(s, size, weight):
+    return text_img(s, size, weight, WHITE)[0].size[0] - 8
+
+
+def put(base, s, size, weight, col, cx=None, cy=None, x=None, a=1.0, max_w=None, right=None, kind='text'):
+    if a <= 0.004:
+        return
+    im, asc, gb, sz = text_img(s, size, weight, col, max_w)
+    w, h = im.size
+    if right is not None:
+        px = int(right - w + 4)
+    elif x is not None:
+        px = int(x - 4)
+    else:
+        px = int(cx - w/2)
+    py = int(cy - 4 - asc*0.62)
+    if REC is not None:
+        REC.append((s, (px + gb[0], py + gb[1], px + gb[2], py + gb[3]), a, kind, sz))
+    if base is None:
+        return
+    if a < 0.999:
+        im = im.copy()
+        im.putalpha(im.getchannel('A').point(lambda v: int(v*a)))
+    base.alpha_composite(im, (px, py))
+
+
+def put_parts(base, parts, cy, a=1.0, max_w=720, gap=16, kind='text'):
+    """色・大きさのちがう文を1行に並べて中央ぞろえ。parts＝[(文字, 大きさ, 太さ, 色)]。入らないときは全部を同じ割合で小さく。"""
+    k = 1.0
+    while True:
+        ws = [text_w(s, int(sz*k), wt) for s, sz, wt, _ in parts]
+        tot = sum(ws) + gap*(len(parts) - 1)
+        if tot <= max_w or k < 0.6:
+            break
+        k -= 0.02
+    x = 540 - tot/2
+    for (s, sz, wt, c), w_ in zip(parts, ws):
+        put(base, s, int(sz*k), wt, c, x=x, cy=cy, a=a, kind=kind)
+        x += w_ + gap
+
+
+# --- 方眼（1mm＝14px の正方形。太い線が x=540 と 1段めの基線を通る） ----------------------
+_GRID = None
+
+
+def grid():
+    im = Image.new('RGBA', (W, H), BG + (255,))
+    d = ImageDraw.Draw(im)
+    pm = PXMM
+    x0 = (540 % (5*pm)) - 5*pm
+    y0 = (BASES[0] % (5*pm)) - 5*pm
+    for major in (False, True):
+        i = 0
+        while x0 + i*pm <= W + 1:
+            if (i % 5 == 0) == major:
+                x = round(x0 + i*pm)
+                d.line([(x, 0), (x, H)], fill=(G_MAJOR if major else G_MINOR) + (255,), width=2 if major else 1)
+            i += 1
+        k = 0
+        while y0 + k*pm <= H + 1:
+            if (k % 5 == 0) == major:
+                y = round(y0 + k*pm)
+                d.line([(0, y), (W, y)], fill=(G_MAJOR if major else G_MINOR) + (255,), width=2 if major else 1)
+            k += 1
+    return im
+
+
+# --- 線（グロー付き。第26弾の glow_line を小さな枠ごとに） --------------------------------
+SS = 2
+
+
+def glow_line(size, runs, col, width, a, blur=(5, 13)):
+    w, h = size
+    core = Image.new('L', (w*SS, h*SS), 0)
+    dc = ImageDraw.Draw(core)
+    for pts in runs:
+        if len(pts) >= 2:
+            dc.line([(x*SS, y*SS) for x, y in pts], fill=255, width=int(width*SS), joint='curve')
+    core = core.resize((w, h), Image.LANCZOS)
+    out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    if blur:
+        g1 = np.asarray(core.filter(ImageFilter.GaussianBlur(blur[0])), dtype=np.float32)
+        g2 = np.asarray(core.filter(ImageFilter.GaussianBlur(blur[1])), dtype=np.float32)
+        g = np.maximum(g1*0.9, g2*0.45)
+        lay = Image.new('RGBA', (w, h), col + (0,))
+        lay.putalpha(Image.fromarray(np.clip(g*a, 0, 255).astype(np.uint8)))
+        out.alpha_composite(lay)
+    lay2 = Image.new('RGBA', (w, h), mix(col, (255, 255, 255), 0.55) + (0,))
+    lay2.putalpha(core.point(lambda q: int(q*a)))
+    out.alpha_composite(lay2)
+    return out
+
+
+# --- 12誘導の描画 -----------------------------------------------------------------
+CELL_PAD_Y = 40                          # 枠ごとの絵の上下の余白（グローがはみ出すぶん）
+TAU = np.linspace(TAU0 + 0.012, TAU1 - 0.012, 400)
+
+
+def lead_alpha(name, s):
+    if name == 'V4R':
+        return float(s.x_rv)
+    if name in ('V7', 'V8', 'V9'):
+        return float(s.x_post)
+    return 1.0
+
+
+def lead_label_col(name, s):
+    st = s.par(name)[0]
+    c = mix(LABEL_GREY, RED, red_w(st))
+    c = mix(c, BLUE, blue_w(st))
+    if s.tint > 0 and name in LEAD_WALL:
+        c = mix(c, VES_COL[SEG_VES[LEAD_WALL[name]]], s.tint)
+    return c
+
+
+def label_x(name):
+    c, _ = lead_cell(name)
+    return max(col_x(c) + 14, SAFE_L + 5)
+
+
+def draw_cell(im, name, s, fast=False):
+    a = lead_alpha(name, s)
+    if a <= 0.004:
+        return
+    c, r = lead_cell(name)
+    x0, base = col_x(c), BASES[r]
+    top = base - ROW_UP
+    par = s.par(name)
+    st = par[0]
+    rw, bw = red_w(st), blue_w(st)
+    hl_col = RED if rw >= bw else BLUE
+    hl = max(rw, bw)
+    # 誘導名（＋まとめのときは見ている壁の名前）
+    lx = label_x(name)
+    put(im, name, 30, 800, lead_label_col(name, s), x=lx, cy=top + 24, a=a)
+    if s.tint > 0.004 and name in LEAD_WALL:
+        wall = LEAD_WALL[name]
+        # R波（枠の左から 84px）の右に置く（波形と字を重ねない）
+        put(im, SEG_NAME[wall], 24, 800, VES_COL[SEG_VES[wall]], x=x0 + WALL_LABEL_DX, cy=top + 25, a=a*s.tint)
+    if fast:
+        return
+    v = beat(name, par, TAU)
+    xs = x0 + (TAU - TAU0)*PXS
+    ys = base - v*PXMV
+    oy = top - CELL_PAD_Y
+    hh = ROW_PITCH + 2*CELL_PAD_Y
+    lay = Image.new('RGBA', (COL_W, hh), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lay)
+    lx_ = xs - x0
+    ly_ = ys - oy
+    bl = base - oy
+    if hl > 0.004:
+        # ST の部分を塗る（基線と波形のあいだ）・基線の点線
+        # 右端（T波の立ち上がり）では、なだらかに消す
+        fx = np.arange(int(lx_[np.searchsorted(TAU, ST_FILL[0])]), int(lx_[np.searchsorted(TAU, ST_FILL[1])]) + 1)
+        fy = np.interp(fx, lx_, ly_)
+        ft = TAU0 + 0.012 + (fx - lx_[0]) / PXS
+        fw = 1 - _ss((ft - (ST_FILL[1] - 0.06)) / 0.06)
+        for xx, yy, ww in zip(fx, fy, fw):
+            if abs(yy - bl) > 1:
+                d.line([(xx, yy), (xx, bl)], fill=hl_col + (int(110*hl*a*ww),), width=1)
+        for xx in np.arange(6, COL_W - 6, 9):
+            d.line([(xx, bl), (xx + 4, bl)], fill=hl_col + (int(200*hl*a),), width=2)
+    im.alpha_composite(lay, (x0, oy))
+    base_col = mix(WAVE_GREEN, NEUTRAL_COL, s.grey)
+    wa = a*(1.0 - 0.25*s.grey)*(1.0 - 0.55*s.dimwave)
+    pts = list(zip(lx_, ly_))
+    im.alpha_composite(glow_line((COL_W, hh), [pts], base_col, 3.0, wa), (x0, oy))
+    if hl > 0.004:
+        m = (TAU >= ST_LINE[0]) & (TAU <= ST_LINE[1])
+        pts2 = list(zip(lx_[m], ly_[m]))
+        im.alpha_composite(glow_line((COL_W, hh), [pts2], hl_col, 3.4, a*hl, blur=(4, 10)), (x0, oy))
+
+
+def draw_panel(im, s, fast=False):
+    # 列の切れ目（12誘導の紙の「誘導が切りかわる印」）
+    if not fast:
+        d = ImageDraw.Draw(im, 'RGBA')
+        for r in range(4):
+            if r == 3 and max(s.x_rv, s.x_post) <= 0.004:
+                continue
+            for c in range(1, 4):
+                x = col_x(c)
+                al = 1.0 if r < 3 else max(s.x_rv, s.x_post)
+                d.line([(x, BASES[r] - 14), (x, BASES[r] + 14)], fill=(120, 140, 134, int(200*al)), width=2)
+    for n in ALL_LEADS:
+        draw_cell(im, n, s, fast)
+
+
+# --- 4段め（追加の誘導）の説明・ふだんの凡例 ----------------------------------------
+EXTRA_NOTE_Y = BASES[3] - 40             # 「← 右胸に貼る」「背中に貼る →」
+LEGEND_Y = BASES[3] - 50
+
+
+def draw_extra_notes(im, s):
+    # 説明は追加の誘導が半分以上出てから・まとめ（tint）が始まったらすぐ消す。凡例は追加の誘導が出始めたらすぐ消す（重ねない）
+    k = cl(1 - 3*s.tint)
+    put(im, '← 右胸に貼る', 28, 700, RED, x=col_x(1) + 20, cy=EXTRA_NOTE_Y, a=cl((s.x_rv - 0.5)/0.5)*k)
+    put(im, '背中に貼る →', 28, 700, RED, right=col_x(1) - 22, cy=EXTRA_NOTE_Y, a=cl((s.x_post - 0.5)/0.5)*k)
+    a_leg = cl(1 - 3*max(s.x_rv, s.x_post))
+    if a_leg > 0.004:
+        put_parts(im, [('赤＝ST上昇', 28, 800, RED), ('青＝反対側のST低下（鏡像）', 28, 800, BLUE)], LEGEND_Y,
+                  a=a_leg, gap=30)
+
+
+# --- 心臓の輪切り（左室の短軸＋右室の三日月。足もとから見た向き：左が右室、右が側壁） -----------
+HX, HY = 470, 1420                       # 左室の中心
+R_IN, R_OUT = 62, 112                    # 左室の内腔・外側
+RV_D, RV_R, RV_WALL = 90, 110, 24        # 右室：中心を左へ 90px、半径 110（三日月の先は 115°・245°）、壁の厚さ 24
+# 壁の角度（度。右＝0、反時計回り＝上が 90）
+SEG_ANG = {'lat': (-15, 50), 'ant': (50, 125), 'sep': (125, 215), 'inf': (215, 290), 'post': (290, 345)}
+SEG_LABEL = {'ant': (88, None), 'sep': (170, None), 'inf': (252, None), 'post': (318, None), 'lat': (17, None)}
+HBOX = (130, 1232, 950, 1604)            # 輪切りを描く範囲
+# 誘導名のまとまり（角度、中心からの距離、誘導）
+TOKENS = [
+    ('ant', 100, 160, ['V1', 'V2', 'V3', 'V4']),
+    ('hl', 40, 176, ['I', 'aVL']),
+    ('lat', 0, 180, ['V5', 'V6']),
+    ('post', -42, 182, ['V7', 'V8', 'V9']),
+    ('inf', -90, 150, ['II', 'III', 'aVF']),
+    ('rv', 180, 250, ['V4R']),
+]
+TOK_SIZE, TOK_GAP = 27, 9
+VES_LEGEND_X, VES_LEGEND_Y = 772, (1312, 1356, 1400)
+
+
+def _pol(ang, r, cx=HX, cy=HY):
+    a = math.radians(ang)
+    return cx + r*math.cos(a), cy - r*math.sin(a)
+
+
+def _seg_of(angle_deg):
+    a = (angle_deg + 360) % 360
+    for k, (a0, a1) in SEG_ANG.items():
+        lo, hi = a0 % 360, a1 % 360
+        if (lo <= hi and lo <= a < hi) or (lo > hi and (a >= lo or a < hi)):
+            return k
+    return 'lat'
+
+
+_HEART_GEO = None
+
+
+def heart_geo():
+    """輪切りの画素ごとの壁の番号（SS 倍の格子）。"""
+    global _HEART_GEO
+    if _HEART_GEO is not None:
+        return _HEART_GEO
+    x0, y0, x1, y1 = HBOX
+    ys, xs = np.mgrid[0:(y1 - y0)*SS, 0:(x1 - x0)*SS]
+    X = x0 + (xs + 0.5)/SS
+    Y = y0 + (ys + 0.5)/SS
+    dx, dy = X - HX, -(Y - HY)
+    r1 = np.hypot(dx, dy)
+    ang = (np.degrees(np.arctan2(dy, dx)) + 360) % 360
+    r2 = np.hypot(X - (HX - RV_D), Y - HY)
+    ids = np.full(X.shape, -1, dtype=np.int8)
+    ring = (r1 >= R_IN) & (r1 <= R_OUT)
+    for j, k in enumerate(SEGS[:5]):
+        a0, a1 = SEG_ANG[k]
+        lo, hi = a0 % 360, a1 % 360
+        m = (ang >= lo) & (ang < hi) if lo <= hi else ((ang >= lo) | (ang < hi))
+        ids[ring & m] = j
+    rv = (r2 <= RV_R) & (r1 >= R_OUT + 3)
+    ids[rv & (r2 >= RV_R - RV_WALL)] = 5
+    ids[rv & (r2 < RV_R - RV_WALL)] = 6          # 右室の内腔
+    # 線：左室の外側・内側、右室の外側、壁の切れ目
+    edge = (np.abs(r1 - R_OUT) < 1.3) | (np.abs(r1 - R_IN) < 1.3) | ((np.abs(r2 - RV_R) < 1.3) & (r1 >= R_OUT + 2))
+    edge |= rv & (np.abs(r1 - (R_OUT + 3)) < 1.3)
+    edge |= rv & (np.abs(r2 - (RV_R - RV_WALL)) < 1.2)
+    for k, (a0, a1) in SEG_ANG.items():
+        for aa in (a0,):
+            ad = np.radians(aa)
+            dist = np.abs(-dx*np.sin(ad) + dy*np.cos(ad))
+            along = dx*np.cos(ad) + dy*np.sin(ad)
+            edge |= ring & (dist < 1.2) & (along > 0)
+    _HEART_GEO = (ids, edge)
+    return _HEART_GEO
+
+
+TISSUE = (30, 46, 42)
+CAVITY = (6, 13, 12)
+TISSUE_EDGE = (112, 134, 128)
+
+
+def seg_col(k, s):
+    c = mix(TISSUE, VES_COL[SEG_VES[k]], 0.52*s.tint)
+    return mix(c, RED, 0.88*s.seg(k))
+
+
+def draw_heart(im, s, fast=False):
+    x0, y0, x1, y1 = HBOX
+    if not fast:
+        ids, edge = heart_geo()
+        h, w = ids.shape
+        rgba = np.zeros((h, w, 4), dtype=np.float32)
+        for j, k in enumerate(SEGS):
+            m = ids == j
+            rgba[m, :3] = seg_col(k, s)
+            rgba[m, 3] = 255
+        rgba[ids == 6, :3] = CAVITY
+        rgba[ids == 6, 3] = 235
+        rgba[edge, :3] = TISSUE_EDGE
+        rgba[edge, 3] = 235
+        lay = Image.fromarray(rgba.astype(np.uint8), 'RGBA').resize((x1 - x0, y1 - y0), Image.LANCZOS)
+        # 梗塞の壁のグロー
+        inf = np.zeros((h, w), dtype=np.float32)
+        for j, k in enumerate(SEGS):
+            inf[ids == j] = s.seg(k)
+        if inf.max() > 0.004:
+            g = Image.fromarray(np.clip(inf*255, 0, 255).astype(np.uint8)).resize((x1 - x0, y1 - y0), Image.LANCZOS)
+            g = np.asarray(g.filter(ImageFilter.GaussianBlur(12)), dtype=np.float32)
+            gl = Image.new('RGBA', (x1 - x0, y1 - y0), RED + (0,))
+            gl.putalpha(Image.fromarray(np.clip(g*0.75, 0, 255).astype(np.uint8)))
+            im.alpha_composite(gl, (x0, y0))
+        im.alpha_composite(lay, (x0, y0))
+        draw_vessels(im, s)
+        if s.mirror > 0.004:
+            draw_mirror(im, s)
+    # 壁の名前
+    for k, (ang, _) in SEG_LABEL.items():
+        px, py = _pol(ang, (R_IN + R_OUT)/2)
+        col = mix((198, 210, 206), WHITE, s.seg(k))
+        put(im, SEG_NAME[k], 24, 800, col, cx=px, cy=py + 2)
+    put(im, '右室', 24, 800, mix((198, 210, 206), WHITE, s.seg('rv')), cx=HX - (R_OUT + 3 + RV_D + RV_R - RV_WALL)/2, cy=HY + 2)
+    # 誘導名（どの壁を見ているか）
+    for gk, ang, r, names in TOKENS:
+        draw_tokens(im, s, gk, ang, r, names)
+    # 血管の見本
+    for j, v in enumerate(('LAD', 'LCX', 'RCA')):
+        a = 0.45 + 0.55*max(s.ves(v), s.tint)
+        col = mix(DIM, VES_COL[v], a)
+        y = VES_LEGEND_Y[j]
+        if not fast:
+            d = ImageDraw.Draw(im, 'RGBA')
+            d.line([(VES_LEGEND_X, y), (VES_LEGEND_X + 26, y)], fill=col + (255,), width=6)
+        put(im, VES_NAME[v], 28, 800, col, x=VES_LEGEND_X + 36, cy=y)
+
+
+def draw_tokens(im, s, gk, ang, r, names):
+    cx, cy = _pol(ang, r)
+    ws = [text_w(n, TOK_SIZE, 800) for n in names]
+    tot = sum(ws) + TOK_GAP*(len(names) - 1)
+    x = cx - tot/2
+    act = 0.0
+    for n, w_ in zip(names, ws):
+        st = s.par(n)[0]
+        a_lead = 1.0
+        if n == 'V4R':
+            a_lead = 0.55 + 0.45*s.x_rv
+        elif n in ('V7', 'V8', 'V9'):
+            a_lead = 0.55 + 0.45*s.x_post
+        col = mix(TOKEN_DIM, RED, red_w(st))
+        col = mix(col, BLUE, blue_w(st))
+        if s.tint > 0 and n in LEAD_WALL:
+            col = mix(col, VES_COL[SEG_VES[LEAD_WALL[n]]], s.tint)
+        act = max(act, red_w(st), blue_w(st))
+        put(im, n, TOK_SIZE, 800, col, x=x, cy=cy, a=a_lead)
+        x += w_ + TOK_GAP
+
+
+def _arc_pts(cx, cy, r, a0, a1, n=60):
+    return [_pol(a0 + (a1 - a0)*k/n, r, cx, cy) for k in range(n + 1)]
+
+
+VES_ARCS = {
+    'LAD': [(HX, HY, R_OUT + 9, 52, 123)],
+    'LCX': [(HX, HY, R_OUT + 9, -58, 48)],
+    'RCA': [(HX - RV_D, HY, RV_R + 8, 118, 242), (HX, HY, R_OUT + 9, 238, 292)],
+}
+
+
+def draw_vessels(im, s):
+    """責任血管：壁の外側の色の線（その血管が血を送る範囲）。関係ないときはうすく。"""
+    x0, y0, x1, y1 = HBOX
+    for v, arcs in VES_ARCS.items():
+        a = 0.30 + 0.70*max(s.ves(v), s.tint)
+        wd = 5 + 3*s.ves(v)
+        runs = [[(px - x0, py - y0) for px, py in _arc_pts(*arc)] for arc in arcs]
+        blur = (4, 10) if s.ves(v) > 0.05 else None
+        im.alpha_composite(glow_line((x1 - x0, y1 - y0), runs, VES_COL[v], wd, a, blur=blur), (x0, y0))
+
+
+def draw_mirror(im, s):
+    """後壁：前から見る V1〜V3 は、後壁を「反対側から」見る（鏡うつし）。点線の矢印で。"""
+    d = ImageDraw.Draw(im, 'RGBA')
+    p0, p1 = MIRROR_P0, MIRROR_P1
+    n = 15
+    a = s.mirror
+    col = BLUE + (int(235*a),)
+    for k in range(n - 1):
+        if k % 2:
+            continue
+        u0, u1 = k/n, (k + 1)/n
+        d.line([(p0[0] + (p1[0] - p0[0])*u0, p0[1] + (p1[1] - p0[1])*u0),
+                (p0[0] + (p1[0] - p0[0])*u1, p0[1] + (p1[1] - p0[1])*u1)], fill=col, width=4)
+    # 矢じり（後壁に向かって）
+    ux, uy = p1[0] - p0[0], p1[1] - p0[1]
+    L = math.hypot(ux, uy); ux, uy = ux/L, uy/L
+    tip = p1
+    b0 = (tip[0] - 16*ux - 8*uy, tip[1] - 16*uy + 8*ux)
+    b1 = (tip[0] - 16*ux + 8*uy, tip[1] - 16*uy - 8*ux)
+    d.polygon([tip, b0, b1], fill=col)
+
+
+# 鏡像の点線：V1 の字の下から、前壁と中隔の切れ目（125°）を通り、内腔を抜けて後壁へ（壁の名前の字を避ける）
+MIRROR_P0 = _pol(125, 152)
+MIRROR_P1 = _pol(-40, R_IN + 4)
+MIRROR_LABEL = (HX - 24, HY + 12)
+
+
+# --- 文字 -------------------------------------------------------------------------
+TITLE = '心筋梗塞の場所'
+HEADER = [(TITLE, 1.0, WHITE), (str(N_PAT), 1.5, YELLOW), ('パターン', 1.0, WHITE)]
+HEADER_BASE = 358
+QUESTION = 'ST上昇、心臓のどこ？'
+TXT_Y1, TXT_Y2 = 1146, 1206               # 名前（＋血管）・看護の1行
+HOW_LINE = 'となり合う誘導が、まとまって上がる'
+REPORT = [('ST上昇を見たら', 36, 800, WHITE), ('→ 12誘導・すぐ報告', 36, 900, RED)]
+SUM_LINE = '上がる誘導で、場所と血管がわかる'
+SAVE = '保存して見返してね'
+COMMENT = '何個わかった？コメントで教えてね'
+NEXT_LABEL = '▶ 次の例'
+NOTES = ('※波形は一例', '※心臓は輪切りの模式図')
+WATERMARK = '@nurse_polarbearden'
+WM_SIZE, WM_WEIGHT, WM_A = 64, 800, 0.16
+WM_CY = BASES[3] + 32                    # 4段めの基線の下（字の上下は cy-23〜cy+41）。追加の誘導の ST（基線より上）・誘導名と重ならない
+
+
+def draw_header(base, a):
+    if a <= 0.004:
+        return
+    size = 50
+    parts = [text_img(sx, int(size*k), 900, col) for sx, k, col in HEADER]
+    widths = [p[0].size[0] - 8 for p in parts]
+    total = sum(widths) + 8*(len(parts) - 1)
+    x = (W - total) / 2
+    for (im_, asc, gb, sz), w_ in zip(parts, widths):
+        if REC is not None:
+            py = int(HEADER_BASE - 4 - asc)
+            REC.append(('見出し', (int(x - 4) + gb[0], py + gb[1], int(x - 4) + gb[2], py + gb[3]), a, 'text', sz))
+        if base is not None:
+            if a < 0.999:
+                im_ = im_.copy(); im_.putalpha(im_.getchannel('A').point(lambda q: int(q*a)))
+            base.alpha_composite(im_, (int(x - 4), int(HEADER_BASE - 4 - asc)))
+        x += w_ + 8
+
+
+def vtxt_parts(p):
+    """名前のうしろの責任血管（1色か、色のちがう語の並び）。"""
+    v = p['vtxt']
+    if isinstance(v, str):
+        return [(v, 38, 800, VES_COL[p['ves']])]
+    return [(x, 38, 800, c) for x, c in v]
+
+
+def draw_texts(im, t, s):
+    a_loop = ramp(t, DUR - LOOP_FADE, LOOP_FADE)
+    # 冒頭の問いかけ → 見出し
+    a_q = max(1 - ramp(t, Q_END - 0.45, 0.45), ramp(t, DUR - LOOP_FADE/2, LOOP_FADE/2))
+    put(im, QUESTION, 66, 900, YELLOW, cx=540, cy=333, a=a_q, max_w=800)
+    draw_header(im, ramp(t, Q_END, 0.5)*(1 - ramp(t, DUR - LOOP_FADE, LOOP_FADE/2)))
+    # 冒頭：光った場所の名前（小さく）
+    for a, b, i in HOOK:
+        al = ramp(t, a - 0.05, 0.15)*(1 - ramp(t, b - 0.05, 0.15))
+        p = PATTERNS[i]
+        put(im, p['name'] + '？', 46, 900, WHITE, cx=540, cy=TXT_Y1, a=al)
+    # 見かた
+    al = ramp(t, HOW0, 0.4)*(1 - ramp(t, HOW1 - 0.3, 0.3))
+    put(im, HOW_LINE, 42, 800, WHITE, cx=540, cy=TXT_Y1, a=al, max_w=720)
+    put_parts(im, REPORT, TXT_Y2, a=ramp(t, HOW0 + 1.2, 0.4)*(1 - ramp(t, HOW1 - 0.3, 0.3)), gap=14)
+    # パターン
+    i, a, b = current(t)
+    if i is not None:
+        p = PATTERNS[i]
+        al = ramp(t, a + 0.1, 0.3)*(1 - ramp(t, b - 0.25, 0.25))
+        put_parts(im, [(f"{p['no']} {p['name']}", 54, 900, WHITE)] + vtxt_parts(p), TXT_Y1, a=al, gap=14)
+        aln = ramp(t, a + 1.6, 0.4)*(1 - ramp(t, b - 0.25, 0.25))
+        put(im, p['nurse'], 36, 800, GREEN, cx=540, cy=TXT_Y2, a=aln, max_w=720)
+    # つなぎ（灰色の正常）
+    if s.grey > 0.6:
+        put(im, NEXT_LABEL, 34, 700, (168, 178, 180), cx=540, cy=TXT_Y1, a=ease((s.grey - 0.6)/0.4))
+    # まとめ
+    if t >= SUM0 - 0.5:
+        ka = 1 - a_loop
+        sw = ramp(t, SUM0 + 5.3, 0.4)
+        put(im, SUM_LINE, 42, 800, WHITE, cx=540, cy=TXT_Y1, a=ramp(t, SUM0 - 0.2, 0.4)*ka, max_w=720)
+        put(im, SAVE, 36, 800, GREEN, cx=540, cy=TXT_Y2, a=ramp(t, SUM0 + 3.0, 0.4)*(1 - ramp(t, SUM0 + 5.0, 0.3))*ka)
+        put(im, COMMENT, 36, 900, YELLOW, cx=540, cy=TXT_Y2, a=sw*ka, max_w=720)
+    # 後壁：鏡うつし
+    if s.mirror > 0.004:
+        put(im, '鏡像', 22, 800, BLUE, cx=MIRROR_LABEL[0], cy=MIRROR_LABEL[1], a=s.mirror)
+
+
+def draw_notes(im):
+    for k, n in enumerate(NOTES):
+        put(im, n, 22, 400, GREY, x=SAFE_L + 5, cy=1558 + 28*k, a=0.85)
+
+
+def frame(t, fast=False):
+    global _GRID
+    if _GRID is None:
+        _GRID = grid()
+    im = _GRID.copy() if not fast else None
+    s = state_at(t)
+    if fast:
+        im_ = None
+        draw_panel(im_, s, fast=True)
+        draw_extra_notes(im_, s)
+        draw_heart(im_, s, fast=True)
+        draw_texts(im_, t, s)
+        draw_notes(im_)
+        put(im_, WATERMARK, WM_SIZE, WM_WEIGHT, WHITE, cx=540, cy=WM_CY, a=WM_A, kind='wm')
+        return None
+    draw_panel(im, s)
+    draw_extra_notes(im, s)
+    draw_heart(im, s)
+    draw_texts(im, t, s)
+    draw_notes(im)
+    # 透かし（シリーズ共通：中央・64px・太さ800・白16%・全コマ同じ位置）
+    put(im, WATERMARK, WM_SIZE, WM_WEIGHT, WHITE, cx=540, cy=WM_CY, a=WM_A, kind='wm')
+    return im.convert('RGB')
+
+
+# --- 検算 -------------------------------------------------------------------------
+def _ov(a, b, m=2):
+    return not (a[2] + m <= b[0] or b[2] + m <= a[0] or a[3] + m <= b[1] or b[3] + m <= a[1])
+
+
+def check():
+    global REC
+    print(f'長さ {DUR:.2f} 秒（60fps で {int(round(DUR*60))} コマ）')
+    print('\n[タイムライン] 名前が出ている区間（声は仮。1.2倍で読んで収まる長さ）')
+    for a, b, i in WINDOWS:
+        p = PATTERNS[i]
+        print(f"  {p['no']} {p['name']:6s} {a:6.2f}–{b:6.2f}（{b - a:.2f}秒）  声 {a + 0.55:6.2f}〜  看護の1行 {a + 1.6:6.2f}〜")
+    print(f'  まとめ {SUM0:6.2f}–{SUM0 + SUM_HOLD:6.2f}・冒頭へもどる {DUR - LOOP_FADE:.2f}–{DUR:.2f}')
+    per = [WINDOWS[k + 1][0] - WINDOWS[k][0] for k in range(N_PAT - 1)]
+    print('  1パターンの間隔（名前が出る→次の名前が出る）：' + '・'.join(f'{x:.2f}' for x in per))
+
+    print('\n[波形の高さ] 上下の段がぶつからないか（下の段の上向き＋上の段の下向き ≤ 段の間隔 182px − 8）')
+    bad = 0
+    for key in list(range(N_PAT)) + ['N', 'S']:
+        s = St(STATES[key])
+        ext = {}
+        for n in ALL_LEADS:
+            v = beat(n, s.par(n), TAU)
+            ext[n] = (v.max()*PXMV, -v.min()*PXMV)
+            if ext[n][0] > ROW_UP - 4:
+                print(f'  ！{key} {n} 上向き {ext[n][0]:.0f}px（段の上端まで {ROW_UP}px）'); bad += 1
+        for c in range(4):
+            for r in range(3):
+                up_n = LAYOUT[r][c] if r < 3 else None
+                lo_n = LAYOUT[r + 1][c] if r < 2 else [k for k, cc in EXTRA.items() if cc == c][0]
+                tot = ext[up_n][1] + ext[lo_n][0]
+                if tot > ROW_PITCH - 8:
+                    print(f'  ！{key} {up_n}↓{ext[up_n][1]:.0f} + {lo_n}↑{ext[lo_n][0]:.0f} = {tot:.0f}px'); bad += 1
+    print('  OK' if not bad else f'  {bad} か所')
+
+    print('\n[字の幅] 看護の1行・名前の行（max 720px。右下のボタン x900 にかからない幅）')
+    for p in PATTERNS:
+        w1 = text_w(f"{p['no']} {p['name']}", 54, 900) + sum(14 + text_w(x[0], 38, 800) for x in vtxt_parts(p))
+        w2 = text_w(p['nurse'], 36, 800)
+        print(f"  {p['no']} 名前＋血管 {w1:4d}px  看護 {w2:4d}px {'！' if max(w1, w2) > 720 else ''}")
+
+    print('\n[安全域・重なり] 0.1秒ごとに、出ている字の外枠を調べる')
+    issues = {}
+    n_frames = int(DUR/0.1) + 1
+    for k in range(n_frames):
+        t = k*0.1
+        REC = []
+        frame(t, fast=True)
+        items = [r for r in REC if r[2] > 0.05]
+        for s_, bb, a, kind, sz in items:
+            if kind == 'wm':
+                continue
+            if bb[0] < SAFE_L or bb[2] > SAFE_R or bb[1] < SAFE_T or bb[3] > SAFE_B:
+                issues.setdefault(('はみ出し', s_), []).append((t, bb))
+            if bb[2] > IG_ZONE[0] and bb[3] > IG_ZONE[1] and bb[1] < IG_ZONE[3]:
+                issues.setdefault(('右下のボタン', s_), []).append((t, bb))
+            if sz < 18:
+                issues.setdefault(('小さい字', s_), []).append((t, sz))
+        for x in range(len(items)):
+            for y in range(x + 1, len(items)):
+                A, B = items[x], items[y]
+                if _ov(A[1], B[1]):
+                    key = ('重なり', A[0] + ' ／ ' + B[0])
+                    issues.setdefault(key, []).append((t, A[1], B[1]))
+    REC = None
+    if not issues:
+        print('  OK（はみ出し・右下・重なり・透かしの重なり なし）')
+    for (kind, s_), v in issues.items():
+        print(f'  ！{kind}：{s_}  {v[0][0]:.1f}〜{v[-1][0]:.1f}秒（{len(v)}コマ） {v[0][1:]}')
+    wmb = None
+    REC = []
+    frame(0.0, fast=True)
+    wmb = [r for r in REC if r[3] == 'wm'][0][1]
+    REC = None
+    print(f'\n透かしの外枠 {wmb}（中央 {(wmb[0] + wmb[2])/2:.0f}）')
+
+
+# --- 確認用の静止画 ------------------------------------------------------------------
+def sheet_times():
+    w = {i: (a, b) for a, b, i in WINDOWS}
+    return [('冒頭', 1.30), ('下壁', w[I_INF][0] + 3.0), ('右室', w[I_RV][0] + 3.0),
+            ('後壁', w[N_PAT - 1][0] + 3.0), ('まとめ', SUM0 + 2.0)]
+
+
+def make_sheet(out_dir, stamp=None):
+    import subprocess
+    os.makedirs(out_dir, exist_ok=True)
+    ims = []
+    for lab, t in sheet_times():
+        im = frame(t)
+        p = os.path.join(out_dir, f'still_{t:05.1f}.png')
+        im.save(p); print(p, lab)
+        ims.append((lab, t, im))
+    sc = 0.42
+    tw, th = int(W*sc), int(H*sc)
+    pad, head = 16, 54
+    sh = Image.new('RGB', (pad + len(ims)*(tw + pad), head + th + pad), (24, 28, 28))
+    d = ImageDraw.Draw(sh)
+    for k, (lab, t, im) in enumerate(ims):
+        x = pad + k*(tw + pad)
+        sh.paste(im.resize((tw, th), Image.LANCZOS), (x, head))
+        d.text((x + 4, 12), f'{lab}  {t:.1f}秒', font=font(28, 700), fill=(230, 236, 234))
+    p = os.path.join(out_dir, 'sheet_reel29.png')
+    sh.save(p); print(p)
+    if stamp is None:
+        stamp = subprocess.run(['date', '+%m%d-%H%M'], capture_output=True, text=True,
+                               env=dict(os.environ, TZ='Asia/Tokyo')).stdout.strip()
+    send = os.path.join(out_dir, 'send', f'第29弾_心筋梗塞の場所_試作_{stamp}.png')
+    os.makedirs(os.path.dirname(send), exist_ok=True)
+    sh.save(send); print(send)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--still', type=float, nargs='*')
+    ap.add_argument('--check', action='store_true')
+    ap.add_argument('--sheet', action='store_true')
+    o = ap.parse_args()
+    out = os.path.join(HERE, 'out')
+    if o.check:
+        check(); return
+    if o.sheet:
+        make_sheet(out); return
+    if o.still:
+        os.makedirs(out, exist_ok=True)
+        for t in o.still:
+            p = os.path.join(out, f'still_{t:05.1f}.png')
+            frame(t).save(p); print(p)
+        return
+    ap.print_help()
+
+
+if __name__ == '__main__':
+    main()
