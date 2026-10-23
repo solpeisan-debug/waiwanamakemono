@@ -1130,14 +1130,30 @@ def draw_notes(im, s=None):
     put(im, '体の左 →', 20, 700, dc, right=900, cy=1414, a=0.8)
 
 
+BAND3D = (0, 1280, W, 1470)               # 3D の場面：壁の名前＋誘導の行と字幕の行をまとめた1本の帯（左右の端まで・角丸なし）
+
+
+def sub3d_alpha(t):
+    return max([ramp(t, t0, 0.25)*(1 - ramp(t, t1 - 0.2, 0.2)) for txt, t0, t1, w in SUBS if w == '3d'] + [0.0])
+
+
+def band3d(im, t, a_label=0.0):
+    a = max(a_label, sub3d_alpha(t))
+    if im is None or a <= 0.004:
+        return
+    lay = Image.new('RGBA', (BAND3D[2] - BAND3D[0], BAND3D[3] - BAND3D[1]), (0, 6, 20, int(255*BOARD_A*a)))
+    im.alpha_composite(lay, BAND3D[:2])
+
+
 def draw_subtitle(im, t):
-    """字幕（白・34px）。ふだんは説明の枠の1行め。3D のときは心臓の下の枠（同じ見た目）。"""
+    """字幕（白・34px）。ふだんは説明の枠の1行め。3D のときは帯（BAND3D）の下の行。"""
+    if t >= I3.T_FIN and im is not None:
+        band3d(im, t)                        # 3D の後半（説明の場面〜輪切り）は札がないので、字幕だけで帯を出す
     for txt, t0, t1, where in SUBS:
         a = ramp(t, t0, 0.25)*(1 - ramp(t, t1 - 0.2, 0.2))
         if a <= 0.004:
             continue
         if where == '3d':
-            draw_box(im, BOX3D, a)
             cy = (BOX3D[1] + BOX3D[3]) / 2
         else:
             cy = BOX_L1
