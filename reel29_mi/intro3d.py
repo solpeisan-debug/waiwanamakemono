@@ -342,6 +342,12 @@ PAD_LAB = {('04', 'V5'): (-30, -36)}       # 名前の位置（パッドから�
 ELEC_HOT = {'04': ('V1', 'V2', 'V3', 'V4'), '07': ('V5', 'V6'), '09': ('V7', 'V8', 'V9')}
 
 
+# 電極の色（IEC。日本の「あきみちゃくし」：C1 赤・C2 黄・C3 緑・C4 茶・C5 黒・C6 紫。Wikipedia「Electrocardiography」の
+# AHA／IEC の表で確認。LITFL ECG Lead positioning の本文には色の表がない）。V4R・V7〜V9 は決まった色がないので白のまま
+ELEC_COLORS = {'V1': (226, 38, 44), 'V2': (246, 206, 36), 'V3': (34, 160, 72), 'V4': (128, 78, 40),
+               'V5': (18, 18, 20), 'V6': (146, 70, 196)}
+
+
 def draw_pads(m, base, k, s, c, a):
     """電極パッド（白い丸＋まん中の金具）と名前（パッドの下）。その壁を見る誘導は黄色。"""
     if a <= 0.004:
@@ -354,7 +360,11 @@ def draw_pads(m, base, k, s, c, a):
             r = 17
             d.ellipse([x - r - 3, y - r - 3, x + r + 3, y + r + 3], fill=(0, 0, 0, int(90*a)))
             d.ellipse([x - r, y - r, x + r, y + r], fill=(240, 244, 242, int(245*a)), outline=(160, 170, 168, int(255*a)), width=2)
-            d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=(150, 156, 160, int(255*a)))
+            ec = ELEC_COLORS.get(n)
+            if ec:                           # パッドの中心を電極の色に（黒の V5 は白いふちを太めに）
+                ri = 9 if n == 'V5' else 11
+                d.ellipse([x - ri, y - ri, x + ri, y + ri], fill=ec + (int(255*a),))
+            d.ellipse([x - 4, y - 4, x + 4, y + 4], fill=(150, 156, 160, int(255*a)))
         dx, dy = PAD_LAB.get((k, n), (0, 36))
         lx = min(m.SAFE_R - 24, max(m.SAFE_L + 24, x + dx))
         m.put(base, n, 30, 900, m.YELLOW if hot else m.WHITE, cx=lx, cy=y + dy, a=a)

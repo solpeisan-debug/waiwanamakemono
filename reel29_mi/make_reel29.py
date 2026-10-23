@@ -901,8 +901,14 @@ def draw_electrodes(im, s, fast=False):
             if hot > 0.05:
                 g = 12 + 6*hot
                 d.ellipse([x - g, y - g, x + g, y + g], fill=col + (int(90*hot),))
-            d.ellipse([x - 8, y - 8, x + 8, y + 8], fill=(236, 241, 240, 255), outline=col + (255,), width=3)
-            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=col + (255,))
+            d.ellipse([x - 9, y - 9, x + 9, y + 9], fill=(236, 241, 240, 255), outline=col + (255,), width=2)
+            ec = I3.ELEC_COLORS.get(n)
+            if ec:                           # 電極の色（IEC：V1 赤・V2 黄・V3 緑・V4 茶・V5 黒・V6 紫）。白いふち＋まん中の金具
+                ri = 5 if n == 'V5' else 6
+                d.ellipse([x - ri, y - ri, x + ri, y + ri], fill=ec + (255,))
+                d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=(170, 176, 178, 255))
+            else:
+                d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=col + (255,))
         lx, ly = ch_pt(ang, 26)
         dx, dy = ELEC_LAB.get(n, (0, 0))
         put(im, n, TOK_SIZE, 800, col, cx=lx + dx, cy=ly + dy)
