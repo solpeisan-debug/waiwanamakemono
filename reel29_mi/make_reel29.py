@@ -283,8 +283,8 @@ def read_t(*ss):
     return sum(len(x.replace(' ', '').replace('　', '')) for x in ss) / READ_CPS + READ_ADD
 
 
-SUB_LEAD = 0.6                            # 名前が出てから字幕が出るまで
-VIA_T, VIA_HOLD, DIRECT_T = 0.55, 0.15, 1.00
+SUB_LEAD = 0.4                            # 名前が出てから字幕が出るまで
+VIA_T, VIA_HOLD, DIRECT_T = 0.50, 0.15, 1.00
 HOLD_MIN = 6.5                            # 1パターンの形がそのまま見えている長さの最低
 
 
@@ -297,6 +297,7 @@ HOLDS = [max(HOLD_MIN, SUB_LEAD + read_t(*_pat_texts(p))) for p in PATTERNS]
 INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜9.9秒）
 SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 0.30, 4.33),      # 6.5文字/秒＋0.8秒
           ('STが上がる誘導で、梗塞の場所の見当がつく', 4.38, 8.41),
+          ('足もとから、頭のほうを見上げる', I3.T_EX2 + 0.2, I3.T_H13 - 0.05),   # 目が足もとへ回る〜人体が回る
           ('この向きのまま輪切りにする', I3.T_H13 + 0.1, I3.T_MV)]       # 13 で止まる〜寄る〜輪切りを重ねる〜図の塗り（説明の場面の字は intro3d）
 HOW0 = INTRO_END + 0.05                   # 見かた
 HOW_SUBS = ['となり合う誘導が、まとまって上がる', '反対側の誘導は、鏡のように下がる']
@@ -305,8 +306,8 @@ _hs1 = _hs0 + read_t(HOW_SUBS[0]) + 0.2
 HOW1 = _hs1 + read_t(HOW_SUBS[1], 'ST上昇を見たら→12誘導・すぐ報告') - 0.4
 SUM_LINE = '上がる誘導で、場所と血管がわかる'
 SAVE_T = read_t(SUM_LINE) + 0.2           # まとめの頭から「保存して見返してね」まで
-COMMENT_T = SAVE_T + 2.3
-SUM_HOLD = COMMENT_T + 1.6
+COMMENT_T = SAVE_T + 2.0
+SUM_HOLD = COMMENT_T + 1.3
 LOOP_FADE = 0.75
 
 
@@ -1146,7 +1147,7 @@ FIN_FIT = ((534.0, 772.0), (2.445, 2.517))
 
 # 13（足もとから）：入ってきたとき（心臓が全身 14 の心臓と同じあたり）→ 心臓へ寄ったところ（輪切りが定位置とほぼ同じ大きさ）
 _h13 = I3.HEART13
-Q13_IN = (540.0, 700.0)                   # 13 が入って止まったときの心室のまん中（画面の px）
+Q13_IN = (I3.S13_FULL*I3.HEART13[0][0] + I3.C13_FULL[0], I3.S13_FULL*I3.HEART13[0][1] + I3.C13_FULL[1])   # 13 で止まったときの心室のまん中
 Q13_Z, S13_Z = (470.0, 1050.0), HEART_W*1.0/_h13[1][0]   # 寄ったところ：心室の幅＝輪切りの幅（422px）
 FIT13 = (Q13_Z, (S13_Z*_h13[1][0] / HEART_W, S13_Z*_h13[1][1] / (2*R_OUT)))   # 心室の外形（x605〜907・y197〜433）に合わせる
 
@@ -1170,45 +1171,40 @@ def fin_frame(t, s):
     w08 = HEART_W*k08[0]
     hx14, hy14, hw14 = I3.heart14_screen()
     u1 = ease((t - I3.T_FIN) / I3.EX1_D)
-    u3 = ease((t - I3.T_EX3) / I3.EX3_D)
+    ux15 = ease((t - I3.T_X15) / I3.X15_D)
+    ux13 = ease((t - I3.T_X13) / I3.X13_D)
     uz = ease((t - I3.T_Z13) / I3.Z13_D)
     uo = (t - I3.T_OV) / I3.OV_D
     u2 = (t - I3.T_RC) / I3.RC_D
     e3 = ease((t - I3.T_MV) / I3.MV_D)
     im = _GRID.copy()
-    # 1. 心臓の位置で 08 と 14 をつなぐ（心臓の幅は対数で、位置は直線で）
-    hw = math.exp(math.log(w08) + (math.log(hw14) - math.log(w08))*u1)
-    q = (p08[0] + (hx14 - p08[0])*u1, p08[1] + (hy14 - p08[1])*u1)
-    pic = I3.render_locked(I3.render14(I3.S14, I3.C14), (hx14, hy14), hw14, q, hw)
-    a14 = ease((u1 - 0.25) / 0.6)
-    pic = pic.convert('RGBA')
-    if a14 < 1:
-        # 08 は心臓のまわりだけを、やわらかい丸で残して 14 に重ねる（絵の四角い端を見せない）
-        p8 = I3.render_locked(photo, p08, w08, q, hw).convert('RGBA')
-        yy, xx = np.mgrid[0:H//8, 0:W//8]
-        rr = np.hypot(xx*8 - q[0], yy*8 - q[1]) / max(hw*0.75, 1)
-        msk = np.clip(1.6 - rr, 0, 1)*(1 - a14)
-        p8.putalpha(Image.fromarray((msk*255).astype(np.uint8)).resize((W, H), Image.BILINEAR))
-        pic.alpha_composite(p8)
-    dy = -u3*H
-    if u3 > 0:                            # 3. 画面が上へ流れる
-        moved = Image.new('RGBA', (W, H), I3.FILL13 + (255,))
-        moved.alpha_composite(pic, (0, int(round(dy))))
-        pic = moved
-        q13 = (Q13_IN[0], Q13_IN[1] + (1 - u3)*H)
-        sc, c = cam13_at(q13, I3.S13_FULL)
-        if uz > 0:                        # 4. 13 の心臓へ寄る
-            sc = math.exp(math.log(I3.S13_FULL) + (math.log(S13_Z) - math.log(I3.S13_FULL))*uz)
-            q13 = (Q13_IN[0] + (Q13_Z[0] - Q13_IN[0])*uz, Q13_IN[1] + (Q13_Z[1] - Q13_IN[1])*uz)
-            sc, c = cam13_at(q13, sc)
-        p13 = I3.render13(sc, c).convert('RGBA')
-        if u3 < 1:
-            mask = Image.new('L', (W, H), 0)
-            top = int(round((1 - u3)*H))
-            ImageDraw.Draw(mask).rectangle([0, top, W, H], fill=255)
-            pic.paste(p13, (0, 0), mask)
-        else:
-            pic = p13
+    dy = 0.0
+    if t < I3.T_ROT:
+        # 1. 心臓の位置で 08 と 14 をつなぐ（心臓の幅は対数で、位置は直線で）
+        hw = math.exp(math.log(w08) + (math.log(hw14) - math.log(w08))*u1)
+        q = (p08[0] + (hx14 - p08[0])*u1, p08[1] + (hy14 - p08[1])*u1)
+        pic = I3.render_locked(I3.render14(I3.S14, I3.C14), (hx14, hy14), hw14, q, hw)
+        a14 = ease((u1 - 0.25) / 0.6)
+        pic = pic.convert('RGBA')
+        if a14 < 1:
+            # 08 は心臓のまわりだけを、やわらかい丸で残して 14 に重ねる（絵の四角い端を見せない）
+            p8 = I3.render_locked(photo, p08, w08, q, hw).convert('RGBA')
+            yy, xx = np.mgrid[0:H//8, 0:W//8]
+            rr = np.hypot(xx*8 - q[0], yy*8 - q[1]) / max(hw*0.75, 1)
+            msk = np.clip(1.6 - rr, 0, 1)*(1 - a14)
+            p8.putalpha(Image.fromarray((msk*255).astype(np.uint8)).resize((W, H), Image.BILINEAR))
+            pic.alpha_composite(p8)
+        if ux15 > 0:                      # 3. 14 → 回る動画の最初のコマ（位置・大きさを合わせて重ねる）
+            pic = Image.blend(pic.convert('RGB'), I3.rot_frame(I3.T_ROT), ux15).convert('RGBA')
+    elif t < I3.T_H13:
+        pic = I3.rot_frame(t)             # 4. 人体が回る
+        if ux13 > 0:                      # 5. 最後のコマ → 13（位置・大きさを合わせて重ねる）
+            pic = Image.blend(pic, I3.render13(I3.S13_FULL, I3.C13_FULL), ux13)
+        pic = pic.convert('RGBA')
+    else:
+        sc = math.exp(math.log(I3.S13_FULL) + (math.log(S13_Z) - math.log(I3.S13_FULL))*uz)
+        q13 = (Q13_IN[0] + (Q13_Z[0] - Q13_IN[0])*uz, Q13_IN[1] + (Q13_Z[1] - Q13_IN[1])*uz)
+        pic = I3.render13(*cam13_at(q13, sc)).convert('RGBA')
     if t < I3.T_H13:
         pic.alpha_composite(I3.explain_layer(sys.modules[__name__], t, dy=dy))
     fa = 1 - ease(uo)
