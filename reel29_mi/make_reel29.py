@@ -1113,14 +1113,7 @@ def _heart_rgba(kind):
         rgba[cav, :3] = (34, 6, 10)
         rgba[cav, 3] = 240
     lay = Image.fromarray(np.clip(rgba, 0, 255).astype(np.uint8), 'RGBA')
-    if kind == 'plain':
-        x0, y0 = HBOX[:2]
-        for v, arcs in VES_ARCS.items():
-            runs = [[((px - x0)*SS, (py - y0)*SS) for px, py in _arc_pts(*arc)] for arc in arcs]
-            g = glow_line((w, h), runs, VES_COL[v], 5*SS, 0.30, blur=None)
-            g.alpha_composite(lay)
-            lay = g
-    return lay
+    return lay                            # 血管の線は付けない（中間の絵と同じ外形のまま色だけ変える。血管は定位置で図といっしょに出る）
 
 
 _BIGS, _PH = {}, None
@@ -1133,11 +1126,17 @@ def heart_big(kind='plain'):
 
 
 def place_big(k, p, kind='plain'):
-    """heart_big を、画面で（輪切りのまん中＝p、大きさ＝定位置の k 倍）に置いた全画面の RGBA。"""
+    """heart_big を、画面で（輪切りのまん中＝p、大きさ＝定位置の (kx, ky) 倍）に置いた全画面の RGBA。"""
+    kx, ky = k
     x0, y0 = HBOX[:2]
-    a = SS / k
-    co = (a, 0, SS*(HEART_C[0] - x0 - p[0]/k), 0, a, SS*(HEART_C[1] - y0 - p[1]/k))
+    co = (SS/kx, 0, SS*(HEART_C[0] - x0 - p[0]/kx), 0, SS/ky, SS*(HEART_C[1] - y0 - p[1]/ky))
     return heart_big(kind).transform((W, H), Image.AFFINE, co, resample=Image.BICUBIC)
+
+
+# 08 の寄り終わり（T_FIN）の絵で、心室のかたまり（大血管・下の静脈を除く赤い所）の外形を色で測った値（画面の px）：
+#   左端（右室側）x18・右端（左室側）x1050・上端 y392・下端 y1152 → 輪切りの図（右室の左端〜左室の右端 422px・高さ 302px）を
+#   この外形にぴったり重ねる：中心 (534, 772)、横 1032/422＝2.445倍、縦 760/302＝2.517倍
+FIN_FIT = ((534.0, 772.0), (2.445, 2.517))
 
 
 def fin_frame(t, s):
@@ -1156,9 +1155,9 @@ def fin_frame(t, s):
     u2 = (t - T2) / I3.RC_D
     u3 = (t - T3) / I3.MV_D
     e3 = ease(u3)
-    k0 = min(0.85*pw / HEART_W, 860 / HEART_W)   # 08 の心臓（心室のかたまり）の幅に合わせる。画面からはみ出さない
-    k = math.exp(math.log(k0)*(1 - e3))
-    p = (pc[0] + (HEART_C[0] - pc[0])*e3, pc[1] + (HEART_C[1] - pc[1])*e3)
+    (p0, k0) = FIN_FIT                    # 08 の心室の外形に合わせた位置・大きさ（中間2・中間3 はここから 1px も動かさない）
+    k = (math.exp(math.log(k0[0])*(1 - e3)), math.exp(math.log(k0[1])*(1 - e3)))
+    p = (p0[0] + (HEART_C[0] - p0[0])*e3, p0[1] + (HEART_C[1] - p0[1])*e3)
     im = _GRID.copy()
     fa = 1 - ease(u1)
     if fa > 0.004:
@@ -1166,11 +1165,10 @@ def fin_frame(t, s):
     # 1. 切り口の線（左から右へ横切る → 輪切りが出たら消える）
     la = (1 - ease(u1 / 0.8)) if t >= T1 else 1.0
     if t >= I3.T_FIN and la > 0.004:
-        half = 0.62*pw
-        xa = pc[0] - half
-        xb = xa + 2*half*ease(u0)
+        xa = p0[0] - HEART_W*k0[0]/2 - 30
+        xb = xa + (HEART_W*k0[0] + 60)*ease(u0)
         if xb > xa + 2:
-            g = glow_line((W, H), [[(xa, pc[1]), (xb, pc[1])]], (255, 236, 190), 4, la, blur=(6, 16))
+            g = glow_line((W, H), [[(xa, p0[1]), (xb, p0[1])]], (255, 236, 190), 4, la, blur=(6, 16))
             im.alpha_composite(g)
     # 2・3. 中間の絵 → 図の塗り
     am = ease(u1 / 0.8)
@@ -1185,8 +1183,8 @@ def fin_frame(t, s):
     if an > 0.004:
         for kk, (ang, _) in SEG_LABEL.items():
             fx, fy = _pol(ang, (R_IN + R_OUT)/2)
-            put(im, SEG_NAME[kk], 28, 800, (198, 210, 206), cx=p[0] + k*(fx - HEART_C[0]), cy=p[1] + k*(fy + 2 - HEART_C[1]), a=an)
-        put(im, '右室', 28, 800, (198, 210, 206), cx=p[0] + k*(RV_LABEL[0] - HEART_C[0]), cy=p[1] + k*(RV_LABEL[1] - HEART_C[1]), a=an)
+            put(im, SEG_NAME[kk], 28, 800, (198, 210, 206), cx=p[0] + k[0]*(fx - HEART_C[0]), cy=p[1] + k[1]*(fy + 2 - HEART_C[1]), a=an)
+        put(im, '右室', 28, 800, (198, 210, 206), cx=p[0] + k[0]*(RV_LABEL[0] - HEART_C[0]), cy=p[1] + k[1]*(RV_LABEL[1] - HEART_C[1]), a=an)
     lay = static_layer(s)
     im.alpha_composite(_mul_alpha(lay.crop((0, 0, W, FIN_SPLIT)), ease((u3 - 0.35) / 0.65)))
     im.alpha_composite(_mul_alpha(lay.crop((0, FIN_SPLIT, W, H)), ease((u3 - 0.70) / 0.30)), (0, FIN_SPLIT))
