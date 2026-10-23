@@ -1433,6 +1433,52 @@ def _whoosh(n_len, sr, f_lo, f_hi, seed):
     return y / (np.abs(y).max() + 1e-9)
 
 
+# --- ナレーション（2026-10-23 夜：でんさん「簡単につける」）。out/vo/lines/*.mp3（1.2倍済み）を字幕の出る時刻に置く ---
+VO_DIR = os.path.join(HERE, 'out', 'vo', 'lines')
+VO_DUCK_DB, VO_PEAK = 8.0, 0.75
+
+
+def vo_starts():
+    """声の話しはじめ（前の無音は除いて置く）。今の字幕の出る時刻に合わせる。"""
+    st = {'n01': SUB_3D[0][1], 'n02': SUB_3D[1][1], 'n03': SUB_3D[2][1], 'n04': SUB_3D[3][1],
+          'm1': SUM0 - 0.2, 'm2': SUM0 + SUM_A}
+    for a, b, i in WINDOWS:
+        st[f'p{i + 1}'] = a + SUB_LEAD
+    return st
+
+
+def _load_mp3(path, sr):
+    raw = subprocess.run([ffmpeg_bin(), '-v', 'error', '-i', path, '-f', 's16le', '-ac', '1', '-ar', str(sr), '-'],
+                         capture_output=True, check=True).stdout
+    return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
+
+
+def vo_track(n, sr):
+    if not os.path.isdir(VO_DIR):
+        return None
+    vo = np.zeros(n, np.float32)
+    got = False
+    for name, t0 in vo_starts().items():
+        p = os.path.join(VO_DIR, name + '.mp3')
+        if not os.path.exists(p):
+            continue
+        x = _load_mp3(p, sr)
+        env = np.abs(x)
+        thr = 0.03*env.max()
+        nz = np.nonzero(env > thr)[0]
+        if len(nz) == 0:
+            continue
+        x = x[max(0, nz[0] - int(0.03*sr)):]          # 前の無音を除く（30ms 残す）
+        i0 = int(t0*sr)
+        L = max(0, min(len(x), n - i0))
+        vo[i0:i0 + L] += x[:L]
+        got = True
+        print(f'  声 {name}: {t0:6.2f}秒〜 {len(x)/sr:.2f}秒')
+    if not got:
+        return None
+    return vo*VO_PEAK/(np.abs(vo).max() + 1e-9)
+
+
 def sfx(path, sr=44100):
     """効果音：3D の寄り・回り込みに低いウーシュ、12誘導が出てからモニター音（75/分）。音量は第26弾と同じ（0.2）。"""
     import wave
@@ -1455,6 +1501,26 @@ def sfx(path, sr=44100):
     while tb < DUR - 0.6:
         add(beep, tb, 1.0)
         tb += 0.8
+    vo = vo_track(n, sr)
+    if vo is not None:
+        # サイドチェイン（第26弾 align_vo.py と同じ）：声の大きさに合わせて、効果音を最大 8dB 下げる
+        win_n = int(0.02*sr)
+        env = np.sqrt(np.convolve(vo**2, np.ones(win_n)/win_n, mode='same'))
+        env = env / (env.max() + 1e-9)
+        act = np.clip(env / 0.08, 0, 1)
+        att, rel = 1 - np.exp(-1/(0.02*sr)), 1 - np.exp(-1/(0.25*sr))
+        sm = np.zeros_like(act); y = 0.0
+        step = 64
+        for j in range(0, n, step):
+            x = act[j:j+step].max()
+            k = att if x > y else rel
+            y += (x - y)*(1 - (1 - k)**step)
+            sm[j:j+step] = y
+        gain = 1 - (1 - 10**(-VO_DUCK_DB/20))*sm
+        a = vo*0.95 + a*gain
+        pk = np.abs(a).max()
+        if pk > 0.98:
+            a *= 0.98/pk
     pcm = (np.clip(a, -1, 1)*32767).astype(np.int16)
     with wave.open(path, 'wb') as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
