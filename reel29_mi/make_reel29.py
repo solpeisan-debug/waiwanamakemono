@@ -1058,12 +1058,26 @@ def vtxt_parts(p):
     return [(x, 38, 800, c) for x, c in v]
 
 
+BOARD_A = 0.40                            # 札・枠の背景の不透明度（下の絵が透ける。字は 100%）
+
+
+def rrect_overlay(im, box, radius, fill, outline=None, width=2):
+    """半透明の角丸の板を重ねる（RGBA の絵に ImageDraw で直接描くと半透明にならないので、別の板に描いてから重ねる）。"""
+    x0, y0, x1, y1 = [int(round(v)) for v in box]
+    x0, y0 = max(0, x0), max(0, y0)
+    x1, y1 = min(im.size[0] - 1, x1), min(im.size[1] - 1, y1)
+    if x1 <= x0 or y1 <= y0:
+        return
+    lay = Image.new('RGBA', (x1 - x0 + 1, y1 - y0 + 1), (0, 0, 0, 0))
+    ImageDraw.Draw(lay).rounded_rectangle([0, 0, x1 - x0, y1 - y0], radius=radius, fill=fill, outline=outline, width=width)
+    im.alpha_composite(lay, (x0, y0))
+
+
 def draw_box(im, box, a):
-    """説明の枠：角丸・細い線・うすい背景。中身が変わっても動かない。"""
+    """説明の枠：角丸・細い線・半透明の背景。中身が変わっても動かない。"""
     if im is None or a <= 0.004:
         return
-    d = ImageDraw.Draw(im, 'RGBA')
-    d.rounded_rectangle(list(box), radius=18, fill=(8, 18, 16, int(190*a)), outline=(120, 146, 138, int(200*a)), width=2)
+    rrect_overlay(im, box, 18, (8, 18, 16, int(255*BOARD_A*a)), (120, 146, 138, int(200*a)), 2)
 
 
 def draw_texts(im, t, s):

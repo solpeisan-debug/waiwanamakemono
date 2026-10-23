@@ -365,9 +365,8 @@ def label_pill(m, base, k, a):
     ws = [m.text_w(p[0], p[1], p[2]) for p in parts]
     tot = sum(ws) + gap*(len(parts) - 1)
     if base is not None:
-        d = ImageDraw.Draw(base, 'RGBA')
         x0, x1 = 540 - tot/2 - 34, 540 + tot/2 + 34
-        d.rounded_rectangle([x0, LABEL_CY - 52, x1, LABEL_CY + 48], radius=26, fill=(0, 6, 20, int(150*a)))
+        m.rrect_overlay(base, (x0, LABEL_CY - 52, x1, LABEL_CY + 48), 26, (0, 6, 20, int(255*m.BOARD_A*a)))   # 半透明（下の絵が透ける）
     m.put_parts(base, parts, LABEL_CY, a=a, gap=gap)
 
 
