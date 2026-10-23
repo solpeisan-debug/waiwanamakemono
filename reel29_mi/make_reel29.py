@@ -295,9 +295,9 @@ def _pat_texts(p):
 
 HOLDS = [max(HOLD_MIN, SUB_LEAD + read_t(*_pat_texts(p))) for p in PATTERNS]
 INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜9.9秒）
-SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 1.20, 4.60),
-          ('STが上がる誘導で、梗塞の場所の見当がつく', 4.70, 7.30),
-          ('足もとから見上げる', 7.40, I3.T_FIN),
+SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 0.50, 4.55),      # どれも 6.5文字/秒＋0.8秒で読める長さ
+          ('STが上がる誘導で、梗塞の場所の見当がつく', 4.62, 8.67),
+          ('足もとから見上げる', 8.72, I3.T_FIN),
           ('この向きのまま輪切りにする', I3.T_FIN + 0.05, I3.T_FIN + I3.CUT_D + I3.XF_D + I3.RC_D)]
 HOW0 = INTRO_END + 0.05                   # 見かた
 HOW_SUBS = ['となり合う誘導が、まとまって上がる', '反対側の誘導は、鏡のように下がる']
@@ -1076,7 +1076,7 @@ def fin_frame(t, s):
     u2 = (t - T2) / I3.RC_D
     u3 = (t - T3) / I3.MV_D
     e3 = ease(u3)
-    k0 = 0.85*pw / HEART_W                # 08 の心臓（大血管を除いた心室のかたまり）の幅に合わせる
+    k0 = min(0.85*pw / HEART_W, 860 / HEART_W)   # 08 の心臓（心室のかたまり）の幅に合わせる。画面からはみ出さない
     k = math.exp(math.log(k0)*(1 - e3))
     p = (pc[0] + (HEART_C[0] - pc[0])*e3, pc[1] + (HEART_C[1] - pc[1])*e3)
     im = _GRID.copy()
@@ -1101,7 +1101,7 @@ def fin_frame(t, s):
         if u2 > 0:
             im.alpha_composite(_mul_alpha(place_big(k, p, 'plain'), ease(u2)))
     # 区画の名前（図の塗りになるあいだに出て、図といっしょに動く）
-    an = ease(u2)*(1 - ease((u3 - 0.75) / 0.25))
+    an = ease(u2 / 0.35)*(1 - ease((u3 - 0.75) / 0.25))
     if an > 0.004:
         for kk, (ang, _) in SEG_LABEL.items():
             fx, fy = _pol(ang, (R_IN + R_OUT)/2)

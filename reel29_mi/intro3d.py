@@ -45,14 +45,14 @@ SEQ = [('hold', '04', 1.10, 1.90),
        ('orbit', '11a', 4.15, 5.60),
        ('hold', '09', 5.60, 6.40),
        ('orbit', '12r', 6.40, 7.90),
-       ('hold', '08', 7.90, 9.00)]
-T_FIN = 9.00                             # ここから 08 → 輪切り
+       ('hold', '08', 7.90, 10.90)]
+T_FIN = 10.90                             # ここから 08 → 輪切り
 CUT_D = 0.50                             # 1. 心室の高さに、光る切り口の線が横切る
 XF_D = 0.60                              # 2. 中間の絵（3Dに似せた筋肉の赤の輪切り）を重ねて、3D の絵を消す
-RC_D = 0.60                              # 3. 中間の絵の塗り → 図の塗り（区画の名前が出る）
+RC_D = 1.70                              # 3. 中間の絵の塗り → 図の塗り（区画の名前が出る）
 MV_D = 0.80                              # 4. 縮みながら下の定位置へ
 FIN_D = CUT_D + XF_D + RC_D + MV_D
-INTRO_END = T_FIN + FIN_D                # 11.50
+INTRO_END = T_FIN + FIN_D                # 14.50（3D の字幕を 6.5文字/秒＋0.8秒で読める長さ）
 Q_T = (0.0, 2.05)                        # 問いかけ「ST上昇、心臓のどこ？」
 PUSH = 0.055                             # 止まっているあいだも、ゆっくり寄りつづける（Z1〜T_FIN で 5.5%）
 ANCHOR = (540, 800)
@@ -138,7 +138,12 @@ def render(src, s, c):
     im, a, b = src
     k = a / s
     co = (k, 0, b[0] - k*c[0], 0, k, b[1] - k*c[1])
-    return im.transform((W, H), Image.AFFINE, co, resample=Image.BICUBIC, fillcolor=FILL)
+    out = im.transform((W, H), Image.AFFINE, co, resample=Image.BICUBIC, fillcolor=FILL)
+    top = int(math.ceil(c[1] + s*(-b[1]/a))) if c[1] > 0 else 0
+    if top > 0:                          # 上に下げたぶんは、絵の上端の行をのばして埋める（青い地の帯を出さない）
+        row = out.crop((0, top + 1, W, top + 2)).resize((W, top + 1))
+        out.paste(row, (0, 0))
+    return out
 
 
 # --- カメラ -------------------------------------------------------------------------
@@ -155,26 +160,36 @@ def push(t):
 # 寄る点を画面の ZOOM_Q へ動かす。動画の最初のコマは前の絵の寄ったカメラのまま始まり、前半で全体へもどる
 # （動画のコマは s 0.45 まで＝KV×1.25 まで）。08 は 0.35秒 胸全体（横隔膜・背骨）を見せてから、下の面へ寄る
 ZOOM = {'04': 1.25, '07': 1.25, '09': 1.25, '08': 1.55}
-HOLD_WAIT = {'08': 0.35}
+HOLD_WAIT = {'08': 1.10}                 # 08：胸全体（横隔膜・背骨）を見せてから寄る
 ZOOM_Q = (540, 760)
 
 
 def cam_clamp(s, c):
     """絵の外（青い地）が画面に出ないように。"""
-    return s, (min(0.0, max(W - s*3072, c[0])), min(0.0, max(H - s*5504, c[1])))
+    # 上は 60px までは下げてよい（04・07 は大血管の上端が絵の上の方にあるので、心臓全体を y300 より下に入れるため。地の色は絵の上端とほぼ同じ）
+    return s, (min(0.0, max(W - s*3072, c[0])), min(60.0, max(H - s*5504, c[1])))
 
 
 def cam_base():
     return KV, (0.0, -VOFF)
 
 
+HEART_TB = {'04': (720, 3424), '07': (792, 3456), '08': (916, 2656), '09': (1188, 3416)}   # 心臓の上端（大血管）〜下端（心尖）（U。赤い所を測った）
+HEART_Y = (300, 1300)                    # 寄っても、心臓全体がこの高さの中に入る（大血管が切れない）
+
+
 def cam_zoom(k, u):
-    z = math.exp(math.log(ZOOM[k])*u)
+    top, bot = HEART_TB[k]
+    hy, hh = (top + bot)/2, bot - top
+    z1 = max(1.0, min(ZOOM[k], 0.97*(HEART_Y[1] - HEART_Y[0]) / (KV*hh)))
+    z = math.exp(math.log(z1)*u)
     s = KV*z
     P = GLOW[k][:2]
     q0 = (KV*P[0], KV*P[1] - VOFF)
     q = (q0[0] + (ZOOM_Q[0] - q0[0])*u, q0[1] + (ZOOM_Q[1] - q0[1])*u)
-    return cam_clamp(s, (q[0] - s*P[0], q[1] - s*P[1]))
+    cx, cy = q[0] - s*P[0], q[1] - s*P[1]
+    cy = min(HEART_Y[1] - s*(hy + hh/2), max(HEART_Y[0] - s*(hy - hh/2), cy))
+    return cam_clamp(s, (cx, cy))
 
 
 def cam_main(t):
@@ -289,11 +304,11 @@ def label_pill(m, base, k, a):
 
 
 # --- 見ている向きの目印（左上）：足もとから見た胴体の輪切り（上＝前・右＝患者の左・下＝背中）と、目の矢印 ---------
-ICON_BOX = (135, 392, 315, 600)
-ICON_C, ICON_RX, ICON_RY, ICON_R = (225, 482), 50, 34, 74
+ICON_BOX = (135, 380, 405, 684)          # 1.5倍（字は 24px 以上）。透かし（691〜）の上
+ICON_C, ICON_RX, ICON_RY, ICON_R = (270, 510), 75, 51, 108
 VIEW_KEYS = [  # (時刻, 角度（上＝90＝前）, 半径の割合, 字)
     (0.0, 90, 1.0, '前から'), (1.90, 90, 1.0, '前から'), (3.35, 0, 1.0, '左から'), (4.15, 0, 1.0, '左から'),
-    (5.60, -90, 1.0, '後ろから'), (6.40, -90, 1.0, '後ろから'), (7.05, -90, 0.0, '足もとから見上げる')]
+    (5.60, -90, 1.0, '後ろから'), (6.40, -90, 1.0, '後ろから'), (7.10, -90, 0.0, '足もとから見上げる')]
 
 
 def view_at(t):
@@ -318,8 +333,8 @@ def view_icon(m, base, t):
         d.rounded_rectangle(list(ICON_BOX), radius=16, fill=(8, 18, 16, int(170*a)), outline=(120, 146, 138, int(200*a)), width=2)
         # 胴体（足もとから見た輪切り）・背骨・心臓の位置
         d.ellipse([cx - ICON_RX, cy - ICON_RY, cx + ICON_RX, cy + ICON_RY], outline=(220, 232, 230, int(230*a)), width=3)
-        d.ellipse([cx - 7, cy + ICON_RY - 18, cx + 7, cy + ICON_RY - 4], fill=(200, 212, 210, int(200*a)))
-        d.ellipse([cx + 4, cy - 16, cx + 22, cy + 2], fill=(235, 80, 90, int(240*a)))
+        d.ellipse([cx - 10, cy + ICON_RY - 27, cx + 10, cy + ICON_RY - 6], fill=(200, 212, 210, int(200*a)))
+        d.ellipse([cx + 16, cy - 8, cx + 42, cy + 18], fill=(235, 80, 90, int(240*a)))
         # 目と矢印（半径 0 ＝ 足もとから＝こちら向き：⊙）
         r = ICON_R*rad
         th = math.radians(ang)
@@ -327,23 +342,23 @@ def view_icon(m, base, t):
         col = (255, 214, 64, int(255*a))
         if rad > 0.15:
             ux, uy = (cx - ex)/max(r, 1e-6), (cy - ey)/max(r, 1e-6)
-            L = max(0.0, r - 44)
-            tx, ty = ex + ux*(12 + L), ey + uy*(12 + L)
-            d.line([(ex + ux*12, ey + uy*12), (tx, ty)], fill=col, width=4)
-            d.polygon([(tx + ux*12, ty + uy*12), (tx - uy*7, ty + ux*7), (tx + uy*7, ty - ux*7)], fill=col)
-            d.ellipse([ex - 10, ey - 7, ex + 10, ey + 7], outline=col, width=3)
-            d.ellipse([ex - 3, ey - 3, ex + 3, ey + 3], fill=col)
+            L = max(0.0, r - 66)
+            tx, ty = ex + ux*(18 + L), ey + uy*(18 + L)
+            d.line([(ex + ux*18, ey + uy*18), (tx, ty)], fill=col, width=6)
+            d.polygon([(tx + ux*18, ty + uy*18), (tx - uy*10, ty + ux*10), (tx + uy*10, ty - ux*10)], fill=col)
+            d.ellipse([ex - 15, ey - 10, ex + 15, ey + 10], outline=col, width=4)
+            d.ellipse([ex - 5, ey - 5, ex + 5, ey + 5], fill=col)
         k = cl01((0.4 - rad) / 0.4)
         if k > 0.01:
             cc = (255, 214, 64, int(255*a*k))
-            d.ellipse([cx - 16, cy - 16, cx + 16, cy + 16], outline=cc, width=3)
-            d.ellipse([cx - 5, cy - 5, cx + 5, cy + 5], fill=cc)
-    m.put(base, '前', 18, 800, (200, 212, 210), cx=cx, cy=cy - ICON_RY - 14, a=a)
-    m.put(base, '背中', 18, 800, (200, 212, 210), cx=cx, cy=cy + ICON_RY + 14, a=a)
-    yl = ICON_BOX[3] - 24
+            d.ellipse([cx - 24, cy - 24, cx + 24, cy + 24], outline=cc, width=4)
+            d.ellipse([cx - 8, cy - 8, cx + 8, cy + 8], fill=cc)
+    m.put(base, '前', 24, 800, (200, 212, 210), cx=cx, cy=cy - ICON_RY + 20, a=a)   # 胴体の中（矢印と重ねない）
+    m.put(base, '背中', 24, 800, (200, 212, 210), cx=cx, cy=cy + ICON_RY + 18, a=a)
+    yl = ICON_BOX[3] - 34
     if u < 1:
-        m.put(base, l0, 22, 800, m.YELLOW, cx=cx, cy=yl, a=a*(1 - u), max_w=170, kind='fade')
-    m.put(base, l1, 22, 800, m.YELLOW, cx=cx, cy=yl, a=a*(u if u < 1 else 1), max_w=170, kind='fade')
+        m.put(base, l0, 28, 800, m.YELLOW, cx=cx, cy=yl, a=a*(1 - u), max_w=250, kind='fade')
+    m.put(base, l1, 28, 800, m.YELLOW, cx=cx, cy=yl, a=a*(u if u < 1 else 1), max_w=250, kind='fade')
 
 
 def cl01(x):
