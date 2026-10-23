@@ -404,7 +404,32 @@ def _e04_to_03(x, y):
     return h3[0] + (x - h4[0])*k, h3[1] + (y - h4[1])*k
 
 
-ELECTRODES['03'] = [(n, *_e04_to_03(x, y)) for n, x, y in ELECTRODES['04']]
+def _e03_to_04(x, y):
+    (h4, w4), (h3, w3) = HEART['04'], HEART['03']
+    k = w3/w4
+    return h4[0] + (x - h3[0])/k, h4[1] + (y - h3[1])/k
+
+
+# 2026-10-23 夜（でんさん「嘘がないように」）：電極は本物の人の体（17）の表面の目印で決め、輪郭で合わせた換算（9.0倍）で 03 へ、
+# 心臓で合わせた換算（03→04 の寄りと同じ）で 04 へ移す（人 → 03 → 04 で電極は同じ所に残る）。17 の px：
+#   乳頭 (588,483)・(791,481)、正中 x690（乳頭どうし 203px ≒ 20cm → 1cm ≒ 10px）
+#   V1・V2：乳頭の高さ（第4肋間）y483、胸骨の右縁・左縁 x672・x708（正中をはさんで左右対称）
+#   V4：第5肋間（乳頭の約2.5cm 下）y510・左鎖骨中線（乳頭の少し内側）x781、V3：V2 と V4 の中間
+#   V5・V6：V4 と同じ高さ、前腋窩線 x815・中腋窩線（正面では胸の左の縁）x842
+ELEC17 = [('V1', 672, 483), ('V2', 708, 483), ('V3', 744.5, 496.5), ('V4', 781, 510), ('V5', 815, 510), ('V6', 842, 510)]
+
+
+def _e17_to_03(x, y):
+    return P03[0] + (x - P17[0])*K17, P03[1] + (y - P17[1])*K17
+
+
+ELECTRODES['03'] = [(n, *_e17_to_03(x, y)) for n, x, y in ELEC17]
+_old04_v4y = 2500
+ELECTRODES['04'] = [(n, *_e03_to_04(x, y)) for n, x, y in ELECTRODES['03']]
+# 左（07）・後ろ（09）も同じ高さ（第5肋間相当）へ：04 の V4 が下がった分だけ下げる
+_dy = dict((n, y) for n, x, y in ELECTRODES['04'])['V4'] - _old04_v4y
+ELECTRODES['07'] = [(n, x, y + _dy) for n, x, y in ELECTRODES['07']]
+ELECTRODES['09'] = [(n, x, y + _dy) for n, x, y in ELECTRODES['09']]
 PAD_LAB = {('04', 'V5'): (-30, -36), ('03', 'V5'): (-30, -36)}       # 名前の位置（パッドからのずれ）。04 の V5・V6 は画面の右端なので上下に分ける
 ELEC_HOT = {'03': (), '04': ('V1', 'V2', 'V3', 'V4'), '07': ('V5', 'V6'), '09': ('V7', 'V8', 'V9')}
 
@@ -421,6 +446,8 @@ def draw_pads(m, base, k, s, c, a):
         return
     for n, ux, uy in ELECTRODES[k]:
         x, y = s*ux + c[0], s*uy + c[1]
+        if not (8 <= x <= W - 8):            # 画面の外（寄った絵では V5・V6 は外に出る）。名前だけ端に出さない
+            continue
         hot = n in ELEC_HOT[k]
         if base is not None:
             d = ImageDraw.Draw(base, 'RGBA')
@@ -433,8 +460,9 @@ def draw_pads(m, base, k, s, c, a):
                 d.ellipse([x - ri, y - ri, x + ri, y + ri], fill=ec + (int(255*a),))
             d.ellipse([x - 4, y - 4, x + 4, y + 4], fill=(150, 156, 160, int(255*a)))
         dx, dy = PAD_LAB.get((k, n), (0, 36))
-        lx = min(m.SAFE_R - 24, max(m.SAFE_L + 24, x + dx))
-        m.put(base, n, 30, 900, m.YELLOW if hot else m.WHITE, cx=lx, cy=y + dy, a=a, kind='fade')
+        lx = min((m.SAFE_R if y + dy < 1090 else m.IG_ZONE[0]) - 24, max(m.SAFE_L + 24, x + dx))   # y1100 より下は右下のボタン（x900〜）を避ける
+        la = a*(ease((s - 0.29) / 0.06) if k == '03' else 1.0)     # 引いているあいだ（倍率が小さいうち）は名前を出さず点だけ
+        m.put(base, n, 30, 900, m.YELLOW if hot else m.WHITE, cx=lx, cy=y + dy, a=la, kind='fade')
 
 
 # --- 見ている向きの目印（左上）：回転動画 05（人体が 正面→左の側面→背面）の小さなコマ＋目の矢印 -------------------
