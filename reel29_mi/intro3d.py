@@ -633,6 +633,7 @@ LEG_KEYS = [  # (コマ, 中心x, 中心y, 半径x, 半径y)
 # 足先が大きく手前に入るコマ（180〜）では、もう見えない。断面（212〜）になったら抜く
 LEG_ON = [(108, 0.0), (176, 1.0), (212, 1.0), (222, 0.0)]
 ROT_BG = (2, 9, 29)
+ROT_ZOOM = [(0.0, 1.0, 0.0, 0.0), (1.0, 1.0, 0.0, 0.0)]   # (u, 倍率, ずれx, ずれy)。いまは足していない（お腹付近からのアップにするならここ）
 _LEGGRID = None
 
 
@@ -704,6 +705,11 @@ def rot_frame(t):
     qb = (sb*640 + cb[0], sb*360 + cb[1])
     sc = math.exp(math.log(sa) + (math.log(sb) - math.log(sa))*e)
     q = (qa[0] + (qb[0] - qa[0])*e, qa[1] + (qb[1] - qa[1])*e)
+    # 3→4（正面寄り→足のあいだから見上げる）の寄り・中心をあとから足すとき用（ROT の進み u ごとの倍率・画面のずれ px）
+    zk = [k[0] for k in ROT_ZOOM]
+    z = float(np.interp(u, zk, [k[1] for k in ROT_ZOOM]))
+    q = (q[0] + float(np.interp(u, zk, [k[2] for k in ROT_ZOOM])), q[1] + float(np.interp(u, zk, [k[3] for k in ROT_ZOOM])))
+    sc *= z
     c = (q[0] - sc*640, q[1] - sc*360)
     fi = float(np.interp(u, [k[0] for k in ROT_MAP], [k[1] for k in ROT_MAP]))
     return render15(v15(round(fi)), sc, c)        # 1コマずつ（前後のコマは混ぜない）
