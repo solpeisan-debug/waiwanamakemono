@@ -1498,7 +1498,7 @@ def thumbnail():
     put_parts(im, [('ST上昇の誘導で', 48, 800, YELLOW), ('6', 80, 900, YELLOW), ('パターン', 48, 800, YELLOW)], 300,
               max_w=820, gap=10)
     # 名前の行のかわりに大きく
-    put_parts(im, [('② 広範囲前壁', 54, 900, WHITE), ('LADの根もと', 38, 800, C_LAD)], TXT_Y1, gap=14)
+    put_parts(im, [('② 広範囲前壁', 54, 900, WHITE), ('LADの根もと', 38, 800, C_LAD)], 430, gap=14)   # 説明の枠の位置（上の題と重ねない）
     return im.convert('RGB')
 
 
@@ -1510,6 +1510,7 @@ def main():
     ap.add_argument('--thumb', action='store_true')
     ap.add_argument('--preview', action='store_true', help='確認版（540×960・30fps・速い）：out/reel29_mi_preview.mp4')
     ap.add_argument('--hq', action='store_true', help='高画質（CRF 11・slow）：out/reel29_mi_hq.mp4')
+    ap.add_argument('--hq30', action='store_true', help='高画質（30fps・CRF 16・veryfast。急ぎ）：release/reel29_mi_hq.mp4')
     ap.add_argument('--render', action='store_true', help='通常版（1080×1920・60fps・CRF 18）：out/reel29_mi.mp4')
     ap.add_argument('--jobs', type=int, default=4)
     o = ap.parse_args()
@@ -1530,6 +1531,9 @@ def main():
         return
     if o.preview:
         export(30, os.path.join(out, 'reel29_mi_preview.mp4'), 23, 'veryfast', o.jobs, scale=(540, 960)); return
+    if o.hq30:
+        os.makedirs(os.path.join(HERE, 'release'), exist_ok=True)
+        export(30, os.path.join(HERE, 'release', 'reel29_mi_hq.mp4'), 16, 'veryfast', o.jobs); return
     if o.hq:
         export(60, os.path.join(out, 'reel29_mi_hq.mp4'), 11, 'slow', o.jobs); return
     if o.render:
