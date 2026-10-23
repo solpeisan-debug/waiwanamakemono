@@ -296,7 +296,7 @@ def vo_span(path, noise='-40dB', d=0.12):
     a, b = 0.0, dur
     if st and st[0] < 0.01 and en:
         a = en[0]
-    if st and (len(en) < len(st) or en[-1] >= dur - 0.02) and st[-1] > a:
+    if st and (len(en) < len(st) or en[-1] >= dur - 0.15) and st[-1] > a:
         b = st[-1]
     return a, b
 
