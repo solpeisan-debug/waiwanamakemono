@@ -284,7 +284,7 @@ def read_t(*ss):
 
 
 SUB_LEAD = 0.6                            # 名前が出てから字幕が出るまで
-VIA_T, VIA_HOLD, DIRECT_T = 0.70, 0.30, 1.00
+VIA_T, VIA_HOLD, DIRECT_T = 0.70, 0.15, 1.00
 HOLD_MIN = 6.5                            # 1パターンの形がそのまま見えている長さの最低
 
 
@@ -295,9 +295,9 @@ def _pat_texts(p):
 
 HOLDS = [max(HOLD_MIN, SUB_LEAD + read_t(*_pat_texts(p))) for p in PATTERNS]
 INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜9.9秒）
-SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 0.50, 4.55),      # どれも 6.5文字/秒＋0.8秒で読める長さ
-          ('STが上がる誘導で、梗塞の場所の見当がつく', 4.62, 8.67),
-          ('足もとから見上げる', 8.72, I3.T_FIN),
+SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 0.30, 4.33),      # 6.5文字/秒＋0.8秒（2つめだけ 3.5秒）
+          ('STが上がる誘導で、梗塞の場所の見当がつく', 4.38, 7.88),
+          ('足もとから見上げる', 7.93, I3.T_FIN),                       # 08 の引いた絵のとき
           ('この向きのまま輪切りにする', I3.T_FIN + 0.05, I3.T_FIN + I3.CUT_D + I3.XF_D + I3.RC_D)]
 HOW0 = INTRO_END + 0.05                   # 見かた
 HOW_SUBS = ['となり合う誘導が、まとまって上がる', '反対側の誘導は、鏡のように下がる']
@@ -307,7 +307,7 @@ HOW1 = _hs1 + read_t(HOW_SUBS[1], 'ST上昇を見たら→12誘導・すぐ報�
 SUM_LINE = '上がる誘導で、場所と血管がわかる'
 SAVE_T = read_t(SUM_LINE) + 0.2           # まとめの頭から「保存して見返してね」まで
 COMMENT_T = SAVE_T + 2.3
-SUM_HOLD = COMMENT_T + 2.6
+SUM_HOLD = COMMENT_T + 2.3
 LOOP_FADE = 0.75
 
 
