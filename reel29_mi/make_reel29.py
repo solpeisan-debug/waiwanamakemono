@@ -458,7 +458,7 @@ def put(base, s, size, weight, col, cx=None, cy=None, x=None, a=1.0, max_w=None,
     base.alpha_composite(im, (px, py))
 
 
-def put_parts(base, parts, cy, a=1.0, max_w=720, gap=16, kind='text'):
+def put_parts(base, parts, cy, a=1.0, max_w=720, gap=16, kind='text', right=None):
     """色・大きさのちがう文を1行に並べて中央ぞろえ。parts＝[(文字, 大きさ, 太さ, 色)]。入らないときは全部を同じ割合で小さく。"""
     k = 1.0
     while True:
@@ -467,7 +467,7 @@ def put_parts(base, parts, cy, a=1.0, max_w=720, gap=16, kind='text'):
         if tot <= max_w or k < 0.6:
             break
         k -= 0.02
-    x = 540 - tot/2
+    x = 540 - tot/2 if right is None else right - tot
     for (s, sz, wt, c), w_ in zip(parts, ws):
         put(base, s, int(sz*k), wt, c, x=x, cy=cy, a=a, kind=kind)
         x += w_ + gap
@@ -644,7 +644,7 @@ def draw_extra_notes(im, s):
     put(im, 'V7〜V9＝背中に貼る', 22, 800, RED, x=SAFE_L + 5, cy=LEGEND_Y, a=a_p)
     a_leg = cl(1 - 3*s.tint)
     if a_leg > 0.004:
-        put_parts(im, [('赤＝ST上昇', 26, 800, RED), ('青＝鏡像', 26, 800, BLUE)], LEGEND_Y, a=a_leg, gap=30)
+        put_parts(im, [('赤＝ST上昇', 26, 800, RED), ('青＝鏡像', 26, 800, BLUE)], LEGEND_Y, a=a_leg, gap=30, right=890)   # 右寄せ（右下のボタン x900 より左）
 
 
 # --- 心臓の輪切り（左室の短軸＋右室の三日月。足もとから見た向き：左が右室、右が側壁） -----------
@@ -1026,13 +1026,15 @@ def draw_texts(im, t, s):
 
 
 def draw_notes(im, s=None):
-    lines = [(SLICE_NOTE[0], 700, LABEL_GREY), (SLICE_NOTE[1], 400, GREY),
-             ('※電極の位置は胸の', 400, GREY), ('高さをまとめて1枚に', 400, GREY), (NOTES[0], 400, GREY)]
-    for k, (n, wt, c) in enumerate(lines):
-        put(im, n, 20, wt, c, x=NOTE_X, cy=1440 + 23*k, a=0.9)
+    # 注記：輪切りの右下。胸の輪郭・V7 の字から離し（x726〜）、見出し2行＋すき間＋注記で、まわりに余白をとる
+    nx = 726
+    lines = [(SLICE_NOTE[0], 700, LABEL_GREY, 1444), (SLICE_NOTE[1], 400, GREY, 1466),
+             ('※電極は胸の高さを', 400, GREY, 1497), ('　まとめて1枚に', 400, GREY, 1518), (NOTES[0], 400, GREY, 1542)]
+    for n, wt, c, y in lines:
+        put(im, n, 18, wt, c, x=nx, cy=y, a=0.9)
     if s is not None and s.tint > 0.004:
-        for k, n in enumerate(('※側壁はLADの', '枝のことも')):
-            put(im, n, 20, 400, GREY, x=NOTE_X, cy=1440 + 23*(5 + k), a=0.85*s.tint)
+        for n, y in (('※側壁はLADの', 1564), ('　枝のことも', 1584)):
+            put(im, n, 18, 400, GREY, x=nx, cy=y, a=0.85*s.tint)
     # 方向の字（足もとから見た向き）
     dc = (200, 210, 208)
     put(im, '↑ 前', 20, 700, dc, cx=330, cy=1118, a=0.8)
