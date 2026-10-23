@@ -18,6 +18,9 @@
     合言葉（KEY）は Drive の `99_Claude用アップロード設定（消さないでください）` を Drive コネクタで読み、環境変数 `GDRIVE_UP_KEY` で渡す（リポジトリ・チャットに書かない）
   - キャプションは Drive コネクタの `create_file`（textContent・text/plain → Googleドキュメントに変換）。`read_file_content` では絵文字が化けて見えるが、中身は正しい（`download_file_content` の text/plain 書き出しで確かめる）
 - 透かし `@nurse_polarbearden` は中央・64px・濃さ16%・中部の帯の基線の約150px上（2026-10-21 から。右下・小さくはやめた）。サムネイルには入れない
+- **ElevenLabs の画像・動画の生成は高い**（2026-10-23 の失敗：Veo 3.1 の動画1本で約19,400クレジット、Gemini 3 Pro Image 1枚で約1,800）。
+  画像・動画は、必ず estimate_only で値段を出して、ユーザーの OK をもらってから作る（音声のナレーションはこれまでどおりでよい）。
+  Nano Banana・Veo は、ユーザーの Google Flow（Mac のスレッド）なら 0〜10 クレジットで作れるので、そちらに頼むのを先に考える
 - ナレーションでは「すぐ報告」と言わない（画面の赤い「→ すぐ報告」とキャプションで伝える）
 - 医学的な根拠は LITFL が第一。LITFL以外を使うときは、出典を確認して書く
 - 専門医レビューには「等倍フレームPDF＋依頼文（台本・キャプション入り）」を渡す（各回の `make_review_pdf.py`）
