@@ -366,7 +366,11 @@ SUBS = [x + ('3d' if k < len(SUB_3D) else 'box',) for k, x in enumerate(_subs())
 
 
 # --- 輪切りの図のまわりの誘導（胸の電極・四肢誘導の札）に色がつく瞬間：2回点滅＋「ピピッ」（でんさん） --------------
-FLASH_D, FLASH_N = 0.70, 2
+# 音は sfx/blink_fonfon.mp3（でんさんが用意した著作権フリーの音）。波形は音のかたまりが1つ（0.08秒から立ち上がり、
+# 0.21秒でいちばん大きく、0.5秒ほどで消える）なので、点滅も1回。光るいちばん明るい瞬間を、音のいちばん大きい所にそろえる
+FLASH_SFX = os.path.join(HERE, 'sfx', 'blink_fonfon.mp3')
+FLASH_PEAK_T, FLASH_UP, FLASH_DOWN = 0.21, 0.21, 0.40
+FLASH_D = FLASH_UP + FLASH_DOWN
 _FL = None
 
 
@@ -399,7 +403,8 @@ def get_flashes():
 def flash_amp(t):
     for t0, leads in get_flashes():
         if t0 <= t < t0 + FLASH_D:
-            return math.sin(math.pi*FLASH_N*(t - t0)/FLASH_D)**2, leads
+            u = t - t0
+            return (ease(u/FLASH_UP) if u < FLASH_UP else 1 - ease((u - FLASH_UP)/FLASH_DOWN)), leads
     return 0.0, ()
 
 
@@ -1564,13 +1569,15 @@ def sfx(path, sr=44100):
     while tb < DUR - 0.6:
         add(beep, tb, 1.0)
         tb += 0.8
-    # 4段めに色がつく瞬間の「ピピッ」（点滅に合わせて2回）。声のあいだはサイドチェインで下がる
-    Lp = int(0.075*sr)
-    tp = np.arange(Lp)/sr
-    pip = (np.sin(2*np.pi*1760*tp) + 0.5*np.sin(2*np.pi*2640*tp))*np.minimum(1, tp/0.004)*np.exp(-tp/0.035)
-    for t0, _ in get_flashes():
-        for k in range(FLASH_N):
-            add(pip, t0 + (k + 0.5)*FLASH_D/FLASH_N - 0.03, 0.20)
+    # 輪切りの誘導に色がつく瞬間の音（点滅が始まる瞬間に1回。0.73秒で切って終わり30msをフェード、ピーク 0.45）。
+    # 声のあいだはサイドチェインで下がる
+    if os.path.exists(FLASH_SFX):
+        fs = _load_mp3(FLASH_SFX, sr)[:int(0.73*sr)].copy()
+        nf = int(0.03*sr)
+        fs[-nf:] *= np.linspace(1, 0, nf)
+        fs *= 1/(np.abs(fs).max() + 1e-9)
+        for t0, _ in get_flashes():
+            add(fs, t0, 0.45)
     vo = vo_track(n, sr)
     if vo is not None:
         # サイドチェイン（第26弾 align_vo.py と同じ）：声の大きさに合わせて、効果音を最大 8dB 下げる
