@@ -624,12 +624,49 @@ def ensure_v15():
         ROT_MAP = [(0.0, 1), (0.5, N_ROT//2), (0.51, N_ROT//2), (1.0, N_ROT)]
 
 
+# 足を消す（でんさん「足のあいだから見上げる絵になる瞬間は、足を取ってOK」）：胴体（骨盤より上）と腕・心臓を囲む楕円の外を、
+# 動画の地の紺へやわらかくなじませる。楕円の位置・大きさはコマ番号でなめらかに動かす（動画16 のコマ px。コマを見て決めた）
+LEG_KEYS = [  # (コマ, 中心x, 中心y, 半径x, 半径y)
+    (108, 640, 190, 430, 330), (128, 640, 170, 400, 300), (140, 640, 150, 380, 270), (170, 640, 125, 540, 235),
+    (194, 640, 205, 540, 195), (205, 640, 250, 420, 175), (212, 640, 360, 500, 380), (222, 640, 360, 700, 470)]
+# 消す強さ：3（正面寄りの全身・108コマ）から 4（足のあいだから見上げる・176コマ）へ移るあいだに、足をだんだん透かして消す。
+# 足先が大きく手前に入るコマ（180〜）では、もう見えない。断面（212〜）になったら抜く
+LEG_ON = [(108, 0.0), (176, 1.0), (212, 1.0), (222, 0.0)]
+ROT_BG = (2, 9, 29)
+_LEGGRID = None
+
+
+def leg_strength(i):
+    return float(np.interp(i, [k[0] for k in LEG_ON], [k[1] for k in LEG_ON])) if ROT_ID == '16' else 0.0
+
+
+def leg_mask(i):
+    """残す所の重み（0〜1、1280×720）。"""
+    global _LEGGRID
+    if _LEGGRID is None:
+        yy, xx = np.mgrid[0:720:4, 0:1280:4]
+        _LEGGRID = (xx.astype(np.float32), yy.astype(np.float32))
+    xx, yy = _LEGGRID
+    ks = LEG_KEYS
+    cx, cy, rx, ry = [float(np.interp(i, [k[0] for k in ks], [k[j] for k in ks])) for j in range(1, 5)]
+    r = np.sqrt(((xx - cx)/rx)**2 + ((yy - cy)/ry)**2)
+    keep = 1 - np.clip((r - 0.82)/0.36, 0, 1)
+    keep = keep*keep*(3 - 2*keep)
+    st = leg_strength(i)
+    st = st*st*(3 - 2*st)
+    keep = 1 - st*(1 - keep)
+    return Image.fromarray((keep*255).astype(np.uint8)).resize((1280, 720), Image.BILINEAR)
+
+
 def v15(i):
     i = int(min(N_ROT, max(1, i)))
     if i not in _V15:
         if len(_V15) > 30:
             _V15.clear()
-        _V15[i] = Image.open(os.path.join(CACHE, 'rot' + ROT_ID, f'{i:03d}.jpg')).convert('RGB')
+        im = Image.open(os.path.join(CACHE, 'rot' + ROT_ID, f'{i:03d}.jpg')).convert('RGB')
+        if leg_strength(i) > 0.004:
+            im = Image.composite(im, Image.new('RGB', im.size, ROT_BG), leg_mask(i))
+        _V15[i] = im
     return _V15[i]
 
 
