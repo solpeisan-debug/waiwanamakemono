@@ -50,24 +50,29 @@ T_FIN = 9.60                             # ここから 08 → 輪切り
 # 08 は「前下方から見た心臓」（説明書8章）。足もとから見るときは、説明の場面（横向きの全身 14＋目の移動）を入れてから、
 # 真下から見上げた絵 13 を下からスライドで入れ、13 の心臓へ寄ってから輪切りを重ねる
 EX1_D = 0.90                             # 1. 08 の心臓が小さくなりながら、全身 14 の心臓の位置へ重なる（心臓の位置で2枚をつなぐ）
-EX1H_D = 0.25                            #    全身がはっきりする
-EX2_D = 1.30                             # 2. 胸の前の目が弧を描いて足もとの下へ回り、上を向く。点線の視線が心臓までのびる
-EX3_D = 0.90                             # 3. 視線にそって画面が下から上へ流れ、13 が入って止まる（13 の心臓が同じあたりに）
-H13_D = 0.60                             # 4. 13 で止まる（方向の字・左上の目印「足もとから見上げる」）
-Z13_D = 0.80                             # 5. 13 の心臓へ寄る（輪切りが定位置とほぼ同じ大きさになるところまで）
-OV_D = 0.60                              # 6. 13 の心室の外形に筋肉の赤い輪切りをぴったり重ね、13 の絵を消す
-RC_D = 1.00                              # 7. 同じ位置・大きさで図の塗りへ（区画の名前）
-MV_D = 0.80                              # 8. 下の定位置へ
+EX1H_D = 0.20                            #    全身がはっきりする
+EX2_D = 1.10                             # 2. 胸の前の目が弧を描いて足もとの下へ回り、上を向く。点線の視線が心臓までのびる
+X15_D = 0.40                             # 3. 14 → 動画15 の最初のコマ（位置・大きさを合わせて重ねる）。目と視線は消える
+ROT_D = 2.10                             # 4. 動画15 で人体が回って足もとから見上げる向きへ（1コマずつ・コマ飛ばしで速さ）
+X13_D = 0.40                             # 5. 動画15 の最後 → 13（位置・大きさを合わせて重ねる）
+H13_D = 0.50                             # 6. 13 で止まる（方向の字・左上の目印「足もとから見上げる」）
+Z13_D = 0.70                             # 7. 13 の心臓へ寄る（輪切りが定位置とほぼ同じ大きさになるところまで）
+OV_D = 0.60                              # 8. 13 の心室の外形に筋肉の赤い輪切りをぴったり重ね、13 の絵を消す
+RC_D = 0.90                              # 9. 同じ位置・大きさで図の塗りへ（区画の名前）
+MV_D = 0.80                              # 10. 下の定位置へ
 T_EX1H = T_FIN + EX1_D
 T_EX2 = T_EX1H + EX1H_D
-T_EX3 = T_EX2 + EX2_D
-T_H13 = T_EX3 + EX3_D
+T_X15 = T_EX2 + EX2_D
+T_ROT = T_X15 + X15_D
+T_X13 = T_ROT + ROT_D
+T_H13 = T_X13 + X13_D
+T_EX3 = T_H13                            # （説明の場面の終わり）
 T_Z13 = T_H13 + H13_D
 T_OV = T_Z13 + Z13_D
 T_RC = T_OV + OV_D
 T_MV = T_RC + RC_D
-FIN_D = EX1_D + EX1H_D + EX2_D + EX3_D + H13_D + Z13_D + OV_D + RC_D + MV_D
-INTRO_END = T_FIN + FIN_D                # 16.75
+FIN_D = EX1_D + EX1H_D + EX2_D + X15_D + ROT_D + X13_D + H13_D + Z13_D + OV_D + RC_D + MV_D
+INTRO_END = T_FIN + FIN_D                # 17.80
 Q_T = (0.0, 2.05)                        # 問いかけ「ST上昇、心臓のどこ？」
 PUSH = 0.055                             # 止まっているあいだも、ゆっくり寄りつづける（Z1〜T_FIN で 5.5%）
 ANCHOR = (540, 800)
@@ -123,6 +128,7 @@ def ffmpeg_bin():
 def ensure_frames():
     """回り込み動画のコマを JPEG に書き出しておく（1回だけ）。"""
     ensure_fig_frames()
+    ensure_v15()
     for n, f in VIDEO_FILES.items():
         d = os.path.join(CACHE, n)
         if os.path.exists(os.path.join(d, f'{N_VF:03d}.jpg')):
@@ -400,7 +406,7 @@ def ex_gate(t):
 
 
 def view_icon(m, base, t):
-    a = (1 - ease((t - (T_RC + 0.3)) / 0.4))*ex_gate(t)
+    a = (1 - ease((t - T_Z13) / 0.3))*ex_gate(t)     # 13 に寄りはじめたら消す（胴体に重ねない）
     if a <= 0.004:
         return
     l0, l1, u = view_label(t)
@@ -544,7 +550,7 @@ FILL13 = (1, 4, 36)                      # 絵の端の色
 # 心室のかたまりの外形（13 の絵の px。赤い所を測った。左の右房のふくらみと大血管は除く）：x605〜907・y197〜433
 HEART13 = ((756.0, 315.0), (302.0, 236.0))
 S13_FULL = W / 1376
-C13_FULL = (0.0, H/2 - S13_FULL*384)
+C13_FULL = (0.0, 1000 - S13_FULL*384)     # 縦のまん中より少し下（左上の目印と重ねない）
 _I13 = None
 
 
@@ -586,6 +592,72 @@ def img14():
     if _I14 is None:
         _I14 = Image.open(IMG14).convert('RGB')
     return _I14
+
+
+# --- 動画15（1280×720・24fps・8秒）：14 の横向きの全身 → 回って → 13 と同じ足もとから見上げる絵 -----------------------
+# 最初のコマ＝14 を 0.930倍＋下へ 3px、6秒〜＝13 を 0.930倍＋下へ 3px（体の外形を色で測った）。
+# 4.4秒（105コマ）〜6.3秒（150コマ）は「正面の上半身」の不自然なコマなので使わず、105 → 153 を重ねて切り替える
+V15_K, V15_DY = 0.930, 3.0
+ROT_MAP = [(0.0, 1), (0.62, 105), (0.78, 153), (1.0, 185)]     # ROT の進み → コマ（0.62〜0.78 は 105 と 153 を重ねる）
+_V15 = {}
+
+
+def ensure_v15():
+    d = os.path.join(CACHE, '15')
+    if not os.path.exists(os.path.join(d, '192.jpg')):
+        os.makedirs(d, exist_ok=True)
+        subprocess.run([ffmpeg_bin(), '-v', 'error', '-y', '-i', os.path.join(A3, '15_回転_横から足もと_EL.mp4'), '-q:v', '2',
+                        os.path.join(d, '%03d.jpg')], check=True)
+
+
+def v15(i):
+    i = int(min(192, max(1, i)))
+    if i not in _V15:
+        if len(_V15) > 30:
+            _V15.clear()
+        _V15[i] = Image.open(os.path.join(CACHE, '15', f'{i:03d}.jpg')).convert('RGB')
+    return _V15[i]
+
+
+def cam15_from(s_img, c_img):
+    """14 か 13 の絵のカメラ (s, c) と同じ見え方になる、動画15 のコマのカメラ。"""
+    s = s_img / V15_K
+    return s, (c_img[0], c_img[1] - s*V15_DY)
+
+
+def render15(img, s, c):
+    k = 1/s
+    out = Image.new('RGBA', (W, H), FILL13 + (255,))
+    lay = img.convert('RGBA')
+    w, h = lay.size
+    a = np.full((h, w), 255.0)
+    f = 30
+    ramp = np.arange(f)/f
+    a[:f] *= ramp[:, None]; a[-f:] *= ramp[::-1][:, None]
+    lay.putalpha(Image.fromarray(a.astype(np.uint8)))
+    out.alpha_composite(lay.transform((W, H), Image.AFFINE, (k, 0, -k*c[0], 0, k, -k*c[1]), resample=Image.BICUBIC,
+                                      fillcolor=(0, 0, 0, 0)))
+    return out.convert('RGB')
+
+
+def rot_frame(t):
+    """ROT のあいだの動画15 の絵（RGB の全画面）。カメラは 14 に合わせた所 → 13 に合わせた所（倍率は対数）。"""
+    u = min(1.0, max(0.0, (t - T_ROT) / ROT_D))
+    sa, ca = cam15_from(S14, C14)
+    sb, cb = cam15_from(S13_FULL, C13_FULL)
+    e = ease(u)
+    qa = (sa*640 + ca[0], sa*360 + ca[1])
+    qb = (sb*640 + cb[0], sb*360 + cb[1])
+    sc = math.exp(math.log(sa) + (math.log(sb) - math.log(sa))*e)
+    q = (qa[0] + (qb[0] - qa[0])*e, qa[1] + (qb[1] - qa[1])*e)
+    c = (q[0] - sc*640, q[1] - sc*360)
+    (u0, f0), (u1, f1), (u2, f2), (u3, f3) = ROT_MAP
+    if u < u1:
+        return render15(v15(f0 + (f1 - f0)*u/u1), sc, c)
+    if u < u2:
+        w = ease((u - u1) / (u2 - u1))
+        return Image.blend(render15(v15(f1), sc, c), render15(v15(f2), sc, c), w)
+    return render15(v15(f2 + (f3 - f2)*(u - u2)/(u3 - u2)), sc, c)
 
 
 def heart14_screen():
@@ -652,15 +724,18 @@ def explain_layer(m, t, dy=0.0):
     a = ease((t - (T_EX1H - 0.2)) / 0.4)
     if a <= 0.004:
         return lay
+    ta = ease((t - (T_EX2 + 0.2)) / 0.5)*a*(1 - ease((t - (T_X13 - 0.1)) / 0.4))
+    for k, line in enumerate(('足もとから、', '頭のほうを', '見上げる')):
+        m.put(lay, line, 40, 900, m.WHITE, x=650, cy=870 + 52*k + dy, a=ta)
+    a *= 1 - ease((t - T_X15) / X15_D)    # 目と視線は、動画15 で回るあいだは消す（動画のカメラ自体が目線）
+    if a <= 0.004:
+        return lay
     u2 = ease((t - T_EX2) / EX2_D)
     x, y, ang = eye_pose(u2)
     hx, hy, _ = heart14_screen()
     if u2 > 0.55:
         draw_sight(d, x, y + dy, ang, sight_done(t)*(y - hy - 30 - 70), a)
     draw_eye(d, x, y + dy, ang, a)
-    ta = ease((t - (T_EX2 + 0.2)) / 0.5)*a
-    for k, line in enumerate(('足もとから、', '頭のほうを', '見上げる')):
-        m.put(lay, line, 40, 900, m.WHITE, x=650, cy=870 + 52*k + dy, a=ta)
     return lay
 
 
