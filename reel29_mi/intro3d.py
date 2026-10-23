@@ -316,6 +316,7 @@ ELECTRODES = {'04': [('V1', 1350, 2100), ('V2', 1650, 2100), ('V3', 1975, 2300),
                      ('V5', 2750, 2500), ('V6', 3000, 2500)],
               '07': [('V4', 330, 2500), ('V5', 950, 2500), ('V6', 1550, 2500)],
               '09': [('V7', 300, 2550), ('V8', 730, 2550), ('V9', 1200, 2550)]}
+PAD_LAB = {('04', 'V5'): (-30, -36)}       # 名前の位置（パッドからのずれ）。04 の V5・V6 は画面の右端なので上下に分ける
 ELEC_HOT = {'04': ('V1', 'V2', 'V3', 'V4'), '07': ('V5', 'V6'), '09': ('V7', 'V8', 'V9')}
 
 
@@ -332,8 +333,9 @@ def draw_pads(m, base, k, s, c, a):
             d.ellipse([x - r - 3, y - r - 3, x + r + 3, y + r + 3], fill=(0, 0, 0, int(90*a)))
             d.ellipse([x - r, y - r, x + r, y + r], fill=(240, 244, 242, int(245*a)), outline=(160, 170, 168, int(255*a)), width=2)
             d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=(150, 156, 160, int(255*a)))
-        lx = min(m.SAFE_R - 24, max(m.SAFE_L + 24, x))
-        m.put(base, n, 30, 900, m.YELLOW if hot else m.WHITE, cx=lx, cy=y + 36, a=a)
+        dx, dy = PAD_LAB.get((k, n), (0, 36))
+        lx = min(m.SAFE_R - 24, max(m.SAFE_L + 24, x + dx))
+        m.put(base, n, 30, 900, m.YELLOW if hot else m.WHITE, cx=lx, cy=y + dy, a=a)
 
 
 # --- 見ている向きの目印（左上）：足もとから見た胴体の輪切り（上＝前・右＝患者の左・下＝背中）と、目の矢印 ---------
