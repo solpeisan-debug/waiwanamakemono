@@ -140,16 +140,21 @@ def st_plateau(tau):
     return _ss((tau - 0.028) / 0.030) * (1 - _ss((tau - 0.285) / 0.115))
 
 
+def st_flat(tau):
+    """水平な ST（後壁の V1〜V3）：S のすぐあとから平らにして、T の立ち上がりまで J点から 0.08秒ほど水平に。"""
+    return _ss((tau - 0.040) / 0.035) * (1 - _ss((tau - 0.285) / 0.115))
+
+
 def beat(lead, par, tau):
-    """1拍（R頂点＝0）。par＝(st, dT, dR, dS, rw)：ST のずれ・T・R・S の高さの足し分・R の幅の倍率。"""
+    """1拍（R頂点＝0）。par＝(st, dT, dR, dS, rw, flat)：ST のずれ・T・R・S の高さの足し分・R の幅の倍率・水平な ST（0〜1）。"""
     p, q, r, s, t = NORMAL[lead]
-    st, dT, dR, dS, rw = par
+    st, dT, dR, dS, rw, fl = par
     v = p*_g(tau, -0.160, 0.022)
     v += q*_g(tau, -0.026, 0.008)
     v += (r + dR)*_ga(tau, 0.0, 0.011*rw, 0.012*rw)
     v += (s + dS)*_g(tau, 0.028 + 0.010*(rw - 1), 0.010*rw)
-    v += (t + dT)*_ga(tau, 0.270, 0.060, 0.042)
-    v += st*st_plateau(tau)
+    v += (t + dT)*_ga(tau, 0.270 + 0.022*fl, 0.060 - 0.008*fl, 0.042)
+    v += st*((1 - fl)*st_plateau(tau) + fl*st_flat(tau))
     return v
 
 
@@ -166,35 +171,35 @@ _INF = {'II': (0.20, 0.08, 0, 0, 1), 'III': (0.30, 0.10, 0, 0, 1), 'aVF': (0.25,
         'aVL': (-0.20, -0.14, 0, 0, 1), 'I': (-0.07, -0.03, 0, 0, 1)}
 PATTERNS = [
     dict(no='①', key='asep', name='前壁中隔', ves='LAD', vtxt='LAD（左前下行枝）',
-         nurse='→ 致死性不整脈（VF）に注意',
+         nurse='→ VFに注意。除細動器を近くに', sub=['V1〜V4 が上がる'],
          leads={'V1': (0.18, 0.05, 0, 0, 1), 'V2': (0.28, 0.10, 0, 0, 1),
                 'V3': (0.28, 0.10, 0, 0, 1), 'V4': (0.22, 0.08, 0, 0, 1)},
          seg={'ant': 1, 'sep': 1}, vesw={'LAD': 1}),
     dict(no='②', key='ext', name='広範囲前壁', ves='LAD', vtxt='LADの根もと',
-         nurse='→ 心不全・ショックに注意',
+         nurse='→ 心不全・ショックに注意', sub=['V1〜V6・I・aVL まで上がる'],
          leads={'V1': (0.20, 0.05, 0, 0, 1), 'V2': (0.30, 0.10, 0, 0, 1), 'V3': (0.30, 0.10, 0, 0, 1),
                 'V4': (0.28, 0.08, 0, 0, 1), 'V5': (0.24, 0.10, 0, 0, 1), 'V6': (0.18, 0.06, 0, 0, 1),
                 'I': (0.15, 0.05, 0, 0, 1), 'aVL': (0.15, 0.06, 0, 0, 1),
                 'III': (-0.10, -0.04, 0, 0, 1), 'aVF': (-0.07, -0.03, 0, 0, 1)},
          seg={'ant': 1, 'sep': 1, 'lat': 1}, vesw={'LAD': 1}),
     dict(no='③', key='lat', name='側壁', ves='LCX', vtxt='LCx（回旋枝）など',
-         nurse='→ 上昇が小さくても見のがさない',
+         nurse='→ III・aVFが下がったら、I・aVLも見る', sub=['I・aVL・V5・V6 が上がる'],
          leads={'I': (0.16, 0.05, 0, 0, 1), 'aVL': (0.18, 0.06, 0, 0, 1),
                 'V5': (0.20, 0.08, 0, 0, 1), 'V6': (0.18, 0.06, 0, 0, 1),
                 'III': (-0.14, -0.06, 0, 0, 1), 'aVF': (-0.09, -0.04, 0, 0, 1)},
          seg={'lat': 1}, vesw={'LCX': 1}),
     dict(no='④', key='inf', name='下壁', ves='RCA', vtxt='RCA（右冠動脈）が多い',
-         nurse='→ 徐脈・房室ブロックに注意。V4Rもとる',
+         nurse='→ 徐脈・房室ブロックに注意。V4Rもとる', sub=['II・III・aVF が上がる／aVL が下がる'],
          leads=dict(_INF),
          seg={'inf': 1}, vesw={'RCA': 1}),
     dict(no='⑤', key='rv', name='右室', ves='RCA', vtxt='RCAの根もと',
-         nurse='→ 血圧低下に注意',
+         nurse='→ 血圧低下に注意', sub=['下壁に加えて、右胸の V4R も上がる'],
          leads=dict(_INF, **{'V1': (0.12, 0.04, 0, 0, 1), 'V4R': (0.15, 0.05, 0, 0, 1)}),
          seg={'inf': 1, 'rv': 1}, vesw={'RCA': 1}, x_rv=1),
     dict(no='⑥', key='post', name='後壁', ves='RCA', vtxt=[('RCA', C_RCA), ('か', (200, 210, 208)), ('LCx', C_LCX)],
-         nurse='→ V7〜V9 を追加でとる',
-         leads={'V1': (-0.14, 0.12, 0.25, 0.35, 1.5), 'V2': (-0.22, 0.06, 0.32, 0.40, 1.5),
-                'V3': (-0.16, 0.00, 0.15, 0.15, 1.3),
+         nurse='→ V7〜V9 を追加でとる', sub=['V1〜V3 が下がって R が高い', '→ 背中の V7〜V9 で上がる'],
+         leads={'V1': (-0.14, 0.12, 0.25, 0.35, 1.5, 1), 'V2': (-0.22, 0.06, 0.32, 0.40, 1.5, 1),
+                'V3': (-0.16, 0.00, 0.15, 0.15, 1.3, 1),
                 'V7': (0.12, 0.04, 0, 0, 1), 'V8': (0.12, 0.04, 0, 0, 1), 'V9': (0.10, 0.03, 0, 0, 1)},
          seg={'post': 1}, vesw={'RCA': 0.75, 'LCX': 0.75}, x_post=1, mirror=1),
 ]
@@ -202,8 +207,9 @@ I_INF, I_RV = 3, 4
 N_PAT = len(PATTERNS)
 
 # --- 状態（数値の並び。補間で形を変える） ------------------------------------------
-_PAR0 = (0.0, 0.0, 0.0, 0.0, 1.0)
-KEYS = ([('lead', n, k) for n in ALL_LEADS for k in range(5)] + [('seg', s) for s in SEGS] +
+_PAR0 = (0.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+NPAR = len(_PAR0)
+KEYS = ([('lead', n, k) for n in ALL_LEADS for k in range(NPAR)] + [('seg', s) for s in SEGS] +
         [('ves', v) for v in VES_COL] + [('tint',), ('grey',), ('mirror',), ('x_rv',), ('x_post',), ('dimwave',)])
 KI = {k: i for i, k in enumerate(KEYS)}
 
@@ -211,8 +217,9 @@ KI = {k: i for i, k in enumerate(KEYS)}
 def mk_state(leads=None, seg=None, vesw=None, **kw):
     v = np.zeros(len(KEYS))
     for n in ALL_LEADS:
-        par = (leads or {}).get(n, _PAR0)
-        for k in range(5):
+        par = tuple((leads or {}).get(n, _PAR0))
+        par = par + _PAR0[len(par):]
+        for k in range(NPAR):
             v[KI[('lead', n, k)]] = par[k]
     for s, a in (seg or {}).items():
         v[KI[('seg', s)]] = a
@@ -238,7 +245,7 @@ class St:
 
     def par(self, lead):
         i = KI[('lead', lead, 0)]
-        return tuple(self.v[i:i + 5])
+        return tuple(self.v[i:i + NPAR])
 
     def __getattr__(self, k):
         return self.v[KI[(k,)]]
@@ -258,23 +265,6 @@ def blue_w(st):
     return float(np.clip(-st / 0.06, 0, 1))
 
 
-# --- ナレーション（1文1ファイル。out/vo/lines/*.mp3、1.2倍済み）の長さ ----------------------
-# 届いていない文は見込みの長さ（spec の台本）。声の前後の無音は数えない（silencedetect で測る）
-VO_DIR = os.path.join(HERE, 'out', 'vo', 'lines')
-VO_EST = {'00_3d': 3.4, '01_intro': 3.2, '02_mikata': 4.3, 'p1': 4.8, 'p2': 5.3, 'p3': 4.6, 'p4': 5.6,
-          'p5': 5.0, 'p6': 5.8, 'matome': 2.8, 'hozon': 1.4}
-VO_TEXT = {'00_3d': '12誘導は、心臓を、いろんな向きから見ている。',
-           '01_intro': '心筋梗塞の場所は、STが上がる誘導でわかる。',
-           '02_mikata': 'となり合う誘導が、まとまって上がる。反対側は、鏡のように下がる。',
-           'p1': 'V1からV4が上がれば、前壁中隔。左前下行枝、LADです。',
-           'p2': 'V1からV6、IとaVLまで上がれば、広範囲前壁。LADの根もとです。',
-           'p3': 'IとaVL、V5とV6なら、側壁。回旋枝などです。',
-           'p4': 'II、III、aVFなら、下壁。多くは右冠動脈。aVLは鏡のように下がります。',
-           'p5': '下壁に加えて、右胸のV4Rも上がれば、右室。血圧低下に注意。',
-           'p6': 'V1からV3が下がってRが高いときは、背中のV7からV9をとる。上がれば、後壁。',
-           'matome': '上がる誘導で、場所と血管がわかる。', 'hozon': '保存して、見返してね。'}
-
-
 def ffmpeg_bin():
     try:
         import imageio_ffmpeg
@@ -283,64 +273,37 @@ def ffmpeg_bin():
         return 'ffmpeg'
 
 
-def vo_span(path, noise='-40dB', d=0.12):
-    """声のはじめと終わり（秒）。ファイルの前後の無音は除く。"""
-    import re
-    import subprocess
-    log = subprocess.run([ffmpeg_bin(), '-hide_banner', '-i', path, '-af', f'silencedetect=noise={noise}:d={d}',
-                          '-f', 'null', '-'], capture_output=True, text=True).stderr
-    dm = re.search(r'Duration: (\d+):(\d+):([\d.]+)', log)
-    dur = 60*float(dm.group(2)) + float(dm.group(3))
-    st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]
-    en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
-    a, b = 0.0, dur
-    if st and st[0] < 0.01 and en:
-        a = en[0]
-    if st and (len(en) < len(st) or en[-1] >= dur - 0.15) and st[-1] > a:
-        b = st[-1]
-    return a, b
+# --- タイムライン（2026-10-23 夜から：ナレーションなし。字幕を読める長さで決める） ----------------
+# 読む速さ：日本語 1秒に約6.5文字＋0.8秒（でんさんの指示）。空白は数えない
+READ_CPS, READ_ADD = 6.5, 0.8
 
 
-def vo_lengths():
-    import json
-    out, have = {}, {}
-    cache_p = os.path.join(HERE, 'out', 'vo', 'lens.json')
-    try:
-        cache = json.load(open(cache_p))
-    except Exception:
-        cache = {}
-    for n in VO_EST:
-        p = os.path.join(VO_DIR, n + '.mp3')
-        if os.path.exists(p) and os.path.getsize(p) > 1000:
-            k = f'{n}:{os.path.getsize(p)}:{os.path.getmtime(p):.0f}'
-            if k not in cache:
-                cache[k] = vo_span(p)
-            a, b = cache[k]
-            out[n] = b - a
-            have[n] = (a, b)
-        else:
-            out[n] = VO_EST[n]
-    if have:
-        os.makedirs(os.path.dirname(cache_p), exist_ok=True)
-        json.dump(cache, open(cache_p, 'w'))
-    return out, have
+def read_t(*ss):
+    return sum(len(x.replace(' ', '').replace('　', '')) for x in ss) / READ_CPS + READ_ADD
 
 
-VO_LEN, VO_HAVE = vo_lengths()
-
-# --- タイムライン（声の長さで決める） ------------------------------------------------
+SUB_LEAD = 0.6                            # 名前が出てから字幕が出るまで
 VIA_T, VIA_HOLD, DIRECT_T = 0.70, 0.30, 1.00
-VO_LEAD = 0.55                            # 名前が出てから話し始めるまで
-HOLD_MIN, HOLD_TAIL = 5.6, 1.25           # 1パターンの形がそのまま見えている長さ＝声＋話し終わってから 1.25秒（最低 5.6秒）
-HOLDS = [max(HOLD_MIN, VO_LEAD + VO_LEN[f'p{i + 1}'] + HOLD_TAIL) for i in range(N_PAT)]
-INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜8.5秒）
-S00 = 1.15                                # 「12誘導は、心臓を、いろんな向きから見ている。」（前壁で止まったところから）
-S01 = S00 + VO_LEN['00_3d'] + 0.30        # 「心筋梗塞の場所は、STが上がる誘導でわかる。」（3D の最後〜見出し）
-S02 = max(INTRO_END + 0.35, S01 + VO_LEN['01_intro'] + 0.30)   # 見かた
-HOW0 = S02 - 0.45
-HOW1 = max(HOW0 + 4.4, S02 + VO_LEN['02_mikata'] + 0.70)
-SAVE_T = max(3.0, 0.10 + VO_LEN['matome'] + 0.35)             # まとめの頭から「保存して見返してね」まで
-COMMENT_T = SAVE_T + max(2.3, VO_LEN['hozon'] + 0.5)
+HOLD_MIN = 6.5                            # 1パターンの形がそのまま見えている長さの最低
+
+
+def _pat_texts(p):
+    v = p['vtxt'] if isinstance(p['vtxt'], str) else ''.join(x for x, _ in p['vtxt'])
+    return [p['no'] + p['name'], v, p['nurse']] + p['sub']
+
+
+HOLDS = [max(HOLD_MIN, SUB_LEAD + read_t(*_pat_texts(p))) for p in PATTERNS]
+INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜9.9秒）
+SUB_3D = [('12誘導は、心臓を色々な向きから見る', 1.40, 5.35),          # 1行 720px に入る言い方
+          ('STが上がる誘導で、場所の見当がつく', 5.55, INTRO_END - 0.10)]
+HOW0 = INTRO_END + 0.05                   # 見かた
+HOW_SUBS = ['となり合う誘導が、まとまって上がる', '反対側の誘導は、鏡のように下がる']
+_hs0 = HOW0 + 0.30
+_hs1 = _hs0 + read_t(HOW_SUBS[0]) + 0.2
+HOW1 = _hs1 + read_t(HOW_SUBS[1], 'ST上昇を見たら→12誘導・すぐ報告') - 0.4
+SUM_LINE = '上がる誘導で、場所と血管がわかる'
+SAVE_T = read_t(SUM_LINE) + 0.2           # まとめの頭から「保存して見返してね」まで
+COMMENT_T = SAVE_T + 2.3
 SUM_HOLD = COMMENT_T + 2.6
 LOOP_FADE = 0.75
 
@@ -374,17 +337,27 @@ def _build():
     return kf, win, sum0, t
 
 
-def vo_starts():
-    """各文を置く時刻（align_vo.py と同じ値）。"""
-    st = {'00_3d': S00, '01_intro': S01, '02_mikata': S02}
-    for i in range(N_PAT):
-        st[f'p{i + 1}'] = WINDOWS[i][0] + VO_LEAD
-    st['matome'] = SUM0 + 0.10
-    st['hozon'] = SUM0 + SAVE_T
-    return st
-
-
 KF, WINDOWS, SUM0, DUR = _build()
+
+
+def _subs():
+    """字幕（文字, 出る, 消える）。位置はいつも同じ（SUB_Y）。"""
+    out = list(SUB_3D)
+    out += [(HOW_SUBS[0], _hs0, _hs1 - 0.1), (HOW_SUBS[1], _hs1, HOW1 - 0.05)]
+    for a, b, i in WINDOWS:
+        ss = PATTERNS[i]['sub']
+        t0, t1 = a + SUB_LEAD, b - 0.05
+        tot = sum(read_t(x) for x in ss)
+        span = t1 - t0
+        for x in ss:
+            d = span * read_t(x) / tot
+            out.append((x, t0, t0 + d - (0.1 if len(ss) > 1 else 0)))
+            t0 += d
+    out.append((SUM_LINE, SUM0 - 0.2, DUR - LOOP_FADE*0.5))
+    return out
+
+
+SUBS = _subs()
 
 
 def cl(x, a=0.0, b=1.0):
@@ -660,21 +633,22 @@ def draw_extra_notes(im, s):
 
 
 # --- 心臓の輪切り（左室の短軸＋右室の三日月。足もとから見た向き：左が右室、右が側壁） -----------
-HX, HY = 470, 1420                       # 左室の中心
-R_IN, R_OUT = 62, 112                    # 左室の内腔・外側
-RV_D, RV_R, RV_WALL = 90, 110, 24        # 右室：中心を左へ 90px、半径 110（三日月の先は 115°・245°）、壁の厚さ 24
+# 2026-10-23 夜：字幕（y1266）の場所をあけるため、0.82倍にして下へ（まん中に）
+HX, HY = 540, 1452                       # 左室の中心
+R_IN, R_OUT = 51, 92                     # 左室の内腔・外側
+RV_D, RV_R, RV_WALL = 74, 90, 20         # 右室：中心を左へ 74px、半径 90、壁の厚さ 20
 # 壁の角度（度。右＝0、反時計回り＝上が 90）
 SEG_ANG = {'lat': (-15, 50), 'ant': (50, 125), 'sep': (125, 215), 'inf': (215, 290), 'post': (290, 345)}
 SEG_LABEL = {'ant': (88, None), 'sep': (170, None), 'inf': (252, None), 'post': (318, None), 'lat': (17, None)}
-HBOX = (130, 1232, 950, 1604)            # 輪切りを描く範囲
+HBOX = (130, 1300, 950, 1604)            # 輪切りを描く範囲
 # 誘導名のまとまり（角度、中心からの距離、誘導）
 TOKENS = [
-    ('ant', 100, 160, ['V1', 'V2', 'V3', 'V4']),
-    ('hl', 40, 176, ['I', 'aVL']),
-    ('lat', 0, 180, ['V5', 'V6']),
-    ('post', -42, 182, ['V7', 'V8', 'V9']),
-    ('inf', -90, 150, ['II', 'III', 'aVF']),
-    ('rv', 180, 250, ['V4R']),
+    ('ant', 100, 131, ['V1', 'V2', 'V3', 'V4']),
+    ('hl', 40, 144, ['I', 'aVL']),
+    ('lat', 0, 148, ['V5', 'V6']),
+    ('post', -42, 149, ['V7', 'V8', 'V9']),
+    ('inf', -90, 123, ['II', 'III', 'aVF']),
+    ('rv', 180, 205, ['V4R']),
 ]
 TOK_SIZE, TOK_GAP = 27, 9
 VES_LEGEND_X, VES_LEGEND_Y = 772, (1312, 1356, 1400)
@@ -778,7 +752,7 @@ def draw_heart(im, s, fast=False):
         px, py = _pol(ang, (R_IN + R_OUT)/2)
         col = mix((198, 210, 206), WHITE, s.seg(k))
         put(im, SEG_NAME[k], 24, 800, col, cx=px, cy=py + 2)
-    put(im, '右室', 24, 800, mix((198, 210, 206), WHITE, s.seg('rv')), cx=HX - (R_OUT + 3 + RV_D + RV_R - RV_WALL)/2, cy=HY + 2)
+    put(im, '右室', 24, 800, mix((198, 210, 206), WHITE, s.seg('rv')), cx=HX - 128, cy=HY + 2)   # 右室の三日月の中（中隔の字と離す）
     # 誘導名（どの壁を見ているか）
     for gk, ang, r, names in TOKENS:
         draw_tokens(im, s, gk, ang, r, names)
@@ -860,9 +834,9 @@ def draw_mirror(im, s):
 
 
 # 鏡像の点線：V1 の字の下から、前壁と中隔の切れ目（125°）を通り、内腔を抜けて後壁へ（壁の名前の字を避ける）
-MIRROR_P0 = _pol(125, 152)
+MIRROR_P0 = _pol(125, 125)
 MIRROR_P1 = _pol(-40, R_IN + 4)
-MIRROR_LABEL = (HX - 24, HY + 12)
+MIRROR_LABEL = (432, 1328)                # 右端。輪切りの左上（V1〜V4 の左・右室の上）
 
 
 # --- 文字 -------------------------------------------------------------------------
@@ -871,13 +845,15 @@ HEADER = [(TITLE, 1.0, WHITE), (str(N_PAT), 1.5, YELLOW), ('パターン', 1.0, 
 HEADER_BASE = 358
 QUESTION = 'ST上昇、心臓のどこ？'
 TXT_Y1, TXT_Y2 = 1146, 1206               # 名前（＋血管）・看護の1行
-HOW_LINE = 'となり合う誘導が、まとまって上がる'
+HOW_LABEL = '見かた'
+SUM_LABEL = 'まとめ'
 REPORT = [('ST上昇を見たら', 36, 800, WHITE), ('→ 12誘導・すぐ報告', 36, 900, RED)]
-SUM_LINE = '上がる誘導で、場所と血管がわかる'
 SAVE = '保存して見返してね'
 COMMENT = '何個わかった？コメントで教えてね'
 NEXT_LABEL = '▶ 次の例'
 NOTES = ('※波形は一例', '※心臓は輪切りの模式図')
+SUM_NOTE = '※側壁はLADの枝のことも'          # まとめのときだけ（左下の注記の上）
+SUB_Y, SUB_SIZE, SUB_MAXW = 1266, 42, 720  # 字幕：いつも同じ位置（看護の1行の下・輪切りの上）。白・暗い帯
 WATERMARK = '@nurse_polarbearden'
 WM_SIZE, WM_WEIGHT, WM_A = 64, 800, 0.16
 WM_CY = BASES[3] + 32                    # 4段めの基線の下（字の上下は cy-23〜cy+41）。追加の誘導の ST（基線より上）・誘導名と重ならない
@@ -916,7 +892,7 @@ def draw_texts(im, t, s):
     draw_header(im, ramp(t, INTRO_END - 0.45, 0.5)*(1 - ramp(t, DUR - LOOP_FADE, LOOP_FADE/2)))
     # 見かた
     al = ramp(t, HOW0, 0.4)*(1 - ramp(t, HOW1 - 0.3, 0.3))
-    put(im, HOW_LINE, 42, 800, WHITE, cx=540, cy=TXT_Y1, a=al, max_w=720)
+    put(im, HOW_LABEL, 54, 900, WHITE, cx=540, cy=TXT_Y1, a=al)
     put_parts(im, REPORT, TXT_Y2, a=ramp(t, HOW0 + 1.2, 0.4)*(1 - ramp(t, HOW1 - 0.3, 0.3)), gap=14)
     # パターン
     i, a, b = current(t)
@@ -933,17 +909,33 @@ def draw_texts(im, t, s):
     if t >= SUM0 - 0.5:
         ka = 1 - a_loop
         sw = ramp(t, SUM0 + COMMENT_T, 0.4)
-        put(im, SUM_LINE, 42, 800, WHITE, cx=540, cy=TXT_Y1, a=ramp(t, SUM0 - 0.2, 0.4)*ka, max_w=720)
+        put(im, SUM_LABEL, 54, 900, WHITE, cx=540, cy=TXT_Y1, a=ramp(t, SUM0 - 0.2, 0.4)*ka)
         put(im, SAVE, 36, 800, GREEN, cx=540, cy=TXT_Y2, a=ramp(t, SUM0 + SAVE_T, 0.4)*(1 - ramp(t, SUM0 + COMMENT_T - 0.3, 0.3))*ka)
         put(im, COMMENT, 36, 900, YELLOW, cx=540, cy=TXT_Y2, a=sw*ka, max_w=720)
     # 後壁：鏡うつし
     if s.mirror > 0.004:
-        put(im, '鏡像', 22, 800, BLUE, cx=MIRROR_LABEL[0], cy=MIRROR_LABEL[1], a=s.mirror)
+        put(im, '鏡像（前から見ると逆さ）', 24, 800, BLUE, right=MIRROR_LABEL[0], cy=MIRROR_LABEL[1], a=s.mirror)
 
 
-def draw_notes(im):
+def draw_notes(im, s=None):
     for k, n in enumerate(NOTES):
         put(im, n, 22, 400, GREY, x=SAFE_L + 5, cy=1558 + 28*k, a=0.85)
+    if s is not None and s.tint > 0.004:
+        put(im, SUM_NOTE, 22, 400, GREY, x=SAFE_L + 5, cy=1530, a=0.85*s.tint)
+
+
+def draw_subtitle(im, t):
+    """字幕（白・42px・暗い帯）。いつも同じ位置。"""
+    for txt, t0, t1 in SUBS:
+        a = ramp(t, t0, 0.25)*(1 - ramp(t, t1 - 0.2, 0.2))
+        if a <= 0.004:
+            continue
+        if im is not None:
+            w = min(text_w(txt, SUB_SIZE, 800), SUB_MAXW)
+            d = ImageDraw.Draw(im, 'RGBA')
+            d.rounded_rectangle([540 - w/2 - 22, SUB_Y - 30, 540 + w/2 + 22, SUB_Y + 26], radius=14,
+                                fill=(0, 0, 0, int(165*a)))
+        put(im, txt, SUB_SIZE, 800, WHITE, cx=540, cy=SUB_Y, a=a, max_w=SUB_MAXW, kind='sub')
 
 
 _SCACHE = {}
@@ -958,7 +950,7 @@ def static_layer(s):
     draw_panel(lay, s)
     draw_extra_notes(lay, s)
     draw_heart(lay, s)
-    draw_notes(lay)
+    draw_notes(lay, s)
     if len(_SCACHE) > 6:
         _SCACHE.clear()
     _SCACHE[key] = lay
@@ -988,6 +980,7 @@ def frame(t, fast=False, wm=True):
     s = state_at(t)
     if t < I3.T_FIN:                      # 冒頭の3D
         im = I3.intro_frame(sys.modules[__name__], t, base_only=fast)
+        draw_subtitle(im, t)
         if wm:
             watermark(im)
         return None if fast else im.convert('RGB')
@@ -997,7 +990,8 @@ def frame(t, fast=False, wm=True):
         draw_extra_notes(im_, s)
         draw_heart(im_, s, fast=True)
         draw_texts(im_, t, s)
-        draw_notes(im_)
+        draw_notes(im_, s)
+        draw_subtitle(im_, t)
         watermark(im_)
         return None
     im = _GRID.copy()
@@ -1013,6 +1007,7 @@ def frame(t, fast=False, wm=True):
     else:
         im.alpha_composite(static_layer(s))
     draw_texts(im, t, s)
+    draw_subtitle(im, t)
     lf = ramp(t, DUR - 0.5, 0.5)          # ループ：最後に冒頭の絵へもどる
     if lf > 0.004:
         im = Image.blend(im, I3.intro_frame(sys.modules[__name__], 0.0), lf)
@@ -1032,7 +1027,7 @@ def check():
     print('\n[タイムライン] 名前が出ている区間（声は仮。1.2倍で読んで収まる長さ）')
     for a, b, i in WINDOWS:
         p = PATTERNS[i]
-        print(f"  {p['no']} {p['name']:6s} {a:6.2f}–{b:6.2f}（{b - a:.2f}秒）  声 {a + 0.55:6.2f}〜  看護の1行 {a + 1.6:6.2f}〜")
+        print(f"  {p['no']} {p['name']:6s} {a:6.2f}–{b:6.2f}（{b - a:.2f}秒・読む長さ {SUB_LEAD + read_t(*_pat_texts(p)):.2f}）  看護の1行 {a + 1.6:6.2f}〜")
     print(f'  まとめ {SUM0:6.2f}–{SUM0 + SUM_HOLD:6.2f}・冒頭へもどる {DUR - LOOP_FADE:.2f}–{DUR:.2f}')
     per = [WINDOWS[k + 1][0] - WINDOWS[k][0] for k in range(N_PAT - 1)]
     print('  1パターンの間隔（名前が出る→次の名前が出る）：' + '・'.join(f'{x:.2f}' for x in per))
@@ -1062,6 +1057,10 @@ def check():
         w2 = text_w(p['nurse'], 36, 800)
         print(f"  {p['no']} 名前＋血管 {w1:4d}px  看護 {w2:4d}px {'！' if max(w1, w2) > 720 else ''}")
 
+    print('\n[字幕] 文字・出ている長さ（読む長さ＝6.5文字/秒＋0.8秒）・幅（max 720px）')
+    for txt, t0, t1 in SUBS:
+        w_ = text_w(txt, SUB_SIZE, 800)
+        print(f"  {t0:6.2f}–{t1:6.2f}（{t1 - t0:.2f}秒／読む {read_t(txt):.2f}）{w_:4d}px {'！幅' if w_ > SUB_MAXW else ''}{'！短い' if t1 - t0 < read_t(txt) - 0.05 else ''}  {txt}")
     print('\n[安全域・重なり] 0.1秒ごとに、出ている字の外枠を調べる')
     issues = {}
     n_frames = int(DUR/0.1) + 1
