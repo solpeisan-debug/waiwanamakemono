@@ -406,7 +406,8 @@ def ex_gate(t):
 
 
 SHOW_ICON = True                          # 左上の向きの目印：いったんやめたが、ないと分かりにくいので「透けさせて」付ける（2026-10-23 夜）
-ICON_OP, ICON_BOARD_OP, ICON_TEXT_OP = 0.50, 0.25, 0.60   # 絵・矢印／板の背景／字の不透明度
+# 不透明度（でんさん「後ろの体が見えるくらいに」）：上半身の絵・枠線 28%／目の矢印 45%／板の背景 9%／字 50%
+ICON_OP, ICON_EYE_OP, ICON_BOARD_OP, ICON_TEXT_OP = 0.28, 0.45, 0.09, 0.50
 
 
 def view_icon(m, base, t):
@@ -417,28 +418,36 @@ def view_icon(m, base, t):
         return
     l0, l1, u = view_label(t)
     feet = 1.0 if t >= T_H13 else 0.0
-    a *= icon_heart_k(t)
     at = a*ICON_TEXT_OP
+    ae = a*ICON_EYE_OP
     a, ab = a*ICON_OP, a*ICON_BOARD_OP
     if base is not None:
         fi = int(round(float(np.interp(t, [k[0] for k in FRAME_KEYS], [k[1] for k in FRAME_KEYS]))))
-        d = ImageDraw.Draw(base, 'RGBA')
-        d.rounded_rectangle(list(ICON_BOX), radius=16, fill=(8, 18, 16, int(255*ab)), outline=(120, 146, 138, int(255*a)), width=2)
+        # 別の透明な板に描いてから重ねる（RGBA の絵に直接 ImageDraw で描くと、半透明にならず色がそのまま入るため）
+        bx0, by0, bx1, by1 = ICON_BOX
+        lay = Image.new('RGBA', (bx1 - bx0 + 1, by1 - by0 + 1), (0, 0, 0, 0))
+        board = Image.new('RGBA', lay.size, (0, 0, 0, 0))
+        ImageDraw.Draw(board).rounded_rectangle([0, 0, lay.size[0] - 1, lay.size[1] - 1], radius=16, fill=(8, 18, 16, int(255*ab)),
+                                                outline=(120, 146, 138, int(255*a)), width=2)
+        lay.alpha_composite(board)
         fig = fig_frame(fi).convert('RGBA')
-        if a < 0.999:
-            fig.putalpha(int(255*a))
-        base.alpha_composite(fig, FIG_BOX[:2])
+        fig.putalpha(int(255*a))
+        lay.alpha_composite(fig, (FIG_BOX[0] - bx0, FIG_BOX[1] - by0))
+        base.alpha_composite(lay, (bx0, by0))
+        eye = Image.new('RGBA', base.size, (0, 0, 0, 0))
+        d = ImageDraw.Draw(eye)
         (ex0, ey0), (tx0, ty0) = EYE_SIDE
         (ex1, ey1), (tx1, ty1) = EYE_FEET
         ex, ey = ex0 + (ex1 - ex0)*feet, ey0 + (ey1 - ey0)*feet
         tx, ty = tx0 + (tx1 - tx0)*feet, ty0 + (ty1 - ty0)*feet
         ux, uy = tx - ex, ty - ey
         L = max(1e-6, math.hypot(ux, uy)); ux, uy = ux/L, uy/L
-        col = (255, 214, 64, int(255*a))
+        col = (255, 214, 64, int(255*ae))
         d.line([(ex + ux*18, ey + uy*18), (tx - ux*12, ty - uy*12)], fill=col, width=6)
         d.polygon([(tx, ty), (tx - ux*16 - uy*10, ty - uy*16 + ux*10), (tx - ux*16 + uy*10, ty - uy*16 - ux*10)], fill=col)
-        d.ellipse([ex - 15, ey - 10, ex + 15, ey + 10], fill=(8, 18, 16, int(220*a)), outline=col, width=4)
+        d.ellipse([ex - 15, ey - 10, ex + 15, ey + 10], fill=(8, 18, 16, int(255*ab)), outline=col, width=4)
         d.ellipse([ex - 5, ey - 5, ex + 5, ey + 5], fill=col)
+        base.alpha_composite(eye)
     yl = ICON_BOX[3] - 22
     if u > 0:
         m.put(base, l0, 26, 800, m.YELLOW, cx=285, cy=yl, a=at*(1 - u), max_w=280, kind='fade')
