@@ -45,21 +45,24 @@ SEQ = [('hold', '04', 1.10, 1.90),
        ('orbit', '11a', 4.15, 5.60),
        ('hold', '09', 5.60, 6.40),
        ('orbit', '12r', 6.40, 7.90),
-       ('hold', '08', 7.90, 10.15)]
-T_FIN = 10.15                             # ここから 08 → 輪切り
-# 08 は「前下方から見た心臓」（説明書8章）なので、足もとから見た輪切りは、斜めの切り口として出してから起き上がらせる
-CUT_D = 0.50                             # 1. 心室の高さに、光る切り口の線が横切る
-OBL_D = 0.40                             # 2. 切り口の面を斜めから見た形（縦 0.25倍の横長の楕円・筋肉の赤）が出る
-TILT_D = 0.90                            # 3. 切り口が手前に起き上がってこちらを向く（縦 0.25 → 1.0）。3D の絵は消える
-RC_D = 1.60                              # 4. 筋肉の赤 → 図の塗り（位置・大きさはそのまま。区画の名前が出る）
-MV_D = 0.80                              # 5. 縮みながら下の定位置へ
-OBL_K = 0.25
-T_OBL = T_FIN + CUT_D
-T_TILT = T_OBL + OBL_D
-T_RC = T_TILT + TILT_D
+       ('hold', '08', 7.90, 9.60)]
+T_FIN = 9.60                             # ここから 08 → 輪切り
+# 08 は「前下方から見た心臓」（説明書8章）。足もとから見るときは、真下から見上げた絵 13 に切り替えてから輪切りにする
+X13_D = 0.80                             # 1. 08 の寄り終わり → 13（心臓の中心と幅をそろえて重ねて切り替え）。目の矢印は足もとへ
+Z13_D = 0.80                             # 2. 13 を引いて、胴体全体（胸骨が上・背骨が下）が見えるところへ
+H13_D = 0.50                             #    13 で止まる（「足もとから見上げる」）
+OV_D = 0.60                              # 3. 13 の心室の外形に筋肉の赤い輪切りをぴったり重ね、13 の絵を消す
+RC_D = 1.40                              # 4. 同じ位置・大きさで図の塗りへ（区画の名前）
+MV_D = 0.80                              # 5. 縮みながら（13 では小さいので、ふくらみながら）下の定位置へ
+T_Z13 = T_FIN + X13_D
+T_H13 = T_Z13 + Z13_D
+T_OV = T_H13 + H13_D
+T_RC = T_OV + OV_D
 T_MV = T_RC + RC_D
-FIN_D = CUT_D + OBL_D + TILT_D + RC_D + MV_D
-INTRO_END = T_FIN + FIN_D                # 14.35
+T_TILT = T_FIN                           # （向きの目印：矢印が足もとへ回る始まり）
+TILT_D = X13_D
+FIN_D = X13_D + Z13_D + H13_D + OV_D + RC_D + MV_D
+INTRO_END = T_FIN + FIN_D                # 14.50
 Q_T = (0.0, 2.05)                        # 問いかけ「ST上昇、心臓のどこ？」
 PUSH = 0.055                             # 止まっているあいだも、ゆっくり寄りつづける（Z1〜T_FIN で 5.5%）
 ANCHOR = (540, 800)
@@ -169,7 +172,7 @@ def push(t):
 # （動画のコマは s 0.45 まで＝KV×1.25 まで）。08 は 0.35秒 胸全体（横隔膜・背骨）を見せてから、下の面へ寄る
 ZOOM = {'04': 1.25, '07': 1.25, '09': 1.25, '08': 1.55}
 HOLD_WAIT = {'08': 0.10}                 # 08：いちばん引いた絵（幅いっぱい s≈0.352＝胴体・横隔膜・背骨の中に心臓）から
-ZOOM_D = {'08': 1.90}                    # 下の面へ連続して、ゆっくり寄る（倍率は対数で補間）
+ZOOM_D = {'08': 1.50}                    # 下の面へ連続して、ゆっくり寄る（倍率は対数で補間）
 ZOOM_Q = (540, 760)
 
 
@@ -375,7 +378,7 @@ def ensure_fig_frames():
 
 def view_label(t):
     """(前の字, 次の字, 入れ替わりの割合)。最後は起き上がりに合わせて「足もとから見る」。"""
-    labs = VIEW_LABELS + [(T_TILT + 0.3, '足もとから見る')]
+    labs = VIEW_LABELS + [(T_FIN + 0.4, '足もとから見上げる')]
     for (t0, l0), (t1, l1) in zip(labs, labs[1:]):
         if t < t1 - 0.25:
             return l0, l0, 0.0
@@ -424,7 +427,7 @@ DIR_SETS = {
     'back': [('体の左', 'L'), ('体の右', 'R'), ('↑ 頭', 'T')],
     'feet': [('← 体の右', 'L2'), ('体の左 →', 'R2'), ('↑ 胸（前）', 'T2'), ('↓ 背中', 'B2')],
 }
-DIR_KEYS = [(0.0, 'front'), (2.60, 'left'), (4.90, 'back'), (7.00, 'front'), (T_TILT + 0.45, 'feet')]
+DIR_KEYS = [(0.0, 'front'), (2.60, 'left'), (4.90, 'back'), (7.00, 'front'), (T_FIN + 0.4, 'feet')]
 
 
 def dir_labels(m, base, t):
@@ -445,8 +448,8 @@ def dir_labels(m, base, t):
             continue
         for txt, where in DIR_SETS[k]:
             kw = {'L': dict(x=m.SAFE_L + 5, cy=1062), 'R': dict(right=m.SAFE_R - 5, cy=1062), 'T': dict(right=m.SAFE_R - 5, cy=384),
-                  'L2': dict(x=m.SAFE_L + 5, cy=1250), 'R2': dict(right=900, cy=1250),
-                  'T2': dict(cx=540, cy=356), 'B2': dict(cx=540, cy=1196)}[where]
+                  'L2': dict(x=m.SAFE_L + 5, cy=960), 'R2': dict(right=m.SAFE_R - 5, cy=960),
+                  'T2': dict(cx=540, cy=622), 'B2': dict(cx=540, cy=1300)}[where]
             m.put(base, txt, 27, 700, m.WHITE, a=aa, kind='fade', **kw)
 
 
@@ -521,6 +524,60 @@ def intro_frame(m, t, base_only=False):
     qa = ease((t - Q_T[0] + 0.01) / 0.2) * (1 - ease((t - (Q_T[1] - 0.35)) / 0.35))
     shadow_text(m, im, m.QUESTION, 66, 900, m.YELLOW, 333, a=qa if t > 0.005 else 1.0)
     return im
+
+
+# --- 13：足もとから真上に見上げた絵（1376×768・横長。ElevenLabs）。縦の画面のまん中に置き、上下は暗い紺 ----------
+IMG13 = os.path.join(A3, '13_真下から_心臓_EL.png')
+FILL13 = (1, 4, 36)                      # 絵の端の色
+# 心室のかたまりの外形（13 の絵の px。赤い所を測った。左の右房のふくらみと大血管は除く）：x605〜907・y197〜433
+HEART13 = ((756.0, 315.0), (302.0, 236.0))
+S13_FULL = W / 1376
+C13_FULL = (0.0, H/2 - S13_FULL*384)
+_I13 = None
+
+
+def img13():
+    global _I13
+    if _I13 is None:
+        im = Image.open(IMG13).convert('RGBA')
+        w, h = im.size
+        a = np.full((h, w), 255.0)
+        f = 40                               # 端をなじませる
+        ramp = np.clip(np.arange(f)/f, 0, 1)
+        a[:f] *= ramp[:, None]; a[-f:] *= ramp[::-1][:, None]
+        a[:, :f] *= ramp[None, :]; a[:, -f:] *= ramp[::-1][None, :]
+        im.putalpha(Image.fromarray(a.astype(np.uint8)))
+        _I13 = im
+    return _I13
+
+
+def render13(s, c):
+    out = Image.new('RGBA', (W, H), FILL13 + (255,))
+    k = 1/s
+    lay = img13().transform((W, H), Image.AFFINE, (k, 0, -k*c[0], 0, k, -k*c[1]), resample=Image.BICUBIC,
+                            fillcolor=(0, 0, 0, 0))
+    out.alpha_composite(lay)
+    return out.convert('RGB')
+
+
+def cam13_match(p, w):
+    """13 の心室のまん中が画面の p、幅が w px になるカメラ。"""
+    (hx, hy), (hw, hh) = HEART13
+    s = w / hw
+    return s, (p[0] - s*hx, p[1] - s*hy)
+
+
+def cam13(t, p08, w08):
+    """08 の寄り終わりと心臓をそろえたカメラ → 胴体全体が見えるカメラ（倍率は対数、心臓の位置は直線）。"""
+    s0, c0 = cam13_match(p08, w08)
+    u = ease((t - T_Z13) / Z13_D)
+    s1, c1 = S13_FULL, C13_FULL
+    (hx, hy), _ = HEART13
+    q0 = (s0*hx + c0[0], s0*hy + c0[1])
+    q1 = (s1*hx + c1[0], s1*hy + c1[1])
+    sc = math.exp(math.log(s0) + (math.log(s1) - math.log(s0))*u)
+    q = (q0[0] + (q1[0] - q0[0])*u, q0[1] + (q1[1] - q0[1])*u)
+    return sc, (q[0] - sc*hx, q[1] - sc*hy)
 
 
 def photo08():

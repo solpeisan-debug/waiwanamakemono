@@ -295,10 +295,10 @@ def _pat_texts(p):
 
 HOLDS = [max(HOLD_MIN, SUB_LEAD + read_t(*_pat_texts(p))) for p in PATTERNS]
 INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜9.9秒）
-SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 0.30, 4.33),      # 6.5文字/秒＋0.8秒（2つめだけ 3.5秒）
-          ('STが上がる誘導で、梗塞の場所の見当がつく', 4.38, 7.88),
-          ('この向きのまま輪切りにする', 7.93, I3.T_TILT),               # 08（前下方から）に寄るあいだ〜切り口
-          ('輪切りを、足もとから見る', I3.T_TILT + 0.05, I3.T_MV)]       # 切り口が起き上がってこちらを向く
+SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 0.30, 4.33),      # 6.5文字/秒＋0.8秒
+          ('STが上がる誘導で、梗塞の場所の見当がつく', 4.38, 8.41),
+          ('足もとから見上げる', I3.T_FIN + 0.05, I3.T_OV),              # 13（真下から）
+          ('この向きのまま輪切りにする', I3.T_OV + 0.05, I3.T_MV)]       # 13 の心室に輪切りを重ねる〜図の塗り
 HOW0 = INTRO_END + 0.05                   # 見かた
 HOW_SUBS = ['となり合う誘導が、まとまって上がる', '反対側の誘導は、鏡のように下がる']
 _hs0 = HOW0 + 0.30
@@ -1145,38 +1145,40 @@ def place_big(k, p, kind='plain'):
 FIN_FIT = ((534.0, 772.0), (2.445, 2.517))
 
 
+# 13（足もとから）の胴体全体が見えるところで、心室の外形（x605〜907・y197〜433）に輪切りの図（422×302px）を重ねる
+_h13 = I3.HEART13
+FIT13 = ((I3.S13_FULL*_h13[0][0] + I3.C13_FULL[0], I3.S13_FULL*_h13[0][1] + I3.C13_FULL[1]),
+         (I3.S13_FULL*_h13[1][0] / HEART_W, I3.S13_FULL*_h13[1][1] / (2*R_OUT)))
+
+
 def fin_frame(t, s):
-    """T_FIN〜INTRO_END（08 → 輪切り）：
-    1. 心室の高さに光る切り口の線が横切る（CUT_D） 2. 切り口の面を斜めから見た形（縦 0.25倍・筋肉の赤）が出る（OBL_D）
-    3. 切り口が起き上がってこちらを向く（縦 0.25→1.0。中心・横幅はそのまま。3D の絵は消える。TILT_D）
-    4. 筋肉の赤 → 図の塗り（位置・大きさはそのまま。区画の名前が出る。RC_D） 5. 縮みながら下の定位置へ（MV_D）"""
+    """T_FIN〜INTRO_END：
+    1. 08（前下から）の寄り終わり → 13（足もとから）へ重ねて切り替え（心臓の中心と幅をそろえる。X13_D）
+    2. 13 を引いて胴体全体を見せる（Z13_D）・止まる（H13_D）
+    3. 13 の心室の外形に筋肉の赤い輪切りをぴったり重ね、13 を消す（OV_D） 4. 同じ位置・大きさで図の塗りへ（RC_D）
+    5. 下の定位置へ（MV_D）"""
     global _PH
     if _PH is None:
         _PH = I3.photo08()
     photo, pc, pw = _PH
-    u0 = (t - I3.T_FIN) / I3.CUT_D
-    uo = (t - I3.T_OBL) / I3.OBL_D
-    ut = (t - I3.T_TILT) / I3.TILT_D
+    (p08, k08) = FIN_FIT                  # 08 の寄り終わりの心室（中心・横の倍率）
+    w08 = HEART_W*k08[0]
+    ux = (t - I3.T_FIN) / I3.X13_D
+    uo = (t - I3.T_OV) / I3.OV_D
     u2 = (t - I3.T_RC) / I3.RC_D
     u3 = (t - I3.T_MV) / I3.MV_D
     e3 = ease(u3)
-    (p0, k0) = FIN_FIT                    # 08 の心室の外形に合わせた位置・大きさ（起き上がったあとは 1px も動かさない）
-    rr = I3.OBL_K + (1 - I3.OBL_K)*ease(ut)   # 切り口の縦の比：斜め（0.25）→ こちらを向く（1.0）。中心と横幅は変えない
-    k = (math.exp(math.log(k0[0])*(1 - e3)), math.exp(math.log(k0[1]*rr)*(1 - e3)))
-    p = (p0[0] + (HEART_C[0] - p0[0])*e3, p0[1] + (HEART_C[1] - p0[1])*e3)
+    s13, c13 = I3.cam13(t, p08, w08)
+    pic = I3.render13(s13, c13)
+    if ux < 1:
+        pic = Image.blend(photo, pic, ease(ux))
     im = _GRID.copy()
-    fa = 1 - ease(ut)                     # 3D の絵は起き上がるあいだに消える
+    fa = 1 - ease(uo)
     if fa > 0.004:
-        im = Image.blend(im, photo.convert('RGBA'), fa)
-    # 1. 切り口の線（左から右へ横切る → 斜めの切り口が出たら消える）
-    la = (1 - ease(uo)) if t >= I3.T_OBL else 1.0
-    if t >= I3.T_FIN and la > 0.004:
-        xa = p0[0] - HEART_W*k0[0]/2 - 30
-        xb = xa + (HEART_W*k0[0] + 60)*ease(u0)
-        if xb > xa + 2:
-            g = glow_line((W, H), [[(xa, p0[1]), (xb, p0[1])]], (255, 236, 190), 4, la, blur=(6, 16))
-            im.alpha_composite(g)
-    # 2〜4. 斜めの切り口（筋肉の赤）→ 起き上がる → 図の塗り
+        im = Image.blend(im, pic.convert('RGBA'), fa)
+    (p0, k0) = FIT13
+    k = (math.exp(math.log(k0[0])*(1 - e3)), math.exp(math.log(k0[1])*(1 - e3)))
+    p = (p0[0] + (HEART_C[0] - p0[0])*e3, p0[1] + (HEART_C[1] - p0[1])*e3)
     am = ease(uo)
     if am > 0.004:
         if u2 < 1:
