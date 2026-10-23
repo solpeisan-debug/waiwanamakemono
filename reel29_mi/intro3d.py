@@ -37,17 +37,22 @@ HEART = {'03': ((1745, 2150), 870), '04': ((1636, 2155), 1510), '07': ((1557, 22
 Z1 = 1.10                                # 03 の全身 → 心臓へ寄り終わる
 XF03 = (0.68, 1.10)                      # 03 → 04 の重ねて切り替え
 # (種類, 素材, 始め, 終わり)。hold＝その向きで止まる（ゆっくり寄りつづける）、orbit＝回り込み動画
-# 回り込み1本は約1.45秒（前は約1.1秒＝約7倍速で目が回るので、のばした。2026-10-23 でんさん）
-SEQ = [('hold', '04', 1.10, 1.95),
-       ('orbit', '10', 1.95, 3.40),
-       ('hold', '07', 3.40, 4.25),
-       ('orbit', '11', 4.25, 5.70),
-       ('hold', '08', 5.70, 6.55),
-       ('orbit', '12', 6.55, 8.00),
-       ('hold', '09', 8.00, 8.85)]
-T_FIN = 8.85                             # ここから、心臓の絵が縮みながら輪切りの図の位置へ
-FIN_D = 1.05
-INTRO_END = T_FIN + FIN_D                # 9.90
+# 2026-10-23 夜（確認版③）：順番を 前 → 左 → 後ろ → 下 にして 08（下から）で終える。
+# 08 は輪切りの図（足もとから見た向き：上＝前・右＝患者の左・下＝背骨）と同じ向きなので、08 の心臓に輪切りを重ねて切り替える。
+# 後ろ＝動画11 の途中の背面のコマ（B＝154コマめ）で止める。回り込み1本は約1.45秒（目が回らないように）
+B_FRAME = 154                            # 動画11 の背面のコマ（6.4秒）
+SEQ = [('hold', '04', 1.10, 2.00),
+       ('orbit', '10', 2.00, 3.45),
+       ('hold', '07', 3.45, 4.30),
+       ('orbit', '11a', 4.30, 5.75),
+       ('hold', 'B', 5.75, 6.65),
+       ('orbit', '11b', 6.65, 7.25),
+       ('hold', '08', 7.25, 8.55)]
+T_FIN = 8.55                             # ここから 08 の心臓に輪切りの図を重ねる
+XF_D = 0.60                              # 08 → 輪切り（同じ位置・同じ大きさ）
+MV_D = 0.80                              # 輪切りが下の定位置へ縮みながら移動
+FIN_D = XF_D + MV_D
+INTRO_END = T_FIN + FIN_D                # 9.95
 Q_T = (0.0, 2.05)                        # 問いかけ「ST上昇、心臓のどこ？」
 PUSH = 0.055                             # 止まっているあいだも、ゆっくり寄りつづける（Z1〜T_FIN で 5.5%）
 ANCHOR = (540, 800)
@@ -55,23 +60,24 @@ ANCHOR = (540, 800)
 # 回り込み動画の「出力の進み u（0〜1）→ 動画の秒」。早送りしたい所は u の幅を狭く
 TIME_MAP = {
     '10': ([0, 0.40, 0.56, 1.0], [0, 3.0, 5.0, 7.96]),     # 3〜5秒（腕で心臓が隠れる）を早送り
-    '11': ([0, 0.80, 1.0], [0, 6.5, 6.75]),                # 6.5秒あたりで 08 へ重ねて切り替え（最後の1秒の飛びは使わない）
-    '12': ([0, 0.30, 0.70, 1.0], [0, 2.0, 6.0, 7.96]),     # 大回りの途中（2〜6秒）を早送り
+    '11a': ([0, 1.0], [0, (B_FRAME - 1)/24]),              # 左 → 背中側（背面のコマで止める）
+    '11b': ([0, 1.0], [(B_FRAME - 1)/24, 6.75]),           # 背面 → 下（6.5〜6.75秒で 08 へ重ねて切り替え。最後の1秒の飛びは使わない）
 }
-ORBIT_XF_IN = 0.14                       # 動画の最初：前の絵 → 動画（u の幅）
-ORBIT_XF_OUT = {'10': 0.26, '11': 0.30, '12': 0.26}       # 動画の終わり：動画 → 次の絵
-ORBIT_TO = {'10': '07', '11': '08', '12': '09'}
-ORBIT_FROM = {'10': '04', '11': '07', '12': '08'}
+ORBIT_VID = {'10': '10', '11a': '11', '11b': '11'}
+ORBIT_XF_IN = {'10': 0.14, '11a': 0.14, '11b': 0.0}       # 動画の最初：前の絵 → 動画（u の幅）
+ORBIT_XF_OUT = {'10': 0.26, '11a': 0.0, '11b': 0.45}      # 動画の終わり：動画 → 次の絵
+ORBIT_TO = {'10': '07', '11a': 'B', '11b': '08'}
+ORBIT_FROM = {'10': '04', '11a': '07', '11b': 'B'}
 
 # 壁の場所（U。楕円：中心・半径・傾き度）。絵を見て決めた目安。07 は心尖がほぼ真下なので縦長
 GLOW = {'04': (2110, 2700, 250, 560, 10),     # 前壁：前室間溝（LAD の溝）より左（画面の右）の左室の前の面。右室の前面は光らせない
         '07': (1480, 2760, 470, 600, 0),      # 側壁（左から見える左室の面。心尖は真下）
         '08': (1640, 2180, 740, 400, 0),      # 下壁（横隔膜に乗っている面）
-        '09': (1030, 2620, 380, 260, -12)}    # 後壁：左室の後ろの基部寄り（房室間溝の下・下壁と側壁の間）。上の左房・下の横隔膜面は光らせない
+        'B': (1150, 2540, 300, 240, -10)}     # 後壁（動画11 の背面のコマ）：左室の後ろの基部寄り。上の左房・下の横隔膜面は光らせない
 GLOW_COL = (255, 226, 120)
 LABELS = {'04': ('前壁中隔', 'V1〜V4'), '07': ('側壁', 'I・aVL・V5・V6'),
-          '08': ('下壁', 'II・III・aVF'), '09': ('後壁', 'V7〜V9', '（背中に追加）')}
-LABEL_CY = 1160                          # 名前の行の高さ（字幕 y1266 の上・透かしの下）
+          '08': ('下壁', 'II・III・aVF'), 'B': ('後壁', 'V7〜V9', '（背中に追加）')}
+LABEL_CY = 1340                          # 3D の札（心臓の下・透かしの下）。字幕の枠はその下（make_reel29.BOX3D）
 
 
 # --- 素材の読み込み ----------------------------------------------------------------
@@ -121,6 +127,11 @@ def vframe(n, i):
             _VF.clear()
         _VF[key] = (Image.open(os.path.join(CACHE, n, f'{i:03d}.jpg')).convert('RGB'), KV, (0.0, -VOFF))
     return _VF[key]
+
+
+def src_of(k):
+    """止まる絵：静止画か、動画11 の背面のコマ。"""
+    return vframe('11', B_FRAME) if k == 'B' else still(k)
 
 
 def render(src, s, c):
@@ -255,27 +266,28 @@ def scene(t):
         return im, None
     s, c = cam_main(t)
     for kind, k, a, b in SEQ:
-        if a <= t < b or (kind == 'hold' and k == '09' and t >= a):
+        if a <= t < b or (kind == 'hold' and k == '08' and t >= a):
             if kind == 'hold':
-                return render(still(k), s, c), (k, s, c)
+                return render(src_of(k), s, c), (k, s, c)
             u = (t - a) / (b - a)
             xs, ys = TIME_MAP[k]
             sec = interp(xs, ys, u)
-            im = render(vframe(k, int(sec*24) + 1), s, c)       # 1コマずつ（混ぜない）
-            if u < ORBIT_XF_IN:
-                im = Image.blend(render(still(ORBIT_FROM[k]), s, c), im, ease(u / ORBIT_XF_IN))
+            im = render(vframe(ORBIT_VID[k], int(round(sec*24)) + 1), s, c)       # 1コマずつ（混ぜない）
+            xi = ORBIT_XF_IN[k]
+            if xi and u < xi:
+                im = Image.blend(render(src_of(ORBIT_FROM[k]), s, c), im, ease(u / xi))
             xo = ORBIT_XF_OUT[k]
-            if u > 1 - xo:
-                im = Image.blend(im, render(still(ORBIT_TO[k]), s, c), ease((u - (1 - xo)) / xo))
+            if xo and u > 1 - xo:
+                im = Image.blend(im, render(src_of(ORBIT_TO[k]), s, c), ease((u - (1 - xo)) / xo))
             return im, None
-    return render(still('09'), s, c), ('09', s, c)
+    return render(still('08'), s, c), ('08', s, c)
 
 
 def hold_amp(k, t):
     """その向きで止まっているあいだの光・名前の濃さ（少し前から出て、回り始めたら消える）。"""
     for kind, kk, a, b in SEQ:
         if kind == 'hold' and kk == k:
-            end = b if k != '09' else T_FIN
+            end = b if k != '08' else T_FIN
             return ease((t - (a - 0.05)) / 0.25) * (1 - ease((t - (end - 0.10)) / 0.22))
     return 0.0
 
@@ -288,7 +300,7 @@ def intro_frame(m, t, base_only=False):
         im, gk = scene(min(t, T_FIN))
         im = im.convert('RGBA')
         # 光：止まっている向きのとき（07・08・09 の絵は動画の最後から重ねて切り替わる）
-        for k in ('04', '07', '08', '09'):
+        for k in ('04', '07', 'B', '08'):
             amp = hold_amp(k, t)
             if amp > 0.004:
                 s, c = cam_main(min(t, T_FIN))
@@ -296,36 +308,15 @@ def intro_frame(m, t, base_only=False):
                 g = glow_layer(k, s, c, 0.62*amp*pulse)
                 if g is not None:
                     im.alpha_composite(g)
-    for k in ('04', '07', '08', '09'):
+    for k in ('04', '07', 'B', '08'):
         label_pill(m, im, k, hold_amp(k, t))
     qa = ease((t - Q_T[0] + 0.01) / 0.2) * (1 - ease((t - (Q_T[1] - 0.35)) / 0.35))
     shadow_text(m, im, m.QUESTION, 66, 900, m.YELLOW, 333, a=qa if t > 0.005 else 1.0)
     return im
 
 
-def fin_layer(t):
-    """T_FIN〜INTRO_END：09 の心臓が縮みながら輪切りの図の位置へ。外側から消える（RGBA）。"""
-    u = ease((t - T_FIN) / FIN_D)
-    s0, c0 = cam_main(T_FIN)
-    (hx, hy), hw = HEART['09']
-    p0 = (s0*hx + c0[0], s0*hy + c0[1])
-    p1 = (520, 1452)                        # 輪切りの図（左室＋右室）のまん中あたり
-    k = math.exp(math.log(0.54)*u)          # 輪切りの図（幅 約256px）に近い大きさまで
-    s = s0*k
-    p = (p0[0] + (p1[0] - p0[0])*u, p0[1] + (p1[1] - p0[1])*u)
-    c = (p[0] - s*hx, p[1] - s*hy)
-    im = render(still('09'), s, c).convert('RGBA')
-    # 外側から消す（まわりの体 → 心臓）。1/4 の大きさで計算
-    q = 8
-    yy, xx = np.mgrid[0:H//q, 0:W//q]
-    dist = np.hypot(xx*q - p[0], (yy*q - p[1])*0.8)
-    uu = ease(min(1.0, (t - T_FIN) / FIN_D * 2.2))     # まわりの体は早めに消す
-    R = 2600*(1 - uu) + s*hw*0.58*uu
-    msk = np.clip((R - dist) / (0.45*R + 1), 0, 1)
-    # 絵の端（縮むと画面の中に入ってくる）も、やわらかく消す
-    ux, uy = (xx*q - c[0]) / s, (yy*q - c[1]) / s
-    msk *= np.clip(np.minimum.reduce([ux, 3072 - ux, uy, 5504 - uy]) / 500, 0, 1)
-    fade = 1 - ease((u - 0.40) / 0.60)
-    al = Image.fromarray((msk*fade*255).astype(np.uint8)).resize((W, H), Image.BILINEAR)
-    im.putalpha(al)
-    return im
+def photo08():
+    """T_FIN で止まった 08 の絵（RGB）と、そのときの心臓の画面上の中心・幅。"""
+    s, c = cam_main(T_FIN)
+    (hx, hy), hw = HEART['08']
+    return render(still('08'), s, c), (s*hx + c[0], s*hy + c[1]), s*hw

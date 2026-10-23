@@ -71,9 +71,9 @@ LAYOUT = [['I', 'aVR', 'V1', 'V4'],
           ['II', 'aVL', 'V2', 'V5'],
           ['III', 'aVF', 'V3', 'V6']]
 EXTRA = {'V4R': 0, 'V7': 1, 'V8': 2, 'V9': 3}   # 4段め（追加の誘導）の列
-PANEL_X0, COL_W = 100, 230               # 4列 × 230px（＝0.657秒。1拍がちょうど入る）
-ROW_TOP0, ROW_PITCH, ROW_UP = 372, 182, 112      # 段の上端・段の間隔（13mm）・段の上端→基線
-BASES = [ROW_TOP0 + ROW_UP + k*ROW_PITCH for k in range(4)]   # 基線 484, 666, 848, 1030（4段め＝追加の誘導）
+PANEL_X0, COL_W = 80, 230                # 4列 × 230px（＝0.657秒。1拍がちょうど入る）。x80〜1000＝左右の余白 80 でそろえる（説明の枠も同じ）
+ROW_TOP0, ROW_PITCH, ROW_UP = 500, 168, 112      # 段の上端・段の間隔（12mm）・段の上端→基線（確認版③：上に名前・説明の枠）
+BASES = [ROW_TOP0 + ROW_UP + k*ROW_PITCH for k in range(4)]   # 基線 612, 780, 948, 1116（4段め＝追加の誘導）
 PANEL_Y1 = BASES[3] + 70
 TAU0 = -0.24                             # 枠の左端の時刻（R頂点＝0）。R は枠の左から 84px
 TAU1 = TAU0 + COL_W / PXS
@@ -105,8 +105,8 @@ NORMAL = {
     'aVR': (-0.09, 0.00, 0.08, -0.50, -0.20),
     'aVL': (0.04, -0.04, 0.30, -0.15, 0.08),
     'aVF': (0.08, -0.04, 0.55, -0.12, 0.17),
-    'V1':  (0.06, 0.00, 0.15, -0.60, 0.06),
-    'V2':  (0.07, 0.00, 0.28, -0.58, 0.25),
+    'V1':  (0.06, 0.00, 0.15, -0.52, 0.06),
+    'V2':  (0.07, 0.00, 0.28, -0.50, 0.25),
     'V3':  (0.07, 0.00, 0.45, -0.45, 0.25),
     'V4':  (0.07, 0.00, 0.75, -0.30, 0.32),
     'V5':  (0.07, -0.05, 0.75, -0.15, 0.26),
@@ -172,18 +172,18 @@ _INF = {'II': (0.20, 0.08, 0, 0, 1), 'III': (0.30, 0.10, 0, 0, 1), 'aVF': (0.25,
 PATTERNS = [
     dict(no='①', key='asep', name='前壁中隔', ves='LAD', vtxt='LAD（左前下行枝）',
          nurse='→ VFに注意。除細動器を近くに', sub=['V1〜V4 が上がる'],
-         leads={'V1': (0.18, 0.05, 0, 0, 1), 'V2': (0.28, 0.10, 0, 0, 1),
-                'V3': (0.28, 0.10, 0, 0, 1), 'V4': (0.22, 0.08, 0, 0, 1)},
+         leads={'V1': (0.18, 0.05, 0, 0, 1), 'V2': (0.28, 0.06, 0, 0, 1),
+                'V3': (0.28, 0.06, 0, 0, 1), 'V4': (0.22, 0.08, 0, 0, 1)},
          seg={'ant': 1, 'sep': 1}, vesw={'LAD': 1}),
     dict(no='②', key='ext', name='広範囲前壁', ves='LAD', vtxt='LADの根もと',
          nurse='→ 心不全・ショックに注意', sub=['V1〜V6・I・aVL まで上がる'],
-         leads={'V1': (0.20, 0.05, 0, 0, 1), 'V2': (0.30, 0.10, 0, 0, 1), 'V3': (0.30, 0.10, 0, 0, 1),
+         leads={'V1': (0.20, 0.05, 0, 0, 1), 'V2': (0.30, 0.06, 0, 0, 1), 'V3': (0.30, 0.06, 0, 0, 1),
                 'V4': (0.28, 0.08, 0, 0, 1), 'V5': (0.24, 0.10, 0, 0, 1), 'V6': (0.18, 0.06, 0, 0, 1),
                 'I': (0.15, 0.05, 0, 0, 1), 'aVL': (0.15, 0.06, 0, 0, 1),
                 'III': (-0.10, -0.04, 0, 0, 1), 'aVF': (-0.07, -0.03, 0, 0, 1)},
          seg={'ant': 1, 'sep': 1, 'lat': 1}, vesw={'LAD': 1}),
     dict(no='③', key='lat', name='側壁', ves='LCX', vtxt='LCx（回旋枝）など',
-         nurse='→ III・aVFが下がったら、I・aVLも見る', sub=['I・aVL・V5・V6 が上がる'],
+         nurse='→ III・aVFの低下を見たら、I・aVLも確かめる', sub=['I・aVL・V5・V6 が上がる'],
          leads={'I': (0.16, 0.05, 0, 0, 1), 'aVL': (0.18, 0.06, 0, 0, 1),
                 'V5': (0.20, 0.08, 0, 0, 1), 'V6': (0.18, 0.06, 0, 0, 1),
                 'III': (-0.14, -0.06, 0, 0, 1), 'aVF': (-0.09, -0.04, 0, 0, 1)},
@@ -294,8 +294,8 @@ def _pat_texts(p):
 
 HOLDS = [max(HOLD_MIN, SUB_LEAD + read_t(*_pat_texts(p))) for p in PATTERNS]
 INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜9.9秒）
-SUB_3D = [('12誘導は、心臓を色々な向きから見る', 1.40, 5.35),          # 1行 720px に入る言い方
-          ('STが上がる誘導で、場所の見当がつく', 5.55, INTRO_END - 0.10)]
+SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 1.30, 5.20),
+          ('STが上がる誘導で、梗塞の場所の見当がつく', 5.30, I3.T_FIN + I3.XF_D)]
 HOW0 = INTRO_END + 0.05                   # 見かた
 HOW_SUBS = ['となり合う誘導が、まとまって上がる', '反対側の誘導は、鏡のように下がる']
 _hs0 = HOW0 + 0.30
@@ -357,7 +357,7 @@ def _subs():
     return out
 
 
-SUBS = _subs()
+SUBS = [x + ('3d' if k < len(SUB_3D) else 'box',) for k, x in enumerate(_subs())]
 
 
 def cl(x, a=0.0, b=1.0):
@@ -565,7 +565,8 @@ def draw_cell(im, name, s, fast=False):
     if s.tint > 0.004 and name in LEAD_WALL:
         wall = LEAD_WALL[name]
         # R波（枠の左から 84px）の右に置く（波形と字を重ねない）
-        put(im, SEG_NAME[wall], 24, 800, VES_COL[SEG_VES[wall]], x=x0 + WALL_LABEL_DX, cy=top + 25, a=a*s.tint)
+        wx = max(x0 + WALL_LABEL_DX, lx + text_w(name, 30, 800) + 12)
+        put(im, SEG_NAME[wall], 24, 800, VES_COL[SEG_VES[wall]], x=wx, cy=top + 25, a=a*s.tint)
     if fast:
         return
     v = beat(name, par, TAU)
@@ -618,23 +619,22 @@ def draw_panel(im, s, fast=False):
 
 # --- 4段め（追加の誘導）の説明・ふだんの凡例 ----------------------------------------
 EXTRA_NOTE_Y = BASES[3] - 40             # 「← 右胸に貼る」「背中に貼る →」
-LEGEND_Y = BASES[3] - 50
+LEGEND_Y = BASES[3] + 66                 # 凡例：12誘導のすぐ下（小さく）
 
 
 def draw_extra_notes(im, s):
     # 説明は追加の誘導が半分以上出てから・まとめ（tint）が始まったらすぐ消す。凡例は追加の誘導が出始めたらすぐ消す（重ねない）
     k = cl(1 - 3*s.tint)
     put(im, '← 右胸に貼る', 28, 700, RED, x=col_x(1) + 20, cy=EXTRA_NOTE_Y, a=cl((s.x_rv - 0.5)/0.5)*k)
-    put(im, '背中に貼る →', 28, 700, RED, right=col_x(1) - 22, cy=EXTRA_NOTE_Y, a=cl((s.x_post - 0.5)/0.5)*k)
-    a_leg = cl(1 - 3*max(s.x_rv, s.x_post))
+    put(im, '背中に貼る →', 26, 700, RED, right=col_x(1) - 10, cy=EXTRA_NOTE_Y, a=cl((s.x_post - 0.5)/0.5)*k)
+    a_leg = cl(1 - 3*s.tint)
     if a_leg > 0.004:
-        put_parts(im, [('赤＝ST上昇', 28, 800, RED), ('青＝反対側のST低下（鏡像）', 28, 800, BLUE)], LEGEND_Y,
-                  a=a_leg, gap=30)
+        put_parts(im, [('赤＝ST上昇', 26, 800, RED), ('青＝鏡像', 26, 800, BLUE)], LEGEND_Y, a=a_leg, gap=30)
 
 
 # --- 心臓の輪切り（左室の短軸＋右室の三日月。足もとから見た向き：左が右室、右が側壁） -----------
 # 2026-10-23 夜：字幕（y1266）の場所をあけるため、0.82倍にして下へ（まん中に）
-HX, HY = 540, 1452                       # 左室の中心
+HX, HY = 540, 1456                       # 左室の中心
 R_IN, R_OUT = 51, 92                     # 左室の内腔・外側
 RV_D, RV_R, RV_WALL = 74, 90, 20         # 右室：中心を左へ 74px、半径 90、壁の厚さ 20
 # 壁の角度（度。右＝0、反時計回り＝上が 90）
@@ -651,7 +651,7 @@ TOKENS = [
     ('rv', 180, 205, ['V4R']),
 ]
 TOK_SIZE, TOK_GAP = 27, 9
-VES_LEGEND_X, VES_LEGEND_Y = 772, (1312, 1356, 1400)
+VES_LEGEND_X, VES_LEGEND_Y = 772, (1320, 1364, 1408)
 
 
 def _pol(ang, r, cx=HX, cy=HY):
@@ -836,7 +836,7 @@ def draw_mirror(im, s):
 # 鏡像の点線：V1 の字の下から、前壁と中隔の切れ目（125°）を通り、内腔を抜けて後壁へ（壁の名前の字を避ける）
 MIRROR_P0 = _pol(125, 125)
 MIRROR_P1 = _pol(-40, R_IN + 4)
-MIRROR_LABEL = (432, 1328)                # 右端。輪切りの左上（V1〜V4 の左・右室の上）
+MIRROR_LABEL = (432, 1336)                # 右端。輪切りの左上（V1〜V4 の左・右室の上）
 
 
 # --- 文字 -------------------------------------------------------------------------
@@ -844,19 +844,22 @@ TITLE = '心筋梗塞の場所'
 HEADER = [(TITLE, 1.0, WHITE), (str(N_PAT), 1.5, YELLOW), ('パターン', 1.0, WHITE)]
 HEADER_BASE = 358
 QUESTION = 'ST上昇、心臓のどこ？'
-TXT_Y1, TXT_Y2 = 1146, 1206               # 名前（＋血管）・看護の1行
-HOW_LABEL = '見かた'
+NAME_CY = 336                            # いちばん上：見出し／パターンの番号と名前＋血管
+TXT_Y1 = NAME_CY                         # （サムネイル用）
+BOX = (80, 380, 1000, 488)               # 説明の枠（毎回同じ）：12誘導の左右の端と同じ x80〜1000
+BOX_L1, BOX_L2 = 414, 456                # 枠の中：1行め＝字幕（上がる／下がる誘導）、2行め＝看護の1行など
+BOX3D = (80, 1400, 1000, 1462)           # 3D のときの枠（心臓の下。同じ見た目・1行）
+SUB_SIZE, NURSE_SIZE, BOX_MAXW = 34, 32, 820
 SUM_LABEL = 'まとめ'
-REPORT = [('ST上昇を見たら', 36, 800, WHITE), ('→ 12誘導・すぐ報告', 36, 900, RED)]
+REPORT = [('ST上昇を見たら', NURSE_SIZE, 800, WHITE), ('→ 12誘導・すぐ報告', NURSE_SIZE, 900, RED)]
 SAVE = '保存して見返してね'
 COMMENT = '何個わかった？コメントで教えてね'
 NEXT_LABEL = '▶ 次の例'
 NOTES = ('※波形は一例', '※心臓は輪切りの模式図')
 SUM_NOTE = '※側壁はLADの枝のことも'          # まとめのときだけ（左下の注記の上）
-SUB_Y, SUB_SIZE, SUB_MAXW = 1266, 42, 720  # 字幕：いつも同じ位置（看護の1行の下・輪切りの上）。白・暗い帯
 WATERMARK = '@nurse_polarbearden'
 WM_SIZE, WM_WEIGHT, WM_A = 64, 800, 0.16
-WM_CY = BASES[3] + 32                    # 4段めの基線の下（字の上下は cy-23〜cy+41）。追加の誘導の ST（基線より上）・誘導名と重ならない
+WM_CY = 1236                             # 凡例（y1182）と輪切り（上端 y1311）のあいだ（字の上下は cy-23〜cy+41）。全コマ同じ
 
 
 def draw_header(base, a):
@@ -886,32 +889,40 @@ def vtxt_parts(p):
     return [(x, 38, 800, c) for x, c in v]
 
 
+def draw_box(im, box, a):
+    """説明の枠：角丸・細い線・うすい背景。中身が変わっても動かない。"""
+    if im is None or a <= 0.004:
+        return
+    d = ImageDraw.Draw(im, 'RGBA')
+    d.rounded_rectangle(list(box), radius=18, fill=(8, 18, 16, int(190*a)), outline=(120, 146, 138, int(200*a)), width=2)
+
+
 def draw_texts(im, t, s):
     a_loop = ramp(t, DUR - LOOP_FADE, LOOP_FADE)
-    # 見出し（3D の最後に出る）。冒頭の問いかけは 3D の上（intro3d）
-    draw_header(im, ramp(t, INTRO_END - 0.45, 0.5)*(1 - ramp(t, DUR - LOOP_FADE, LOOP_FADE/2)))
-    # 見かた
-    al = ramp(t, HOW0, 0.4)*(1 - ramp(t, HOW1 - 0.3, 0.3))
-    put(im, HOW_LABEL, 54, 900, WHITE, cx=540, cy=TXT_Y1, a=al)
-    put_parts(im, REPORT, TXT_Y2, a=ramp(t, HOW0 + 1.2, 0.4)*(1 - ramp(t, HOW1 - 0.3, 0.3)), gap=14)
+    t_in = I3.T_FIN + I3.XF_D + 0.25         # 輪切りが下へ動きはじめたら、見出し・枠が出る
+    # 見出し（3D のあと〜見かた）。①からはパターンの名前に入れ替わる
+    draw_header(im, ramp(t, t_in, 0.5)*(1 - ramp(t, WINDOWS[0][0] - 0.35, 0.3)))
+    draw_box(im, BOX, ramp(t, t_in, 0.5)*(1 - a_loop))
+    # 見かた（1行め＝字幕、2行め＝赤い字）
+    put_parts(im, REPORT, BOX_L2, a=ramp(t, HOW0 + 1.2, 0.4)*(1 - ramp(t, HOW1 - 0.3, 0.3)), gap=12, max_w=BOX_MAXW)
     # パターン
     i, a, b = current(t)
     if i is not None:
         p = PATTERNS[i]
         al = ramp(t, a + 0.1, 0.3)*(1 - ramp(t, b - 0.25, 0.25))
-        put_parts(im, [(f"{p['no']} {p['name']}", 54, 900, WHITE)] + vtxt_parts(p), TXT_Y1, a=al, gap=14)
+        put_parts(im, [(f"{p['no']} {p['name']}", 54, 900, WHITE)] + vtxt_parts(p), NAME_CY, a=al, gap=14, max_w=BOX_MAXW)
         aln = ramp(t, a + 1.6, 0.4)*(1 - ramp(t, b - 0.25, 0.25))
-        put(im, p['nurse'], 36, 800, GREEN, cx=540, cy=TXT_Y2, a=aln, max_w=720)
+        put(im, p['nurse'], NURSE_SIZE, 800, GREEN, cx=540, cy=BOX_L2, a=aln, max_w=BOX_MAXW)
     # つなぎ（灰色の正常）
     if s.grey > 0.6:
-        put(im, NEXT_LABEL, 34, 700, (168, 178, 180), cx=540, cy=TXT_Y1, a=ease((s.grey - 0.6)/0.4))
+        put(im, NEXT_LABEL, 34, 700, (168, 178, 180), cx=540, cy=NAME_CY, a=ease((s.grey - 0.6)/0.4))
     # まとめ
     if t >= SUM0 - 0.5:
         ka = 1 - a_loop
         sw = ramp(t, SUM0 + COMMENT_T, 0.4)
-        put(im, SUM_LABEL, 54, 900, WHITE, cx=540, cy=TXT_Y1, a=ramp(t, SUM0 - 0.2, 0.4)*ka)
-        put(im, SAVE, 36, 800, GREEN, cx=540, cy=TXT_Y2, a=ramp(t, SUM0 + SAVE_T, 0.4)*(1 - ramp(t, SUM0 + COMMENT_T - 0.3, 0.3))*ka)
-        put(im, COMMENT, 36, 900, YELLOW, cx=540, cy=TXT_Y2, a=sw*ka, max_w=720)
+        put(im, SUM_LABEL, 54, 900, WHITE, cx=540, cy=NAME_CY, a=ramp(t, SUM0 - 0.2, 0.4)*ka)
+        put(im, SAVE, NURSE_SIZE, 800, GREEN, cx=540, cy=BOX_L2, a=ramp(t, SUM0 + SAVE_T, 0.4)*(1 - ramp(t, SUM0 + COMMENT_T - 0.3, 0.3))*ka)
+        put(im, COMMENT, NURSE_SIZE, 900, YELLOW, cx=540, cy=BOX_L2, a=sw*ka, max_w=BOX_MAXW)
     # 後壁：鏡うつし
     if s.mirror > 0.004:
         put(im, '鏡像（前から見ると逆さ）', 24, 800, BLUE, right=MIRROR_LABEL[0], cy=MIRROR_LABEL[1], a=s.mirror)
@@ -925,17 +936,17 @@ def draw_notes(im, s=None):
 
 
 def draw_subtitle(im, t):
-    """字幕（白・42px・暗い帯）。いつも同じ位置。"""
-    for txt, t0, t1 in SUBS:
+    """字幕（白・34px）。ふだんは説明の枠の1行め。3D のときは心臓の下の枠（同じ見た目）。"""
+    for txt, t0, t1, where in SUBS:
         a = ramp(t, t0, 0.25)*(1 - ramp(t, t1 - 0.2, 0.2))
         if a <= 0.004:
             continue
-        if im is not None:
-            w = min(text_w(txt, SUB_SIZE, 800), SUB_MAXW)
-            d = ImageDraw.Draw(im, 'RGBA')
-            d.rounded_rectangle([540 - w/2 - 22, SUB_Y - 30, 540 + w/2 + 22, SUB_Y + 26], radius=14,
-                                fill=(0, 0, 0, int(165*a)))
-        put(im, txt, SUB_SIZE, 800, WHITE, cx=540, cy=SUB_Y, a=a, max_w=SUB_MAXW, kind='sub')
+        if where == '3d':
+            draw_box(im, BOX3D, a)
+            cy = (BOX3D[1] + BOX3D[3]) / 2
+        else:
+            cy = BOX_L1
+        put(im, txt, SUB_SIZE, 800, WHITE, cx=540, cy=cy, a=a, max_w=BOX_MAXW, kind='sub')
 
 
 _SCACHE = {}
@@ -965,7 +976,69 @@ def _mul_alpha(lay, a):
     return lay
 
 
-FIN_SPLIT = 1110                          # 3D の終わり：上（12誘導）と下（輪切り）で出かたを変える
+FIN_SPLIT = 1292                          # 3D の終わり：上（12誘導）と下（輪切り）で出かたを変える
+HEART_C = (HX - (RV_D + RV_R - R_OUT)/2, HY)   # 輪切りの図（右室の左端〜左室の右端）のまん中
+HEART_W = RV_D + RV_R + R_OUT             # その幅（256px）。08 の心臓の幅に合わせて重ねる
+_BIG, _PH = None, None
+
+
+def heart_big():
+    """輪切りの図だけ（誘導名・字なし）を SS 倍の細かさで。08 の心臓に重ねて大きく出すとき用。"""
+    global _BIG
+    if _BIG is not None:
+        return _BIG
+    s = St(STATES['N'])
+    ids, edge = heart_geo()
+    h, w = ids.shape
+    rgba = np.zeros((h, w, 4), dtype=np.float32)
+    for j, k in enumerate(SEGS):
+        m = ids == j
+        rgba[m, :3] = seg_col(k, s)
+        rgba[m, 3] = 255
+    rgba[ids == 6, :3] = CAVITY
+    rgba[ids == 6, 3] = 235
+    rgba[edge, :3] = TISSUE_EDGE
+    rgba[edge, 3] = 235
+    lay = Image.fromarray(rgba.astype(np.uint8), 'RGBA')
+    x0, y0 = HBOX[:2]
+    for v, arcs in VES_ARCS.items():
+        runs = [[((px - x0)*SS, (py - y0)*SS) for px, py in _arc_pts(*arc)] for arc in arcs]
+        g = glow_line((w, h), runs, VES_COL[v], 5*SS, 0.30, blur=None)
+        g.alpha_composite(lay)
+        lay = g
+    _BIG = lay
+    return _BIG
+
+
+def place_big(k, p):
+    """heart_big を、画面で（輪切りのまん中＝p、大きさ＝定位置の k 倍）に置いた全画面の RGBA。"""
+    x0, y0 = HBOX[:2]
+    a = SS / k
+    co = (a, 0, SS*(HEART_C[0] - x0 - p[0]/k), 0, a, SS*(HEART_C[1] - y0 - p[1]/k))
+    return heart_big().transform((W, H), Image.AFFINE, co, resample=Image.BICUBIC)
+
+
+def fin_frame(t, s):
+    """T_FIN〜INTRO_END：08 の心臓に輪切りを同じ位置・同じ大きさで重ねる（絵は消える）→ 縮みながら下の定位置へ。"""
+    global _PH
+    if _PH is None:
+        _PH = I3.photo08()
+    photo, pc, pw = _PH
+    u1 = (t - I3.T_FIN) / I3.XF_D
+    u2 = (t - I3.T_FIN - I3.XF_D) / I3.MV_D
+    e2 = ease(u2)
+    k0 = 0.85*pw / HEART_W                # 08 の心臓（大血管を除いた心室のかたまり）の幅に合わせる
+    k = math.exp(math.log(k0)*(1 - e2))
+    p = (pc[0] + (HEART_C[0] - pc[0])*e2, pc[1] + (HEART_C[1] - pc[1])*e2)
+    im = _GRID.copy()
+    fa = 1 - ease(u1)
+    if fa > 0.004:
+        im = Image.blend(im, photo.convert('RGBA'), fa)
+    im.alpha_composite(_mul_alpha(place_big(k, p), ease(u1 / 0.7)))
+    lay = static_layer(s)
+    im.alpha_composite(_mul_alpha(lay.crop((0, 0, W, FIN_SPLIT)), ease((u2 - 0.35) / 0.65)))
+    im.alpha_composite(_mul_alpha(lay.crop((0, FIN_SPLIT, W, H)), ease((u2 - 0.70) / 0.30)), (0, FIN_SPLIT))
+    return im
 
 
 def watermark(im):
@@ -986,25 +1059,19 @@ def frame(t, fast=False, wm=True):
         return None if fast else im.convert('RGB')
     if fast:
         im_ = None
-        draw_panel(im_, s, fast=True)
-        draw_extra_notes(im_, s)
-        draw_heart(im_, s, fast=True)
+        if t >= INTRO_END - 0.3:          # 3D → 輪切りのあいだは、図の字はまだ出ていない
+            draw_panel(im_, s, fast=True)
+            draw_extra_notes(im_, s)
+            draw_heart(im_, s, fast=True)
+            draw_notes(im_, s)
         draw_texts(im_, t, s)
-        draw_notes(im_, s)
         draw_subtitle(im_, t)
         watermark(im_)
         return None
-    im = _GRID.copy()
     if t < INTRO_END:                     # 3D → 輪切りの図・12誘導
-        u = (t - I3.T_FIN) / I3.FIN_D
-        im.alpha_composite(I3.fin_layer(t))
-        lay = static_layer(s)
-        ap = ease((u - 0.28) / 0.55)
-        ab = ease((u - 0.40) / 0.60)
-        dy = int(round(70*(1 - ap)))
-        im.alpha_composite(_mul_alpha(lay.crop((0, 0, W, FIN_SPLIT)), ap), (0, dy))
-        im.alpha_composite(_mul_alpha(lay.crop((0, FIN_SPLIT, W, H)), ab), (0, FIN_SPLIT))
+        im = fin_frame(t, s)
     else:
+        im = _GRID.copy()
         im.alpha_composite(static_layer(s))
     draw_texts(im, t, s)
     draw_subtitle(im, t)
@@ -1032,7 +1099,7 @@ def check():
     per = [WINDOWS[k + 1][0] - WINDOWS[k][0] for k in range(N_PAT - 1)]
     print('  1パターンの間隔（名前が出る→次の名前が出る）：' + '・'.join(f'{x:.2f}' for x in per))
 
-    print('\n[波形の高さ] 上下の段がぶつからないか（下の段の上向き＋上の段の下向き ≤ 段の間隔 182px − 8）')
+    print(f'\n[波形の高さ] 上下の段がぶつからないか（下の段の上向き＋上の段の下向き ≤ 段の間隔 {ROW_PITCH}px − 8）')
     bad = 0
     for key in list(range(N_PAT)) + ['N', 'S']:
         s = St(STATES[key])
@@ -1054,13 +1121,13 @@ def check():
     print('\n[字の幅] 看護の1行・名前の行（max 720px。右下のボタン x900 にかからない幅）')
     for p in PATTERNS:
         w1 = text_w(f"{p['no']} {p['name']}", 54, 900) + sum(14 + text_w(x[0], 38, 800) for x in vtxt_parts(p))
-        w2 = text_w(p['nurse'], 36, 800)
-        print(f"  {p['no']} 名前＋血管 {w1:4d}px  看護 {w2:4d}px {'！' if max(w1, w2) > 720 else ''}")
+        w2 = text_w(p['nurse'], NURSE_SIZE, 800)
+        print(f"  {p['no']} 名前＋血管 {w1:4d}px  看護 {w2:4d}px {'！' if max(w1, w2) > BOX_MAXW else ''}")
 
     print('\n[字幕] 文字・出ている長さ（読む長さ＝6.5文字/秒＋0.8秒）・幅（max 720px）')
-    for txt, t0, t1 in SUBS:
+    for txt, t0, t1, _ in SUBS:
         w_ = text_w(txt, SUB_SIZE, 800)
-        print(f"  {t0:6.2f}–{t1:6.2f}（{t1 - t0:.2f}秒／読む {read_t(txt):.2f}）{w_:4d}px {'！幅' if w_ > SUB_MAXW else ''}{'！短い' if t1 - t0 < read_t(txt) - 0.05 else ''}  {txt}")
+        print(f"  {t0:6.2f}–{t1:6.2f}（{t1 - t0:.2f}秒／読む {read_t(txt):.2f}）{w_:4d}px {'！幅' if w_ > BOX_MAXW else ''}{'！短い' if t1 - t0 < read_t(txt) - 0.05 else ''}  {txt}")
     print('\n[安全域・重なり] 0.1秒ごとに、出ている字の外枠を調べる')
     issues = {}
     n_frames = int(DUR/0.1) + 1
