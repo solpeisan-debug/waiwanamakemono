@@ -23,9 +23,14 @@
 import argparse
 import math
 import os
+import subprocess
+import sys
+from multiprocessing import Pool
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+import intro3d as I3
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 W, H = 1080, 1920
@@ -253,22 +258,95 @@ def blue_w(st):
     return float(np.clip(-st / 0.06, 0, 1))
 
 
-# --- タイムライン（声は仮。録音したら区間を決め直す） ---------------------------------
+# --- ナレーション（1文1ファイル。out/vo/lines/*.mp3、1.2倍済み）の長さ ----------------------
+# 届いていない文は見込みの長さ（spec の台本）。声の前後の無音は数えない（silencedetect で測る）
+VO_DIR = os.path.join(HERE, 'out', 'vo', 'lines')
+VO_EST = {'00_3d': 3.4, '01_intro': 3.2, '02_mikata': 4.3, 'p1': 4.8, 'p2': 5.3, 'p3': 4.6, 'p4': 5.6,
+          'p5': 5.0, 'p6': 5.8, 'matome': 2.8, 'hozon': 1.4}
+VO_TEXT = {'00_3d': '12誘導は、心臓を、いろんな向きから見ている。',
+           '01_intro': '心筋梗塞の場所は、STが上がる誘導でわかる。',
+           '02_mikata': 'となり合う誘導が、まとまって上がる。反対側は、鏡のように下がる。',
+           'p1': 'V1からV4が上がれば、前壁中隔。左前下行枝、LADです。',
+           'p2': 'V1からV6、IとaVLまで上がれば、広範囲前壁。LADの根もとです。',
+           'p3': 'IとaVL、V5とV6なら、側壁。回旋枝などです。',
+           'p4': 'II、III、aVFなら、下壁。多くは右冠動脈。aVLは鏡のように下がります。',
+           'p5': '下壁に加えて、右胸のV4Rも上がれば、右室。血圧低下に注意。',
+           'p6': 'V1からV3が下がってRが高いときは、背中のV7からV9をとる。上がれば、後壁。',
+           'matome': '上がる誘導で、場所と血管がわかる。', 'hozon': '保存して、見返してね。'}
+
+
+def ffmpeg_bin():
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return 'ffmpeg'
+
+
+def vo_span(path, noise='-40dB', d=0.12):
+    """声のはじめと終わり（秒）。ファイルの前後の無音は除く。"""
+    import re
+    import subprocess
+    log = subprocess.run([ffmpeg_bin(), '-hide_banner', '-i', path, '-af', f'silencedetect=noise={noise}:d={d}',
+                          '-f', 'null', '-'], capture_output=True, text=True).stderr
+    dm = re.search(r'Duration: (\d+):(\d+):([\d.]+)', log)
+    dur = 60*float(dm.group(2)) + float(dm.group(3))
+    st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]
+    en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
+    a, b = 0.0, dur
+    if st and st[0] < 0.01 and en:
+        a = en[0]
+    if st and (len(en) < len(st) or en[-1] >= dur - 0.02) and st[-1] > a:
+        b = st[-1]
+    return a, b
+
+
+def vo_lengths():
+    import json
+    out, have = {}, {}
+    cache_p = os.path.join(HERE, 'out', 'vo', 'lens.json')
+    try:
+        cache = json.load(open(cache_p))
+    except Exception:
+        cache = {}
+    for n in VO_EST:
+        p = os.path.join(VO_DIR, n + '.mp3')
+        if os.path.exists(p) and os.path.getsize(p) > 1000:
+            k = f'{n}:{os.path.getsize(p)}:{os.path.getmtime(p):.0f}'
+            if k not in cache:
+                cache[k] = vo_span(p)
+            a, b = cache[k]
+            out[n] = b - a
+            have[n] = (a, b)
+        else:
+            out[n] = VO_EST[n]
+    if have:
+        os.makedirs(os.path.dirname(cache_p), exist_ok=True)
+        json.dump(cache, open(cache_p, 'w'))
+    return out, have
+
+
+VO_LEN, VO_HAVE = vo_lengths()
+
+# --- タイムライン（声の長さで決める） ------------------------------------------------
 VIA_T, VIA_HOLD, DIRECT_T = 0.70, 0.30, 1.00
-HOLD = 7.6                                # 1パターンの、形がそのまま見えている長さ（名前・声・看護の1行）
-Q_END = 2.4                               # 冒頭の問いかけが消える
-HOOK = [(1.00, 1.55, 0), (1.85, 2.40, I_INF), (2.70, 3.25, 2)]   # 冒頭：前壁中隔 → 下壁 → 側壁（その場で光る）
-HOOK_MORPH = 0.30
-HOW0, HOW1 = 4.6, 9.2                     # 見かた（となり合う誘導がまとまって上がる・色の見かた・すぐ報告）
-SUM_HOLD = 8.0
+VO_LEAD = 0.55                            # 名前が出てから話し始めるまで
+HOLD_MIN, HOLD_TAIL = 5.6, 1.25           # 1パターンの形がそのまま見えている長さ＝声＋話し終わってから 1.25秒（最低 5.6秒）
+HOLDS = [max(HOLD_MIN, VO_LEAD + VO_LEN[f'p{i + 1}'] + HOLD_TAIL) for i in range(N_PAT)]
+INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜8.5秒）
+S00 = 1.15                                # 「12誘導は、心臓を、いろんな向きから見ている。」（前壁で止まったところから）
+S01 = S00 + VO_LEN['00_3d'] + 0.30        # 「心筋梗塞の場所は、STが上がる誘導でわかる。」（3D の最後〜見出し）
+S02 = max(INTRO_END + 0.35, S01 + VO_LEN['01_intro'] + 0.30)   # 見かた
+HOW0 = S02 - 0.45
+HOW1 = max(HOW0 + 4.4, S02 + VO_LEN['02_mikata'] + 0.70)
+SAVE_T = max(3.0, 0.10 + VO_LEN['matome'] + 0.35)             # まとめの頭から「保存して見返してね」まで
+COMMENT_T = SAVE_T + max(2.3, VO_LEN['hozon'] + 0.5)
+SUM_HOLD = COMMENT_T + 2.6
 LOOP_FADE = 0.75
 
 
 def _build():
     kf = [(0.0, 'N')]
-    for a, b, i in HOOK:
-        kf += [(a - HOOK_MORPH, 'N'), (a, i), (b, i)]
-    kf += [(HOOK[-1][1] + 0.40, 'N')]
     win = []                              # (名前が出る, 名前が消える, パターン番号)
     t = HOW1
     kf.append((t, 'N'))
@@ -280,7 +358,7 @@ def _build():
             t = t + VIA_T
         kf.append((t, i))
         a = t
-        t = a + HOLD
+        t = a + HOLDS[i]
         kf.append((t, i))
         win.append((a, t, i))
         if i + 1 == I_RV:
@@ -294,6 +372,16 @@ def _build():
     t += SUM_HOLD; kf.append((t, 'S'))
     t += LOOP_FADE; kf.append((t, 'N'))
     return kf, win, sum0, t
+
+
+def vo_starts():
+    """各文を置く時刻（align_vo.py と同じ値）。"""
+    st = {'00_3d': S00, '01_intro': S01, '02_mikata': S02}
+    for i in range(N_PAT):
+        st[f'p{i + 1}'] = WINDOWS[i][0] + VO_LEAD
+    st['matome'] = SUM0 + 0.10
+    st['hozon'] = SUM0 + SAVE_T
+    return st
 
 
 KF, WINDOWS, SUM0, DUR = _build()
@@ -824,15 +912,8 @@ def vtxt_parts(p):
 
 def draw_texts(im, t, s):
     a_loop = ramp(t, DUR - LOOP_FADE, LOOP_FADE)
-    # 冒頭の問いかけ → 見出し
-    a_q = max(1 - ramp(t, Q_END - 0.45, 0.45), ramp(t, DUR - LOOP_FADE/2, LOOP_FADE/2))
-    put(im, QUESTION, 66, 900, YELLOW, cx=540, cy=333, a=a_q, max_w=800)
-    draw_header(im, ramp(t, Q_END, 0.5)*(1 - ramp(t, DUR - LOOP_FADE, LOOP_FADE/2)))
-    # 冒頭：光った場所の名前（小さく）
-    for a, b, i in HOOK:
-        al = ramp(t, a - 0.05, 0.15)*(1 - ramp(t, b - 0.05, 0.15))
-        p = PATTERNS[i]
-        put(im, p['name'] + '？', 46, 900, WHITE, cx=540, cy=TXT_Y1, a=al)
+    # 見出し（3D の最後に出る）。冒頭の問いかけは 3D の上（intro3d）
+    draw_header(im, ramp(t, INTRO_END - 0.45, 0.5)*(1 - ramp(t, DUR - LOOP_FADE, LOOP_FADE/2)))
     # 見かた
     al = ramp(t, HOW0, 0.4)*(1 - ramp(t, HOW1 - 0.3, 0.3))
     put(im, HOW_LINE, 42, 800, WHITE, cx=540, cy=TXT_Y1, a=al, max_w=720)
@@ -851,9 +932,9 @@ def draw_texts(im, t, s):
     # まとめ
     if t >= SUM0 - 0.5:
         ka = 1 - a_loop
-        sw = ramp(t, SUM0 + 5.3, 0.4)
+        sw = ramp(t, SUM0 + COMMENT_T, 0.4)
         put(im, SUM_LINE, 42, 800, WHITE, cx=540, cy=TXT_Y1, a=ramp(t, SUM0 - 0.2, 0.4)*ka, max_w=720)
-        put(im, SAVE, 36, 800, GREEN, cx=540, cy=TXT_Y2, a=ramp(t, SUM0 + 3.0, 0.4)*(1 - ramp(t, SUM0 + 5.0, 0.3))*ka)
+        put(im, SAVE, 36, 800, GREEN, cx=540, cy=TXT_Y2, a=ramp(t, SUM0 + SAVE_T, 0.4)*(1 - ramp(t, SUM0 + COMMENT_T - 0.3, 0.3))*ka)
         put(im, COMMENT, 36, 900, YELLOW, cx=540, cy=TXT_Y2, a=sw*ka, max_w=720)
     # 後壁：鏡うつし
     if s.mirror > 0.004:
@@ -865,12 +946,51 @@ def draw_notes(im):
         put(im, n, 22, 400, GREY, x=SAFE_L + 5, cy=1558 + 28*k, a=0.85)
 
 
-def frame(t, fast=False):
+_SCACHE = {}
+
+
+def static_layer(s):
+    """文字以外（12誘導・4段めの説明・輪切り・注記）を、透明の下地に描いたもの。状態が同じなら使い回す（書き出しを速く）。"""
+    key = np.round(s.v, 5).tobytes()
+    if key in _SCACHE:
+        return _SCACHE[key]
+    lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    draw_panel(lay, s)
+    draw_extra_notes(lay, s)
+    draw_heart(lay, s)
+    draw_notes(lay)
+    if len(_SCACHE) > 6:
+        _SCACHE.clear()
+    _SCACHE[key] = lay
+    return lay
+
+
+def _mul_alpha(lay, a):
+    if a >= 0.999:
+        return lay
+    lay = lay.copy()
+    lay.putalpha(lay.getchannel('A').point(lambda v: int(v*a)))
+    return lay
+
+
+FIN_SPLIT = 1110                          # 3D の終わり：上（12誘導）と下（輪切り）で出かたを変える
+
+
+def watermark(im):
+    # 透かし（シリーズ共通：中央・64px・太さ800・白16%・全コマ同じ位置）。3D の場面にも入れる
+    put(im, WATERMARK, WM_SIZE, WM_WEIGHT, WHITE, cx=540, cy=WM_CY, a=WM_A, kind='wm')
+
+
+def frame(t, fast=False, wm=True):
     global _GRID
     if _GRID is None:
         _GRID = grid()
-    im = _GRID.copy() if not fast else None
     s = state_at(t)
+    if t < I3.T_FIN:                      # 冒頭の3D
+        im = I3.intro_frame(sys.modules[__name__], t, base_only=fast)
+        if wm:
+            watermark(im)
+        return None if fast else im.convert('RGB')
     if fast:
         im_ = None
         draw_panel(im_, s, fast=True)
@@ -878,15 +998,26 @@ def frame(t, fast=False):
         draw_heart(im_, s, fast=True)
         draw_texts(im_, t, s)
         draw_notes(im_)
-        put(im_, WATERMARK, WM_SIZE, WM_WEIGHT, WHITE, cx=540, cy=WM_CY, a=WM_A, kind='wm')
+        watermark(im_)
         return None
-    draw_panel(im, s)
-    draw_extra_notes(im, s)
-    draw_heart(im, s)
+    im = _GRID.copy()
+    if t < INTRO_END:                     # 3D → 輪切りの図・12誘導
+        u = (t - I3.T_FIN) / I3.FIN_D
+        im.alpha_composite(I3.fin_layer(t))
+        lay = static_layer(s)
+        ap = ease((u - 0.28) / 0.55)
+        ab = ease((u - 0.40) / 0.60)
+        dy = int(round(70*(1 - ap)))
+        im.alpha_composite(_mul_alpha(lay.crop((0, 0, W, FIN_SPLIT)), ap), (0, dy))
+        im.alpha_composite(_mul_alpha(lay.crop((0, FIN_SPLIT, W, H)), ab), (0, FIN_SPLIT))
+    else:
+        im.alpha_composite(static_layer(s))
     draw_texts(im, t, s)
-    draw_notes(im)
-    # 透かし（シリーズ共通：中央・64px・太さ800・白16%・全コマ同じ位置）
-    put(im, WATERMARK, WM_SIZE, WM_WEIGHT, WHITE, cx=540, cy=WM_CY, a=WM_A, kind='wm')
+    lf = ramp(t, DUR - 0.5, 0.5)          # ループ：最後に冒頭の絵へもどる
+    if lf > 0.004:
+        im = Image.blend(im, I3.intro_frame(sys.modules[__name__], 0.0), lf)
+    if wm:
+        watermark(im)
     return im.convert('RGB')
 
 
@@ -1002,23 +1133,139 @@ def make_sheet(out_dir, stamp=None):
     sh.save(send); print(send)
 
 
+# --- 書き出し（第26弾と同じ：ffmpeg へパイプ、--jobs で分けて連結） -------------------------
+def render_chunk(args):
+    i0, i1, fps, path, crf, preset, scale = args
+    I3.ensure_frames()
+    vf = ['-vf', f'scale={scale[0]}:{scale[1]}:flags=lanczos'] if scale else []
+    cmd = [ffmpeg_bin(), '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24',
+           '-s', f'{W}x{H}', '-r', str(fps), '-i', '-'] + vf + ['-c:v', 'libx264', '-preset', preset,
+           '-crf', str(crf), '-profile:v', 'high', '-pix_fmt', 'yuv420p', path]
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    for n in range(i0, i1):
+        p.stdin.write(frame(n / fps).tobytes())
+    p.stdin.close()
+    p.wait()
+    return path
+
+
+def _whoosh(n_len, sr, f_lo, f_hi, seed):
+    """低いウーシュ：雑音を帯域で絞り、ふくらんで消える形にする。"""
+    rng = np.random.default_rng(seed)
+    x = rng.standard_normal(n_len)
+    X = np.fft.rfft(x)
+    f = np.fft.rfftfreq(n_len, 1/sr)
+    X *= np.exp(-0.5*((np.log(np.maximum(f, 1)) - np.log(math.sqrt(f_lo*f_hi)))/0.55)**2)
+    y = np.fft.irfft(X, n_len)
+    tt = np.arange(n_len)/n_len
+    env = np.sin(np.pi*np.clip(tt, 0, 1))**1.6 * (0.6 + 0.4*tt)
+    y = y*env
+    return y / (np.abs(y).max() + 1e-9)
+
+
+def sfx(path, sr=44100):
+    """効果音：3D の寄り・回り込みに低いウーシュ、12誘導が出てからモニター音（75/分）。音量は第26弾と同じ（0.2）。"""
+    import wave
+    n = int(DUR*sr)
+    a = np.zeros(n, dtype=np.float32)
+
+    def add(sig, t0, g):
+        j = int(t0*sr)
+        L = max(0, min(len(sig), n - j))
+        a[j:j+L] += (g*sig[:L]).astype(np.float32)
+    add(_whoosh(int(1.25*sr), sr, 90, 420, 1), 0.0, 0.30)              # 全身 → 心臓へ寄る
+    for k, (kind, src, t0, t1) in enumerate(I3.SEQ):
+        if kind == 'orbit':
+            add(_whoosh(int((t1 - t0 + 0.2)*sr), sr, 120, 520, 2 + k), t0 - 0.05, 0.16)
+    add(_whoosh(int((I3.FIN_D + 0.2)*sr), sr, 100, 450, 9), I3.T_FIN - 0.05, 0.20)
+    L = int(0.08*sr)
+    tt = np.arange(L)/sr
+    beep = 0.2*np.minimum(1, tt/0.004)*np.exp(-tt/0.045)*np.sin(2*np.pi*960.0*tt)
+    tb = INTRO_END - 0.10
+    while tb < DUR - 0.6:
+        add(beep, tb, 1.0)
+        tb += 0.8
+    pcm = (np.clip(a, -1, 1)*32767).astype(np.int16)
+    with wave.open(path, 'wb') as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+        w.writeframes(pcm.tobytes())
+
+
+def export(fps, out, crf, preset, jobs, scale=None):
+    I3.ensure_frames()
+    total = int(round(DUR*fps))
+    step = math.ceil(total / jobs)
+    tmp = os.path.join(os.path.dirname(out), 'parts_' + os.path.splitext(os.path.basename(out))[0])
+    os.makedirs(tmp, exist_ok=True)
+    js = [(i, min(total, i + step), fps, os.path.join(tmp, f'p{j:02d}.mp4'), crf, preset, scale)
+          for j, i in enumerate(range(0, total, step))]
+    with Pool(jobs) as pool:
+        parts = pool.map(render_chunk, js)
+    lst = os.path.join(tmp, 'list.txt')
+    with open(lst, 'w') as f:
+        for p in parts:
+            f.write(f"file '{p}'\n")
+    wav = os.path.join(tmp, 'sfx.wav')
+    sfx(wav)
+    subprocess.run([ffmpeg_bin(), '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', lst,
+                    '-i', wav, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest',
+                    '-movflags', '+faststart', out], check=True)
+    print(out, f'{DUR:.2f}秒')
+
+
+def thumbnail():
+    """サムネイル（透かしなし）：「心筋梗塞の場所 6パターン」＋12誘導（④下壁の形）＋輪切り。"""
+    w = {i: (a, b) for a, b, i in WINDOWS}
+    t = w[1][0] + 3.0                     # ② 広範囲前壁（赤と青の両方が出る）
+    s = state_at(t)
+    global _GRID
+    if _GRID is None:
+        _GRID = grid()
+    im = _GRID.copy()
+    im.alpha_composite(static_layer(s))
+    # 上の帯に大きな題
+    d = ImageDraw.Draw(im, 'RGBA')
+    d.rectangle([0, 0, W, 360], fill=BG + (255,))
+    put(im, '心筋梗塞の場所', 104, 900, WHITE, cx=540, cy=180, max_w=820)
+    put_parts(im, [('ST上昇の誘導で', 48, 800, YELLOW), ('6', 80, 900, YELLOW), ('パターン', 48, 800, YELLOW)], 300,
+              max_w=820, gap=10)
+    # 名前の行のかわりに大きく
+    put_parts(im, [('② 広範囲前壁', 54, 900, WHITE), ('LADの根もと', 38, 800, C_LAD)], TXT_Y1, gap=14)
+    return im.convert('RGB')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--still', type=float, nargs='*')
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--sheet', action='store_true')
+    ap.add_argument('--thumb', action='store_true')
+    ap.add_argument('--preview', action='store_true', help='確認版（540×960・30fps・速い）：out/reel29_mi_preview.mp4')
+    ap.add_argument('--hq', action='store_true', help='高画質（CRF 11・slow）：out/reel29_mi_hq.mp4')
+    ap.add_argument('--render', action='store_true', help='通常版（1080×1920・60fps・CRF 18）：out/reel29_mi.mp4')
+    ap.add_argument('--jobs', type=int, default=4)
     o = ap.parse_args()
     out = os.path.join(HERE, 'out')
+    os.makedirs(out, exist_ok=True)
     if o.check:
         check(); return
     if o.sheet:
         make_sheet(out); return
+    if o.thumb:
+        p = os.path.join(out, 'reel29_mi_thumb.png')
+        thumbnail().save(p); print(p); return
     if o.still:
-        os.makedirs(out, exist_ok=True)
+        I3.ensure_frames()
         for t in o.still:
             p = os.path.join(out, f'still_{t:05.1f}.png')
             frame(t).save(p); print(p)
         return
+    if o.preview:
+        export(30, os.path.join(out, 'reel29_mi_preview.mp4'), 23, 'veryfast', o.jobs, scale=(540, 960)); return
+    if o.hq:
+        export(60, os.path.join(out, 'reel29_mi_hq.mp4'), 11, 'slow', o.jobs); return
+    if o.render:
+        export(60, os.path.join(out, 'reel29_mi.mp4'), 18, 'medium', o.jobs); return
     ap.print_help()
 
 
