@@ -299,15 +299,17 @@ SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 0.30, 
           ('STが上がる誘導で、梗塞の場所の見当がつく', 4.38, 8.41),
           ('足もとから、頭のほうを見上げる', I3.T_EX2 + 0.2, I3.T_H13 - 0.05),   # 目が足もとへ回る〜人体が回る
           ('この向きのまま輪切りにする', I3.T_H13 + 0.1, I3.T_MV)]       # 13 で止まる〜寄る〜輪切りを重ねる〜図の塗り（説明の場面の字は intro3d）
-HOW0 = INTRO_END + 0.05                   # 見かた
+# 「見かた」の場面はやめた（でんさん「イラストになってから動きがないのが嫌。すぐ①へ」）。輪切りが着いたらすぐ①へ。
+# 見かたの内容は、最後のまとめに 2段で入れる
+HOW0 = HOW1 = INTRO_END + 0.25
 HOW_SUBS = ['となり合う誘導が、まとまって上がる', '反対側の誘導は、鏡のように下がる']
-_hs0 = HOW0 + 0.30
-_hs1 = _hs0 + read_t(HOW_SUBS[0]) + 0.2
-HOW1 = _hs1 + read_t(HOW_SUBS[1], 'ST上昇を見たら→12誘導・すぐ報告') - 0.4
 SUM_LINE = '上がる誘導で、場所と血管がわかる'
-SAVE_T = read_t(SUM_LINE) + 0.2           # まとめの頭から「保存して見返してね」まで
+# まとめ：A（1行め・2行め＝見かた）→ B（1行め＝上がる誘導で…、2行め＝赤「ST上昇を見たら → 12誘導・すぐ報告」）→ 保存 → コメント
+SUM_A = read_t(*HOW_SUBS)
+SUM_B = read_t(SUM_LINE, 'ST上昇を見たら→12誘導・すぐ報告')
+SAVE_T = SUM_A + SUM_B                    # まとめの頭から「保存して見返してね」まで
 COMMENT_T = SAVE_T + 2.0
-SUM_HOLD = COMMENT_T + 1.3
+SUM_HOLD = COMMENT_T + 1.6
 LOOP_FADE = 0.75
 
 
@@ -346,7 +348,6 @@ KF, WINDOWS, SUM0, DUR = _build()
 def _subs():
     """字幕（文字, 出る, 消える）。位置はいつも同じ（SUB_Y）。"""
     out = list(SUB_3D)
-    out += [(HOW_SUBS[0], _hs0, _hs1 - 0.1), (HOW_SUBS[1], _hs1, HOW1 - 0.05)]
     for a, b, i in WINDOWS:
         ss = PATTERNS[i]['sub']
         t0, t1 = a + SUB_LEAD, b - 0.05
@@ -356,7 +357,8 @@ def _subs():
             d = span * read_t(x) / tot
             out.append((x, t0, t0 + d - (0.1 if len(ss) > 1 else 0)))
             t0 += d
-    out.append((SUM_LINE, SUM0 - 0.2, DUR - LOOP_FADE*0.5))
+    out.append((HOW_SUBS[0], SUM0 - 0.2, SUM0 + SUM_A - 0.1))
+    out.append((SUM_LINE, SUM0 + SUM_A, DUR - LOOP_FADE*0.5))
     return out
 
 
@@ -997,7 +999,6 @@ def draw_texts(im, t, s):
     draw_header(im, ramp(t, t_in, 0.5)*(1 - ramp(t, WINDOWS[0][0] - 0.35, 0.3)))
     draw_box(im, BOX, ramp(t, t_in, 0.5)*(1 - a_loop))
     # 見かた（1行め＝字幕、2行め＝赤い字）
-    put_parts(im, REPORT, BOX_L2, a=ramp(t, HOW0 + 1.2, 0.4)*(1 - ramp(t, HOW1 - 0.3, 0.3)), gap=12, max_w=BOX_MAXW)
     # パターン
     i, a, b = current(t)
     if i is not None:
@@ -1014,6 +1015,8 @@ def draw_texts(im, t, s):
         ka = 1 - a_loop
         sw = ramp(t, SUM0 + COMMENT_T, 0.4)
         put(im, SUM_LABEL, 54, 900, WHITE, cx=540, cy=NAME_CY, a=ramp(t, SUM0 - 0.2, 0.4)*ka)
+        put(im, HOW_SUBS[1], NURSE_SIZE, 800, WHITE, cx=540, cy=BOX_L2, a=ramp(t, SUM0 + 0.6, 0.4)*(1 - ramp(t, SUM0 + SUM_A - 0.3, 0.3))*ka, max_w=BOX_MAXW)
+        put_parts(im, REPORT, BOX_L2, a=ramp(t, SUM0 + SUM_A + 0.3, 0.4)*(1 - ramp(t, SUM0 + SAVE_T - 0.3, 0.3))*ka, gap=12, max_w=BOX_MAXW)
         put(im, SAVE, NURSE_SIZE, 800, GREEN, cx=540, cy=BOX_L2, a=ramp(t, SUM0 + SAVE_T, 0.4)*(1 - ramp(t, SUM0 + COMMENT_T - 0.3, 0.3))*ka)
         put(im, COMMENT, NURSE_SIZE, 900, YELLOW, cx=540, cy=BOX_L2, a=sw*ka, max_w=BOX_MAXW)
     # 後壁：鏡うつし
