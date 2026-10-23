@@ -47,23 +47,27 @@ SEQ = [('hold', '04', 1.10, 1.90),
        ('orbit', '12r', 6.40, 7.90),
        ('hold', '08', 7.90, 9.60)]
 T_FIN = 9.60                             # ここから 08 → 輪切り
-# 08 は「前下方から見た心臓」（説明書8章）。足もとから見るときは、説明の場面（横向きの人＋目の移動）を入れてから、
-# 真下から見上げた絵 13 を下からスライドで入れ、その心室に輪切りを重ねる
-EX1_D = 0.80                             # 1. 08 が暗く小さく引き、横向きの人の形が右からスライドして入る
-EX2_D = 1.30                             # 2. 胸の前の目が弧を描いて足もとの下へ回り、上を向く。点線の視線が頭のほうへのびる
-EX3_D = 0.90                             # 3. 視線にそって画面が上へ流れ、13 が下からスライドで入って止まる
-H13_D = 0.80                             # 4. 13 で止まる（方向の字・左上の目印「足もとから見上げる」）
-OV_D = 0.60                              # 5. 13 の心室の外形に筋肉の赤い輪切りをぴったり重ね、13 の絵を消す
-RC_D = 1.10                              # 6. 同じ位置・大きさで図の塗りへ（区画の名前）
-MV_D = 0.80                              # 7. 下の定位置へ
-T_EX2 = T_FIN + EX1_D
+# 08 は「前下方から見た心臓」（説明書8章）。足もとから見るときは、説明の場面（横向きの全身 14＋目の移動）を入れてから、
+# 真下から見上げた絵 13 を下からスライドで入れ、13 の心臓へ寄ってから輪切りを重ねる
+EX1_D = 0.90                             # 1. 08 の心臓が小さくなりながら、全身 14 の心臓の位置へ重なる（心臓の位置で2枚をつなぐ）
+EX1H_D = 0.25                            #    全身がはっきりする
+EX2_D = 1.30                             # 2. 胸の前の目が弧を描いて足もとの下へ回り、上を向く。点線の視線が心臓までのびる
+EX3_D = 0.90                             # 3. 視線にそって画面が下から上へ流れ、13 が入って止まる（13 の心臓が同じあたりに）
+H13_D = 0.60                             # 4. 13 で止まる（方向の字・左上の目印「足もとから見上げる」）
+Z13_D = 0.80                             # 5. 13 の心臓へ寄る（輪切りが定位置とほぼ同じ大きさになるところまで）
+OV_D = 0.60                              # 6. 13 の心室の外形に筋肉の赤い輪切りをぴったり重ね、13 の絵を消す
+RC_D = 1.00                              # 7. 同じ位置・大きさで図の塗りへ（区画の名前）
+MV_D = 0.80                              # 8. 下の定位置へ
+T_EX1H = T_FIN + EX1_D
+T_EX2 = T_EX1H + EX1H_D
 T_EX3 = T_EX2 + EX2_D
 T_H13 = T_EX3 + EX3_D
-T_OV = T_H13 + H13_D
+T_Z13 = T_H13 + H13_D
+T_OV = T_Z13 + Z13_D
 T_RC = T_OV + OV_D
 T_MV = T_RC + RC_D
-FIN_D = EX1_D + EX2_D + EX3_D + H13_D + OV_D + RC_D + MV_D
-INTRO_END = T_FIN + FIN_D                # 15.90
+FIN_D = EX1_D + EX1H_D + EX2_D + EX3_D + H13_D + Z13_D + OV_D + RC_D + MV_D
+INTRO_END = T_FIN + FIN_D                # 16.75
 Q_T = (0.0, 2.05)                        # 問いかけ「ST上昇、心臓のどこ？」
 PUSH = 0.055                             # 止まっているあいだも、ゆっくり寄りつづける（Z1〜T_FIN で 5.5%）
 ANCHOR = (540, 800)
@@ -400,7 +404,7 @@ def view_icon(m, base, t):
     if a <= 0.004:
         return
     l0, l1, u = view_label(t)
-    feet = 1.0 if t >= T_FIN else 0.0
+    feet = 1.0 if t >= T_H13 else 0.0
     if base is not None:
         fi = int(round(float(np.interp(t, [k[0] for k in FRAME_KEYS], [k[1] for k in FRAME_KEYS]))))
         d = ImageDraw.Draw(base, 'RGBA')
@@ -568,61 +572,51 @@ def render13(s, c):
     return out.convert('RGB')
 
 
-# --- 説明の場面：横向きに立った人（頭が上・足が下・顔は画面の左＝前）と、目の移動 ---------------------------
-PERSON_CX = 560
-PERSON = {
-    'head': (PERSON_CX - 14, 392, 60),
-    'torso': [(-72, 498), (58, 498), (70, 560), (56, 800), (62, 862), (-62, 862), (-78, 760), (-88, 600)],
-    'leg_f': [(-58, 858), (2, 858), (-6, 1176), (-46, 1176)],
-    'leg_b': [(-2, 858), (58, 858), (46, 1176), (6, 1176)],
-    'foot': [(-86, 1176), (10, 1176), (10, 1206), (-92, 1206)],
-}
-HEART_P = (PERSON_CX - 40, 592)
-EYE_C, EYE_RX, EYE_RY = (PERSON_CX - 30, 640), 200, 660        # 目の弧：胸の前（左）→ 足もとの下
+# --- 説明の場面：横向きの全身 14（1376×768・左＝前を向いて立つ透けた青い人。ElevenLabs）と、目の移動 -------------
+IMG14 = os.path.join(A3, '14_横向き全身_EL.png')
+# 14 の絵の px：体 x617〜754・y13〜759、心臓（赤い所）x658〜693・y187〜234（中心 677,210）
+S14 = 1120 / 746                          # 頭〜足を y320〜1440 に
+C14 = (500 - S14*685, 320 - S14*13)
+HEART14 = (677.0, 210.5, 35.0)            # 心臓の中心と幅（14 の絵の px）
+_I14 = None
 
 
-PS, PS_C = 1.12, (PERSON_CX, 830)          # 人の形の大きさ（太めの線・大きめに）
+def img14():
+    global _I14
+    if _I14 is None:
+        _I14 = Image.open(IMG14).convert('RGB')
+    return _I14
 
 
-def _ps(x, y):
-    return PS_C[0] + (x - PS_C[0])*PS, PS_C[1] + (y - PS_C[1])*PS
+def heart14_screen():
+    return S14*HEART14[0] + C14[0], S14*HEART14[1] + C14[1], S14*HEART14[2]
 
 
-def draw_person(d, dx, dy, a):
-    line = (214, 232, 240, int(240*a))
-    fill = (40, 92, 128, int(190*a))
-    T = lambda x, y: (lambda q: (q[0] + dx, q[1] + dy))(_ps(x, y))
-    P = lambda pts: [T(PERSON_CX + x, y) for x, y in pts]
-    for k in ('leg_b', 'leg_f', 'foot', 'torso'):
-        d.polygon(P(PERSON[k]), fill=fill, outline=line, width=8)
-    x0, y0 = T(PERSON_CX - 40, 440); x1, y1 = T(PERSON_CX + 6, 505)
-    d.rounded_rectangle([x0, y0, x1, y1], radius=8, fill=fill)
-    hx, hy, hr = PERSON['head']
-    (cx, cy), r = T(hx, hy), hr*PS
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill, outline=line, width=8)
-    (nx, ny) = T(hx - hr - 3, hy + 2)
-    d.ellipse([nx - 13, ny - 11, nx + 13, ny + 11], fill=fill, outline=line, width=5)            # 鼻（顔は左＝前）
-    s0, s1 = T(PERSON_CX - 6, 530), T(PERSON_CX - 22, 830)
-    d.line([s0, s1], fill=line, width=36)                                                      # 腕
-    d.line([s0, s1], fill=fill, width=22)
-    x, y = T(*HEART_P)
-    d.ellipse([x - 50, y - 46, x + 50, y + 46], fill=(255, 70, 80, int(70*a)))
-    d.ellipse([x - 32, y - 30, x + 32, y + 30], fill=(235, 60, 72, int(255*a)))
+def render14(s, c):
+    k = 1/s
+    return img14().transform((W, H), Image.AFFINE, (k, 0, -k*c[0], 0, k, -k*c[1]), resample=Image.BICUBIC, fillcolor=FILL13)
+
+
+def render_locked(photo, p_src, w_src, q, hw):
+    """photo（画面の絵）の中の心臓（中心 p_src・幅 w_src）が、画面の q・幅 hw になるように拡大縮小した絵。"""
+    r = hw / w_src
+    return photo.transform((W, H), Image.AFFINE, (1/r, 0, p_src[0] - q[0]/r, 0, 1/r, p_src[1] - q[1]/r),
+                           resample=Image.BICUBIC, fillcolor=FILL13)
 
 
 def eye_pose(u):
-    """u 0〜1：目の位置と向き（向きは画面の角度。0＝右、90＝上）。"""
+    """u 0〜1：目の位置と向き（0＝右・90＝上）。胸の前（画面の左）→ 足もとの下（上を向く）。"""
+    hx, hy, _ = heart14_screen()
+    cx, cy = 492.0, hy                    # 弧の中心：足もとの真上・心臓の高さ
+    rx, ry = cx - (hx - 180), 1510 - hy
     th = math.radians(180 + 90*u)
-    x, y = _ps(EYE_C[0] + EYE_RX*math.cos(th), EYE_C[1] - EYE_RY*math.sin(th))
-    # はじめは心臓へ（右・少し上）、終わりは真上
-    return x, y, 8 + (90 - 8)*u
+    return cx + rx*math.cos(th), cy - ry*math.sin(th), 8 + (90 - 8)*u
 
 
 def draw_eye(d, x, y, ang, a):
     col = (255, 214, 64, int(255*a))
     th = math.radians(ang)
     ux, uy = math.cos(th), -math.sin(th)
-    # 目（アーモンド形）を向きにあわせて回す
     pts = []
     for j in range(24):
         q = 2*math.pi*j/24
@@ -646,23 +640,27 @@ def draw_sight(d, x, y, ang, length, a):
         k += 32
 
 
+def sight_done(t):
+    """視線が心臓に届いた割合（0〜1）。"""
+    return min(1.0, max(0.0, (t - (T_EX2 + 0.55*EX2_D)) / (0.45*EX2_D)))
+
+
 def explain_layer(m, t, dy=0.0):
-    """説明の場面の人・目・視線・字（RGBA の全画面）。dy：上へ流れるときのずれ。"""
+    """目・視線・字（RGBA の全画面）。dy：上へ流れるときのずれ。"""
     lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay, 'RGBA')
-    u1 = ease((t - T_FIN) / EX1_D)
+    a = ease((t - (T_EX1H - 0.2)) / 0.4)
+    if a <= 0.004:
+        return lay
     u2 = ease((t - T_EX2) / EX2_D)
-    dx = (1 - u1)*700
-    a = u1
-    draw_person(d, dx, dy, a)
     x, y, ang = eye_pose(u2)
-    L = max(0.0, (t - (T_EX2 + 0.55*EX2_D)) / (0.45*EX2_D + 0.35))
-    sight = min(1.0, L)*(y - (_ps(*HEART_P)[1] - 120) - 70)      # 目から心臓をこえて胸の上まで
+    hx, hy, _ = heart14_screen()
     if u2 > 0.55:
-        draw_sight(d, x + dx, y + dy, ang, sight, a)
-    draw_eye(d, x + dx, y + dy, ang, a)
-    ta = ease((t - (T_EX2 + 0.2)) / 0.5)
-    m.put(lay, '足もとから、頭のほうを見上げる', 40, 900, m.WHITE, cx=540, cy=1480 + dy, a=ta*a, max_w=820)
+        draw_sight(d, x, y + dy, ang, sight_done(t)*(y - hy - 30 - 70), a)
+    draw_eye(d, x, y + dy, ang, a)
+    ta = ease((t - (T_EX2 + 0.2)) / 0.5)*a
+    for k, line in enumerate(('足もとから、', '頭のほうを', '見上げる')):
+        m.put(lay, line, 40, 900, m.WHITE, x=650, cy=870 + 52*k + dy, a=ta)
     return lay
 
 
