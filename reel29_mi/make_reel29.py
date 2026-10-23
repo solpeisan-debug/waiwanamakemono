@@ -365,6 +365,44 @@ def _subs():
 SUBS = [x + ('3d' if k < len(SUB_3D) else 'box',) for k, x in enumerate(_subs())]
 
 
+# --- 4段め（追加の誘導）に色がつく瞬間：2回点滅＋「ピピッ」（でんさん） --------------------------------------
+FLASH_D, FLASH_N = 0.70, 2
+
+
+def _flash_times():
+    """⑤ V4R・⑥ V7〜V9 の ST の赤が半分をこえる時刻。"""
+    out = []
+    for leads, (a, b) in ((('V4R',), (WINDOWS[I_RV][0] - DIRECT_T - 0.05, WINDOWS[I_RV][0] + 0.5)),
+                          (('V7', 'V8', 'V9'), (WINDOWS[N_PAT - 1][0] - VIA_T - 0.05, WINDOWS[N_PAT - 1][0] + 0.5))):
+        for t in np.arange(a, b, 0.01):
+            if red_w(state_at(t).par(leads[0])[0]) >= 0.5:
+                out.append((t, leads)); break
+    return out
+
+
+FLASHES = _flash_times()
+
+
+def flash_amp(t):
+    for t0, leads in FLASHES:
+        if t0 <= t < t0 + FLASH_D:
+            return math.sin(math.pi*FLASH_N*(t - t0)/FLASH_D)**2, leads
+    return 0.0, ()
+
+
+def draw_flash(im, t):
+    f, leads = flash_amp(t)
+    if f <= 0.004 or im is None:
+        return
+    d = ImageDraw.Draw(im, 'RGBA')
+    top = BASES[3] - ROW_UP
+    for n in leads:
+        c, _ = lead_cell(n)
+        x0, x1 = col_x(c) + 6, col_x(c) + COL_W - 6
+        d.rounded_rectangle([x0, top + 6, x1, BASES[3] + 46], radius=14, fill=RED + (int(70*f),),
+                            outline=(255, 190, 190, int(240*f)), width=4)
+
+
 def cl(x, a=0.0, b=1.0):
     return max(a, min(b, x))
 
@@ -1274,6 +1312,7 @@ def frame(t, fast=False, wm=True):
     else:
         im = _GRID.copy()
         im.alpha_composite(static_layer(s))
+    draw_flash(im, t)
     draw_texts(im, t, s)
     draw_subtitle(im, t)
     lf = ramp(t, DUR - 0.5, 0.5)          # ループ：最後に冒頭の絵へもどる
@@ -1500,6 +1539,13 @@ def sfx(path, sr=44100):
     while tb < DUR - 0.6:
         add(beep, tb, 1.0)
         tb += 0.8
+    # 4段めに色がつく瞬間の「ピピッ」（点滅に合わせて2回）。声のあいだはサイドチェインで下がる
+    Lp = int(0.075*sr)
+    tp = np.arange(Lp)/sr
+    pip = (np.sin(2*np.pi*1760*tp) + 0.5*np.sin(2*np.pi*2640*tp))*np.minimum(1, tp/0.004)*np.exp(-tp/0.035)
+    for t0, _ in FLASHES:
+        for k in range(FLASH_N):
+            add(pip, t0 + (k + 0.5)*FLASH_D/FLASH_N - 0.03, 0.20)
     vo = vo_track(n, sr)
     if vo is not None:
         # サイドチェイン（第26弾 align_vo.py と同じ）：声の大きさに合わせて、効果音を最大 8dB 下げる

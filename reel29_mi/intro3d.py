@@ -405,7 +405,12 @@ def ex_gate(t):
     return ease((t - T_H13) / 0.4)
 
 
+SHOW_ICON = False                         # 左上の向きの目印（小さい上半身＋目の矢印）はやめた（2026-10-23 夜・でんさん「いらない」）
+
+
 def view_icon(m, base, t):
+    if not SHOW_ICON:
+        return
     a = (1 - ease((t - T_Z13) / 0.3))*ex_gate(t)     # 13 に寄りはじめたら消す（胴体に重ねない）
     if a <= 0.004:
         return
