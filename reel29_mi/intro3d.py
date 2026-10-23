@@ -405,7 +405,8 @@ def ex_gate(t):
     return ease((t - T_H13) / 0.4)
 
 
-SHOW_ICON = False                         # 左上の向きの目印（小さい上半身＋目の矢印）はやめた（2026-10-23 夜・でんさん「いらない」）
+SHOW_ICON = True                          # 左上の向きの目印：いったんやめたが、ないと分かりにくいので「透けさせて」付ける（2026-10-23 夜）
+ICON_OP, ICON_BOARD_OP, ICON_TEXT_OP = 0.50, 0.25, 0.60   # 絵・矢印／板の背景／字の不透明度
 
 
 def view_icon(m, base, t):
@@ -416,10 +417,13 @@ def view_icon(m, base, t):
         return
     l0, l1, u = view_label(t)
     feet = 1.0 if t >= T_H13 else 0.0
+    a *= icon_heart_k(t)
+    at = a*ICON_TEXT_OP
+    a, ab = a*ICON_OP, a*ICON_BOARD_OP
     if base is not None:
         fi = int(round(float(np.interp(t, [k[0] for k in FRAME_KEYS], [k[1] for k in FRAME_KEYS]))))
         d = ImageDraw.Draw(base, 'RGBA')
-        d.rounded_rectangle(list(ICON_BOX), radius=16, fill=(8, 18, 16, int(190*a)), outline=(120, 146, 138, int(200*a)), width=2)
+        d.rounded_rectangle(list(ICON_BOX), radius=16, fill=(8, 18, 16, int(255*ab)), outline=(120, 146, 138, int(255*a)), width=2)
         fig = fig_frame(fi).convert('RGBA')
         if a < 0.999:
             fig.putalpha(int(255*a))
@@ -437,10 +441,29 @@ def view_icon(m, base, t):
         d.ellipse([ex - 5, ey - 5, ex + 5, ey + 5], fill=col)
     yl = ICON_BOX[3] - 22
     if u > 0:
-        m.put(base, l0, 26, 800, m.YELLOW, cx=285, cy=yl, a=a*(1 - u), max_w=280, kind='fade')
-        m.put(base, l1, 26, 800, m.YELLOW, cx=285, cy=yl, a=a*u, max_w=280, kind='fade')
+        m.put(base, l0, 26, 800, m.YELLOW, cx=285, cy=yl, a=at*(1 - u), max_w=280, kind='fade')
+        m.put(base, l1, 26, 800, m.YELLOW, cx=285, cy=yl, a=at*u, max_w=280, kind='fade')
     else:
-        m.put(base, l0, 26, 800, m.YELLOW, cx=285, cy=yl, a=a, max_w=280, kind='fade')
+        m.put(base, l0, 26, 800, m.YELLOW, cx=285, cy=yl, a=at, max_w=280, kind='fade')
+
+
+def icon_heart_k(t):
+    """3D の心臓が札に大きく重なるコマでは、さらに薄く（0.8倍＝不透明度 40%）。"""
+    if t >= T_FIN:
+        return 1.0
+    k = '04'
+    for kind, kk, a, b in SEQ:
+        if kind == 'hold' and t >= a - 0.3:
+            k = kk
+    s, c = cam_main(min(t, T_FIN))
+    (hx, _), hw = HEART[k]
+    top, bot = HEART_TB[k]
+    x0, x1 = s*(hx - hw/2) + c[0], s*(hx + hw/2) + c[0]
+    y0, y1 = s*top + c[1], s*bot + c[1]
+    bx0, by0, bx1, by1 = ICON_BOX
+    ov = max(0, min(x1, bx1) - max(x0, bx0))*max(0, min(y1, by1) - max(y0, by0))
+    frac = ov / ((bx1 - bx0)*(by1 - by0))
+    return 1 - 0.2*min(1.0, frac*2)
 
 
 # --- 画面の端の方向の字（いまの向き）。半透明の白・27px ---------------------------------------------------

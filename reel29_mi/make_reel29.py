@@ -1569,7 +1569,7 @@ def sfx(path, sr=44100):
     while tb < DUR - 0.6:
         add(beep, tb, 1.0)
         tb += 0.8
-    # 輪切りの誘導に色がつく瞬間の音（点滅が始まる瞬間に1回。0.73秒で切って終わり30msをフェード、ピーク 0.45）。
+    # 輪切りの誘導に色がつく瞬間の音（点滅が始まる瞬間に1回。0.73秒で切って終わり30msをフェード、ピーク 0.22）。
     # 声のあいだはサイドチェインで下がる
     if os.path.exists(FLASH_SFX):
         fs = _load_mp3(FLASH_SFX, sr)[:int(0.73*sr)].copy()
@@ -1577,7 +1577,7 @@ def sfx(path, sr=44100):
         fs[-nf:] *= np.linspace(1, 0, nf)
         fs *= 1/(np.abs(fs).max() + 1e-9)
         for t0, _ in get_flashes():
-            add(fs, t0, 0.45)
+            add(fs, t0, 0.22)                 # ピーク 0.22（0.45 から約 −6dB）
     vo = vo_track(n, sr)
     if vo is not None:
         # サイドチェイン（第26弾 align_vo.py と同じ）：声の大きさに合わせて、効果音を最大 8dB 下げる
