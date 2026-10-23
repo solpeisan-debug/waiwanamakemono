@@ -37,22 +37,22 @@ HEART = {'03': ((1745, 2150), 870), '04': ((1636, 2155), 1510), '07': ((1557, 22
 Z1 = 1.10                                # 03 の全身 → 心臓へ寄り終わる
 XF03 = (0.68, 1.10)                      # 03 → 04 の重ねて切り替え
 # (種類, 素材, 始め, 終わり)。hold＝その向きで止まる（ゆっくり寄りつづける）、orbit＝回り込み動画
-# 2026-10-23 夜（確認版③）：順番を 前 → 左 → 後ろ → 下 にして 08（下から）で終える。
-# 08 は輪切りの図（足もとから見た向き：上＝前・右＝患者の左・下＝背骨）と同じ向きなので、08 の心臓に輪切りを重ねて切り替える。
-# 後ろ＝動画11 の途中の背面のコマ（B＝154コマめ）で止める。回り込み1本は約1.45秒（目が回らないように）
-B_FRAME = 154                            # 動画11 の背面のコマ（6.4秒）
-SEQ = [('hold', '04', 1.10, 2.00),
-       ('orbit', '10', 2.00, 3.45),
-       ('hold', '07', 3.45, 4.30),
-       ('orbit', '11a', 4.30, 5.75),
-       ('hold', 'B', 5.75, 6.65),
-       ('orbit', '11b', 6.65, 7.25),
-       ('hold', '08', 7.25, 8.55)]
-T_FIN = 8.55                             # ここから 08 の心臓に輪切りの図を重ねる
-XF_D = 0.60                              # 08 → 輪切り（同じ位置・同じ大きさ）
-MV_D = 0.80                              # 輪切りが下の定位置へ縮みながら移動
-FIN_D = XF_D + MV_D
-INTRO_END = T_FIN + FIN_D                # 9.95
+# 2026-10-23 夜（確認版④）：前 → 左 → 後ろ（09）→ 下（08）。08 は輪切りの図（足もとから見た向き）と同じ向き。
+# 左→後ろ＝動画11 の背中側（0〜6.4秒）→ 09 へ重ねて切り替え。後ろ→下＝動画12 の逆再生（09→08 の向き。途中は早送り。左右反転はしない）
+SEQ = [('hold', '04', 1.10, 1.90),
+       ('orbit', '10', 1.90, 3.35),
+       ('hold', '07', 3.35, 4.15),
+       ('orbit', '11a', 4.15, 5.60),
+       ('hold', '09', 5.60, 6.40),
+       ('orbit', '12r', 6.40, 7.90),
+       ('hold', '08', 7.90, 9.00)]
+T_FIN = 9.00                             # ここから 08 → 輪切り
+CUT_D = 0.50                             # 1. 心室の高さに、光る切り口の線が横切る
+XF_D = 0.60                              # 2. 中間の絵（3Dに似せた筋肉の赤の輪切り）を重ねて、3D の絵を消す
+RC_D = 0.60                              # 3. 中間の絵の塗り → 図の塗り（区画の名前が出る）
+MV_D = 0.80                              # 4. 縮みながら下の定位置へ
+FIN_D = CUT_D + XF_D + RC_D + MV_D
+INTRO_END = T_FIN + FIN_D                # 11.50
 Q_T = (0.0, 2.05)                        # 問いかけ「ST上昇、心臓のどこ？」
 PUSH = 0.055                             # 止まっているあいだも、ゆっくり寄りつづける（Z1〜T_FIN で 5.5%）
 ANCHOR = (540, 800)
@@ -60,23 +60,23 @@ ANCHOR = (540, 800)
 # 回り込み動画の「出力の進み u（0〜1）→ 動画の秒」。早送りしたい所は u の幅を狭く
 TIME_MAP = {
     '10': ([0, 0.40, 0.56, 1.0], [0, 3.0, 5.0, 7.96]),     # 3〜5秒（腕で心臓が隠れる）を早送り
-    '11a': ([0, 1.0], [0, (B_FRAME - 1)/24]),              # 左 → 背中側（背面のコマで止める）
-    '11b': ([0, 1.0], [(B_FRAME - 1)/24, 6.75]),           # 背面 → 下（6.5〜6.75秒で 08 へ重ねて切り替え。最後の1秒の飛びは使わない）
+    '11a': ([0, 1.0], [0, 6.4]),                           # 左 → 背中側（終わりで 09 へ重ねて切り替え）
+    '12r': ([0, 0.30, 0.70, 1.0], [7.96, 6.0, 2.0, 0.0]),  # 12 の逆再生（09→08）。大回りの途中を早送り
 }
-ORBIT_VID = {'10': '10', '11a': '11', '11b': '11'}
-ORBIT_XF_IN = {'10': 0.14, '11a': 0.14, '11b': 0.0}       # 動画の最初：前の絵 → 動画（u の幅）
-ORBIT_XF_OUT = {'10': 0.26, '11a': 0.0, '11b': 0.45}      # 動画の終わり：動画 → 次の絵
-ORBIT_TO = {'10': '07', '11a': 'B', '11b': '08'}
-ORBIT_FROM = {'10': '04', '11a': '07', '11b': 'B'}
+ORBIT_VID = {'10': '10', '11a': '11', '12r': '12'}
+ORBIT_XF_IN = {'10': 0.14, '11a': 0.14, '12r': 0.20}      # 動画の最初：前の絵 → 動画（u の幅）
+ORBIT_XF_OUT = {'10': 0.26, '11a': 0.30, '12r': 0.40}     # 動画の終わり：動画 → 次の絵（12r は 0.6秒）
+ORBIT_TO = {'10': '07', '11a': '09', '12r': '08'}
+ORBIT_FROM = {'10': '04', '11a': '07', '12r': '09'}
 
 # 壁の場所（U。楕円：中心・半径・傾き度）。絵を見て決めた目安。07 は心尖がほぼ真下なので縦長
 GLOW = {'04': (2110, 2700, 250, 560, 10),     # 前壁：前室間溝（LAD の溝）より左（画面の右）の左室の前の面。右室の前面は光らせない
         '07': (1480, 2760, 470, 600, 0),      # 側壁（左から見える左室の面。心尖は真下）
         '08': (1640, 2180, 740, 400, 0),      # 下壁（横隔膜に乗っている面）
-        'B': (1150, 2540, 300, 240, -10)}     # 後壁（動画11 の背面のコマ）：左室の後ろの基部寄り。上の左房・下の横隔膜面は光らせない
+        '09': (1030, 2620, 380, 260, -12)}    # 後壁：左室の後ろの基部寄り（房室間溝の下・下壁と側壁の間）。上の左房・下の横隔膜面は光らせない
 GLOW_COL = (255, 226, 120)
-LABELS = {'04': ('前壁中隔', 'V1〜V4'), '07': ('側壁', 'I・aVL・V5・V6'),
-          '08': ('下壁', 'II・III・aVF'), 'B': ('後壁', 'V7〜V9', '（背中に追加）')}
+LABELS = {'04': ('前壁中隔', 'V1〜V4', '（前から）'), '07': ('側壁', 'I・aVL・V5・V6', '（左から）'),
+          '08': ('下壁', 'II・III・aVF'), '09': ('後壁', 'V7〜V9', '（後ろから・背中に追加）')}
 LABEL_CY = 1340                          # 3D の札（心臓の下・透かしの下）。字幕の枠はその下（make_reel29.BOX3D）
 
 
@@ -129,9 +129,8 @@ def vframe(n, i):
     return _VF[key]
 
 
-def src_of(k):
-    """止まる絵：静止画か、動画11 の背面のコマ。"""
-    return vframe('11', B_FRAME) if k == 'B' else still(k)
+def src_of(k, s=0.35):
+    return still(k, half=s < 0.5)
 
 
 def render(src, s, c):
@@ -152,12 +151,48 @@ def push(t):
     return 1.0 + PUSH*min(1.0, max(0.0, (t - Z1) / (T_FIN - Z1)))
 
 
-def cam_main(t):
-    """04・07・08・09・動画のコマに共通のカメラ（画面いっぱい＋ゆっくり寄る）。"""
-    z = push(t)
+# 寄り（確認版④）：止まるたびに、その壁（光らせる場所＝GLOW の中心）へ向かって寄る。倍率は対数で補間、
+# 寄る点を画面の ZOOM_Q へ動かす。動画の最初のコマは前の絵の寄ったカメラのまま始まり、前半で全体へもどる
+# （動画のコマは s 0.45 まで＝KV×1.25 まで）。08 は 0.35秒 胸全体（横隔膜・背骨）を見せてから、下の面へ寄る
+ZOOM = {'04': 1.25, '07': 1.25, '09': 1.25, '08': 1.55}
+HOLD_WAIT = {'08': 0.35}
+ZOOM_Q = (540, 760)
+
+
+def cam_clamp(s, c):
+    """絵の外（青い地）が画面に出ないように。"""
+    return s, (min(0.0, max(W - s*3072, c[0])), min(0.0, max(H - s*5504, c[1])))
+
+
+def cam_base():
+    return KV, (0.0, -VOFF)
+
+
+def cam_zoom(k, u):
+    z = math.exp(math.log(ZOOM[k])*u)
     s = KV*z
-    c = (ANCHOR[0] + z*(0 - ANCHOR[0]), ANCHOR[1] + z*(-VOFF - ANCHOR[1]))
-    return s, c
+    P = GLOW[k][:2]
+    q0 = (KV*P[0], KV*P[1] - VOFF)
+    q = (q0[0] + (ZOOM_Q[0] - q0[0])*u, q0[1] + (ZOOM_Q[1] - q0[1])*u)
+    return cam_clamp(s, (q[0] - s*P[0], q[1] - s*P[1]))
+
+
+def cam_main(t):
+    """04・07・09・08・動画のコマに共通のカメラ。"""
+    prev = None
+    for kind, k, a, b in SEQ:
+        if a <= t < b or (kind == 'hold' and k == '08' and t >= a):
+            if kind == 'hold':
+                w = HOLD_WAIT.get(k, 0.0)
+                return cam_zoom(k, ease((t - a - w) / (b - a - w)))
+            s0, c0 = cam_zoom(prev, 1.0)
+            s1, c1 = cam_base()
+            u = ease(((t - a) / (b - a)) / 0.45)
+            sc = math.exp(math.log(s0) + (math.log(s1) - math.log(s0))*u)
+            return cam_clamp(sc, (c0[0] + (c1[0] - c0[0])*u, c0[1] + (c1[1] - c0[1])*u))
+        if kind == 'hold':
+            prev = k
+    return cam_base()
 
 
 def cam_match(s4, c4, k_from='04', k_to='03'):
@@ -253,6 +288,68 @@ def label_pill(m, base, k, a):
     m.put_parts(base, parts, LABEL_CY, a=a, gap=gap)
 
 
+# --- 見ている向きの目印（左上）：足もとから見た胴体の輪切り（上＝前・右＝患者の左・下＝背中）と、目の矢印 ---------
+ICON_BOX = (135, 392, 315, 600)
+ICON_C, ICON_RX, ICON_RY, ICON_R = (225, 482), 50, 34, 74
+VIEW_KEYS = [  # (時刻, 角度（上＝90＝前）, 半径の割合, 字)
+    (0.0, 90, 1.0, '前から'), (1.90, 90, 1.0, '前から'), (3.35, 0, 1.0, '左から'), (4.15, 0, 1.0, '左から'),
+    (5.60, -90, 1.0, '後ろから'), (6.40, -90, 1.0, '後ろから'), (7.05, -90, 0.0, '足もとから見上げる')]
+
+
+def view_at(t):
+    ks = VIEW_KEYS
+    if t >= ks[-1][0]:
+        return ks[-1][1], ks[-1][2], ks[-1][3], ks[-1][3], 1.0
+    for (t0, a0, r0, l0), (t1, a1, r1, l1) in zip(ks, ks[1:]):
+        if t0 <= t < t1:
+            u = ease((t - t0) / (t1 - t0)) if t1 > t0 else 1.0
+            return a0 + (a1 - a0)*u, r0 + (r1 - r0)*u, l0, l1, u
+    return 90, 1.0, '前から', '前から', 1.0
+
+
+def view_icon(m, base, t):
+    a = 1 - ease((t - (T_FIN + CUT_D)) / 0.4)
+    if a <= 0.004:
+        return
+    ang, rad, l0, l1, u = view_at(t)
+    cx, cy = ICON_C
+    if base is not None:
+        d = ImageDraw.Draw(base, 'RGBA')
+        d.rounded_rectangle(list(ICON_BOX), radius=16, fill=(8, 18, 16, int(170*a)), outline=(120, 146, 138, int(200*a)), width=2)
+        # 胴体（足もとから見た輪切り）・背骨・心臓の位置
+        d.ellipse([cx - ICON_RX, cy - ICON_RY, cx + ICON_RX, cy + ICON_RY], outline=(220, 232, 230, int(230*a)), width=3)
+        d.ellipse([cx - 7, cy + ICON_RY - 18, cx + 7, cy + ICON_RY - 4], fill=(200, 212, 210, int(200*a)))
+        d.ellipse([cx + 4, cy - 16, cx + 22, cy + 2], fill=(235, 80, 90, int(240*a)))
+        # 目と矢印（半径 0 ＝ 足もとから＝こちら向き：⊙）
+        r = ICON_R*rad
+        th = math.radians(ang)
+        ex, ey = cx + r*math.cos(th), cy - r*math.sin(th)
+        col = (255, 214, 64, int(255*a))
+        if rad > 0.15:
+            ux, uy = (cx - ex)/max(r, 1e-6), (cy - ey)/max(r, 1e-6)
+            L = max(0.0, r - 44)
+            tx, ty = ex + ux*(12 + L), ey + uy*(12 + L)
+            d.line([(ex + ux*12, ey + uy*12), (tx, ty)], fill=col, width=4)
+            d.polygon([(tx + ux*12, ty + uy*12), (tx - uy*7, ty + ux*7), (tx + uy*7, ty - ux*7)], fill=col)
+            d.ellipse([ex - 10, ey - 7, ex + 10, ey + 7], outline=col, width=3)
+            d.ellipse([ex - 3, ey - 3, ex + 3, ey + 3], fill=col)
+        k = cl01((0.4 - rad) / 0.4)
+        if k > 0.01:
+            cc = (255, 214, 64, int(255*a*k))
+            d.ellipse([cx - 16, cy - 16, cx + 16, cy + 16], outline=cc, width=3)
+            d.ellipse([cx - 5, cy - 5, cx + 5, cy + 5], fill=cc)
+    m.put(base, '前', 18, 800, (200, 212, 210), cx=cx, cy=cy - ICON_RY - 14, a=a)
+    m.put(base, '背中', 18, 800, (200, 212, 210), cx=cx, cy=cy + ICON_RY + 14, a=a)
+    yl = ICON_BOX[3] - 24
+    if u < 1:
+        m.put(base, l0, 22, 800, m.YELLOW, cx=cx, cy=yl, a=a*(1 - u), max_w=170)
+    m.put(base, l1, 22, 800, m.YELLOW, cx=cx, cy=yl, a=a*(u if u < 1 else 1), max_w=170)
+
+
+def cl01(x):
+    return min(1.0, max(0.0, x))
+
+
 # --- 1コマ --------------------------------------------------------------------------
 def scene(t):
     """t（0〜T_FIN）の3Dの絵（RGB）と、その場の (光の素材, 光の強さ, カメラ)。"""
@@ -268,17 +365,17 @@ def scene(t):
     for kind, k, a, b in SEQ:
         if a <= t < b or (kind == 'hold' and k == '08' and t >= a):
             if kind == 'hold':
-                return render(src_of(k), s, c), (k, s, c)
+                return render(src_of(k, s), s, c), (k, s, c)
             u = (t - a) / (b - a)
             xs, ys = TIME_MAP[k]
             sec = interp(xs, ys, u)
             im = render(vframe(ORBIT_VID[k], int(round(sec*24)) + 1), s, c)       # 1コマずつ（混ぜない）
             xi = ORBIT_XF_IN[k]
             if xi and u < xi:
-                im = Image.blend(render(src_of(ORBIT_FROM[k]), s, c), im, ease(u / xi))
+                im = Image.blend(render(src_of(ORBIT_FROM[k], s), s, c), im, ease(u / xi))
             xo = ORBIT_XF_OUT[k]
             if xo and u > 1 - xo:
-                im = Image.blend(im, render(src_of(ORBIT_TO[k]), s, c), ease((u - (1 - xo)) / xo))
+                im = Image.blend(im, render(src_of(ORBIT_TO[k], s), s, c), ease((u - (1 - xo)) / xo))
             return im, None
     return render(still('08'), s, c), ('08', s, c)
 
@@ -300,7 +397,7 @@ def intro_frame(m, t, base_only=False):
         im, gk = scene(min(t, T_FIN))
         im = im.convert('RGBA')
         # 光：止まっている向きのとき（07・08・09 の絵は動画の最後から重ねて切り替わる）
-        for k in ('04', '07', 'B', '08'):
+        for k in ('04', '07', '09', '08'):
             amp = hold_amp(k, t)
             if amp > 0.004:
                 s, c = cam_main(min(t, T_FIN))
@@ -308,8 +405,9 @@ def intro_frame(m, t, base_only=False):
                 g = glow_layer(k, s, c, 0.62*amp*pulse)
                 if g is not None:
                     im.alpha_composite(g)
-    for k in ('04', '07', 'B', '08'):
+    for k in ('04', '07', '09', '08'):
         label_pill(m, im, k, hold_amp(k, t))
+    view_icon(m, im, t)
     qa = ease((t - Q_T[0] + 0.01) / 0.2) * (1 - ease((t - (Q_T[1] - 0.35)) / 0.35))
     shadow_text(m, im, m.QUESTION, 66, 900, m.YELLOW, 333, a=qa if t > 0.005 else 1.0)
     return im
@@ -319,4 +417,4 @@ def photo08():
     """T_FIN で止まった 08 の絵（RGB）と、そのときの心臓の画面上の中心・幅。"""
     s, c = cam_main(T_FIN)
     (hx, hy), hw = HEART['08']
-    return render(still('08'), s, c), (s*hx + c[0], s*hy + c[1]), s*hw
+    return render(still('08', half=s < 0.5), s, c), (s*hx + c[0], s*hy + c[1]), s*hw
