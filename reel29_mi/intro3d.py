@@ -342,8 +342,8 @@ def view_icon(m, base, t):
     m.put(base, '背中', 18, 800, (200, 212, 210), cx=cx, cy=cy + ICON_RY + 14, a=a)
     yl = ICON_BOX[3] - 24
     if u < 1:
-        m.put(base, l0, 22, 800, m.YELLOW, cx=cx, cy=yl, a=a*(1 - u), max_w=170)
-    m.put(base, l1, 22, 800, m.YELLOW, cx=cx, cy=yl, a=a*(u if u < 1 else 1), max_w=170)
+        m.put(base, l0, 22, 800, m.YELLOW, cx=cx, cy=yl, a=a*(1 - u), max_w=170, kind='fade')
+    m.put(base, l1, 22, 800, m.YELLOW, cx=cx, cy=yl, a=a*(u if u < 1 else 1), max_w=170, kind='fade')
 
 
 def cl01(x):
