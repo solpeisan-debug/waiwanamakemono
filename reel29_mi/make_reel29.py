@@ -365,42 +365,67 @@ def _subs():
 SUBS = [x + ('3d' if k < len(SUB_3D) else 'box',) for k, x in enumerate(_subs())]
 
 
-# --- 4段め（追加の誘導）に色がつく瞬間：2回点滅＋「ピピッ」（でんさん） --------------------------------------
+# --- 輪切りの図のまわりの誘導（胸の電極・四肢誘導の札）に色がつく瞬間：2回点滅＋「ピピッ」（でんさん） --------------
 FLASH_D, FLASH_N = 0.70, 2
+_FL = None
 
 
-def _flash_times():
-    """⑤ V4R・⑥ V7〜V9 の ST の赤が半分をこえる時刻。"""
+def _hot(st_par):
+    return max(red_w(st_par), blue_w(st_par))
+
+
+def get_flashes():
+    """[(時刻, 誘導の並び)]。各パターンで、新しく色がつく誘導の色が半分をこえる時刻。"""
+    global _FL
+    if _FL is not None:
+        return _FL
+    names = list(ELEC_ANG) + [n for g in LIMB_TAGS for n in g[0]]
     out = []
-    for leads, (a, b) in ((('V4R',), (WINDOWS[I_RV][0] - DIRECT_T - 0.05, WINDOWS[I_RV][0] + 0.5)),
-                          (('V7', 'V8', 'V9'), (WINDOWS[N_PAT - 1][0] - VIA_T - 0.05, WINDOWS[N_PAT - 1][0] + 0.5))):
-        for t in np.arange(a, b, 0.01):
-            if red_w(state_at(t).par(leads[0])[0]) >= 0.5:
-                out.append((t, leads)); break
+    prev = set()
+    for k, (a, b, i) in enumerate(WINDOWS):
+        cur = {n for n in names if _hot(STATES[i][KI[('lead', n, 0)]]) >= 0.5}
+        new = sorted(cur - (prev if i == I_RV else set()))   # ④→⑤ は直接なので、新しく加わった誘導だけ
+        prev = cur
+        if not new:
+            continue
+        t0 = a - (DIRECT_T if i == I_RV else VIA_T)
+        for t in np.arange(t0, a + 0.6, 0.01):
+            if max(_hot(state_at(t).par(n)[0]) for n in new) >= 0.5:
+                out.append((float(t), tuple(new))); break
+    _FL = out
     return out
 
 
-FLASHES = _flash_times()
-
-
 def flash_amp(t):
-    for t0, leads in FLASHES:
+    for t0, leads in get_flashes():
         if t0 <= t < t0 + FLASH_D:
             return math.sin(math.pi*FLASH_N*(t - t0)/FLASH_D)**2, leads
     return 0.0, ()
 
 
-def draw_flash(im, t):
+def draw_flash(im, t, s):
     f, leads = flash_amp(t)
     if f <= 0.004 or im is None:
         return
-    d = ImageDraw.Draw(im, 'RGBA')
-    top = BASES[3] - ROW_UP
+    lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lay, 'RGBA')
     for n in leads:
-        c, _ = lead_cell(n)
-        x0, x1 = col_x(c) + 6, col_x(c) + COL_W - 6
-        d.rounded_rectangle([x0, top + 6, x1, BASES[3] + 46], radius=14, fill=RED + (int(70*f),),
-                            outline=(255, 190, 190, int(240*f)), width=4)
+        col = mix(lead_col(n, s), WHITE, 0.35)
+        if n in ELEC_ANG:
+            x, y = ch_pt(ELEC_ANG[n])
+            r = 16 + 10*f
+            d.ellipse([x - r, y - r, x + r, y + r], fill=col + (int(150*f),))
+            lx, ly = ch_pt(ELEC_ANG[n], 26)
+            dx, dy = ELEC_LAB.get(n, (0, 0))
+            d.rounded_rectangle([lx + dx - 26, ly + dy - 18, lx + dx + 26, ly + dy + 16], radius=10, fill=col + (int(110*f),))
+        else:
+            for names, pos, _ in LIMB_TAGS:
+                if n in names:
+                    ws = sum(text_w(m_, 24, 800) for m_ in names) + 8*(len(names) - 1)
+                    d.rounded_rectangle([pos[0] - ws/2 - 14, pos[1] - 22, pos[0] + ws/2 + 14, pos[1] + 20], radius=12,
+                                        fill=col + (int(120*f),), outline=col + (int(240*f),), width=3)
+    lay = lay.filter(ImageFilter.GaussianBlur(3))
+    im.alpha_composite(lay)
 
 
 def cl(x, a=0.0, b=1.0):
@@ -1312,7 +1337,7 @@ def frame(t, fast=False, wm=True):
     else:
         im = _GRID.copy()
         im.alpha_composite(static_layer(s))
-    draw_flash(im, t)
+    draw_flash(im, t, s)
     draw_texts(im, t, s)
     draw_subtitle(im, t)
     lf = ramp(t, DUR - 0.5, 0.5)          # ループ：最後に冒頭の絵へもどる
@@ -1543,7 +1568,7 @@ def sfx(path, sr=44100):
     Lp = int(0.075*sr)
     tp = np.arange(Lp)/sr
     pip = (np.sin(2*np.pi*1760*tp) + 0.5*np.sin(2*np.pi*2640*tp))*np.minimum(1, tp/0.004)*np.exp(-tp/0.035)
-    for t0, _ in FLASHES:
+    for t0, _ in get_flashes():
         for k in range(FLASH_N):
             add(pip, t0 + (k + 0.5)*FLASH_D/FLASH_N - 0.03, 0.20)
     vo = vo_track(n, sr)
