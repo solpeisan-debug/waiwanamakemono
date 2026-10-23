@@ -1028,13 +1028,12 @@ def draw_texts(im, t, s):
 def draw_notes(im, s=None):
     # 注記：輪切りの右下。胸の輪郭・V7 の字から離し（x726〜）、見出し2行＋すき間＋注記で、まわりに余白をとる
     nx = 726
-    lines = [(SLICE_NOTE[0], 700, LABEL_GREY, 1444), (SLICE_NOTE[1], 400, GREY, 1466),
-             ('※電極は胸の高さを', 400, GREY, 1497), ('　まとめて1枚に', 400, GREY, 1518), (NOTES[0], 400, GREY, 1542)]
+    lines = [(SLICE_NOTE[0], 700, LABEL_GREY, 1466), (SLICE_NOTE[1], 400, GREY, 1487),
+             ('※電極は胸の高さを', 400, GREY, 1513), ('　まとめて1枚に', 400, GREY, 1533), (NOTES[0], 400, GREY, 1554)]
     for n, wt, c, y in lines:
         put(im, n, 18, wt, c, x=nx, cy=y, a=0.9)
-    if s is not None and s.tint > 0.004:
-        for n, y in (('※側壁はLADの', 1564), ('　枝のことも', 1584)):
-            put(im, n, 18, 400, GREY, x=nx, cy=y, a=0.85*s.tint)
+    if s is not None and s.tint > 0.004:      # まとめのときだけ。胸の輪郭より下（y1571〜）なので、1行で左から
+        put(im, '※側壁はLADの枝のことも', 18, 400, GREY, x=648, cy=1581, a=0.85*s.tint)
     # 方向の字（足もとから見た向き）
     dc = (200, 210, 208)
     put(im, '↑ 前', 20, 700, dc, cx=330, cy=1118, a=0.8)
