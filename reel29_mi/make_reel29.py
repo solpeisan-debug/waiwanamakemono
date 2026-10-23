@@ -284,7 +284,7 @@ def read_t(*ss):
 
 
 SUB_LEAD = 0.6                            # 名前が出てから字幕が出るまで
-VIA_T, VIA_HOLD, DIRECT_T = 0.70, 0.15, 1.00
+VIA_T, VIA_HOLD, DIRECT_T = 0.65, 0.15, 1.00
 HOLD_MIN = 6.5                            # 1パターンの形がそのまま見えている長さの最低
 
 
@@ -297,8 +297,8 @@ HOLDS = [max(HOLD_MIN, SUB_LEAD + read_t(*_pat_texts(p))) for p in PATTERNS]
 INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜9.9秒）
 SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 0.30, 4.33),      # 6.5文字/秒＋0.8秒（2つめだけ 3.5秒）
           ('STが上がる誘導で、梗塞の場所の見当がつく', 4.38, 7.88),
-          ('足もとから見上げる', 7.93, I3.T_FIN),                       # 08 の引いた絵のとき
-          ('この向きのまま輪切りにする', I3.T_FIN + 0.05, I3.T_FIN + I3.CUT_D + I3.XF_D + I3.RC_D)]
+          ('この向きのまま輪切りにする', 7.93, I3.T_TILT),               # 08（前下方から）に寄るあいだ〜切り口
+          ('輪切りを、足もとから見る', I3.T_TILT + 0.05, I3.T_MV)]       # 切り口が起き上がってこちらを向く
 HOW0 = INTRO_END + 0.05                   # 見かた
 HOW_SUBS = ['となり合う誘導が、まとまって上がる', '反対側の誘導は、鏡のように下がる']
 _hs0 = HOW0 + 0.30
@@ -307,7 +307,7 @@ HOW1 = _hs1 + read_t(HOW_SUBS[1], 'ST上昇を見たら→12誘導・すぐ報�
 SUM_LINE = '上がる誘導で、場所と血管がわかる'
 SAVE_T = read_t(SUM_LINE) + 0.2           # まとめの頭から「保存して見返してね」まで
 COMMENT_T = SAVE_T + 2.3
-SUM_HOLD = COMMENT_T + 2.3
+SUM_HOLD = COMMENT_T + 2.0
 LOOP_FADE = 0.75
 
 
@@ -992,7 +992,7 @@ def draw_box(im, box, a):
 
 def draw_texts(im, t, s):
     a_loop = ramp(t, DUR - LOOP_FADE, LOOP_FADE)
-    t_in = I3.T_FIN + I3.CUT_D + I3.XF_D + I3.RC_D + 0.25         # 輪切りが下へ動きはじめたら、見出し・枠が出る
+    t_in = I3.T_MV + 0.25         # 輪切りが下へ動きはじめたら、見出し・枠が出る
     # 見出し（3D のあと〜見かた）。①からはパターンの名前に入れ替わる
     draw_header(im, ramp(t, t_in, 0.5)*(1 - ramp(t, WINDOWS[0][0] - 0.35, 0.3)))
     draw_box(im, BOX, ramp(t, t_in, 0.5)*(1 - a_loop))
@@ -1026,10 +1026,16 @@ def draw_notes(im, s=None):
     lines = [(SLICE_NOTE[0], 700, LABEL_GREY), (SLICE_NOTE[1], 400, GREY),
              ('※電極の位置は胸の', 400, GREY), ('高さをまとめて1枚に', 400, GREY), (NOTES[0], 400, GREY)]
     for k, (n, wt, c) in enumerate(lines):
-        put(im, n, 20, wt, c, x=NOTE_X, cy=1424 + 23*k, a=0.9)
+        put(im, n, 20, wt, c, x=NOTE_X, cy=1440 + 23*k, a=0.9)
     if s is not None and s.tint > 0.004:
         for k, n in enumerate(('※側壁はLADの', '枝のことも')):
-            put(im, n, 20, 400, GREY, x=NOTE_X, cy=1424 + 23*(5 + k), a=0.85*s.tint)
+            put(im, n, 20, 400, GREY, x=NOTE_X, cy=1440 + 23*(5 + k), a=0.85*s.tint)
+    # 方向の字（足もとから見た向き）
+    dc = (200, 210, 208)
+    put(im, '↑ 前', 20, 700, dc, cx=330, cy=1118, a=0.8)
+    put(im, '↓ 背中', 20, 700, dc, cx=420, cy=1580, a=0.8)
+    put(im, '← 体の右', 20, 700, dc, x=SAFE_L + 5, cy=1200, a=0.8)
+    put(im, '体の左 →', 20, 700, dc, right=900, cy=1414, a=0.8)
 
 
 def draw_subtitle(im, t):
@@ -1141,41 +1147,40 @@ FIN_FIT = ((534.0, 772.0), (2.445, 2.517))
 
 def fin_frame(t, s):
     """T_FIN〜INTRO_END（08 → 輪切り）：
-    1. 心室の高さに光る切り口の線が横切る（CUT_D） 2. 中間の絵（筋肉の赤の輪切り）を 08 の心臓に同じ位置・大きさで重ね、3D の絵を消す（XF_D）
-    3. 塗りが図の塗りへ（RC_D。区画の名前が出る） 4. 縮みながら下の定位置へ（MV_D。名前・枠・12誘導が出る）"""
+    1. 心室の高さに光る切り口の線が横切る（CUT_D） 2. 切り口の面を斜めから見た形（縦 0.25倍・筋肉の赤）が出る（OBL_D）
+    3. 切り口が起き上がってこちらを向く（縦 0.25→1.0。中心・横幅はそのまま。3D の絵は消える。TILT_D）
+    4. 筋肉の赤 → 図の塗り（位置・大きさはそのまま。区画の名前が出る。RC_D） 5. 縮みながら下の定位置へ（MV_D）"""
     global _PH
     if _PH is None:
         _PH = I3.photo08()
     photo, pc, pw = _PH
-    T1 = I3.T_FIN + I3.CUT_D
-    T2 = T1 + I3.XF_D
-    T3 = T2 + I3.RC_D
     u0 = (t - I3.T_FIN) / I3.CUT_D
-    u1 = (t - T1) / I3.XF_D
-    u2 = (t - T2) / I3.RC_D
-    u3 = (t - T3) / I3.MV_D
+    uo = (t - I3.T_OBL) / I3.OBL_D
+    ut = (t - I3.T_TILT) / I3.TILT_D
+    u2 = (t - I3.T_RC) / I3.RC_D
+    u3 = (t - I3.T_MV) / I3.MV_D
     e3 = ease(u3)
-    (p0, k0) = FIN_FIT                    # 08 の心室の外形に合わせた位置・大きさ（中間2・中間3 はここから 1px も動かさない）
-    k = (math.exp(math.log(k0[0])*(1 - e3)), math.exp(math.log(k0[1])*(1 - e3)))
+    (p0, k0) = FIN_FIT                    # 08 の心室の外形に合わせた位置・大きさ（起き上がったあとは 1px も動かさない）
+    rr = I3.OBL_K + (1 - I3.OBL_K)*ease(ut)   # 切り口の縦の比：斜め（0.25）→ こちらを向く（1.0）。中心と横幅は変えない
+    k = (math.exp(math.log(k0[0])*(1 - e3)), math.exp(math.log(k0[1]*rr)*(1 - e3)))
     p = (p0[0] + (HEART_C[0] - p0[0])*e3, p0[1] + (HEART_C[1] - p0[1])*e3)
     im = _GRID.copy()
-    fa = 1 - ease(u1)
+    fa = 1 - ease(ut)                     # 3D の絵は起き上がるあいだに消える
     if fa > 0.004:
         im = Image.blend(im, photo.convert('RGBA'), fa)
-    # 1. 切り口の線（左から右へ横切る → 輪切りが出たら消える）
-    la = (1 - ease(u1 / 0.8)) if t >= T1 else 1.0
+    # 1. 切り口の線（左から右へ横切る → 斜めの切り口が出たら消える）
+    la = (1 - ease(uo)) if t >= I3.T_OBL else 1.0
     if t >= I3.T_FIN and la > 0.004:
         xa = p0[0] - HEART_W*k0[0]/2 - 30
         xb = xa + (HEART_W*k0[0] + 60)*ease(u0)
         if xb > xa + 2:
             g = glow_line((W, H), [[(xa, p0[1]), (xb, p0[1])]], (255, 236, 190), 4, la, blur=(6, 16))
             im.alpha_composite(g)
-    # 2・3. 中間の絵 → 図の塗り
-    am = ease(u1 / 0.8)
+    # 2〜4. 斜めの切り口（筋肉の赤）→ 起き上がる → 図の塗り
+    am = ease(uo)
     if am > 0.004:
-        mus = place_big(k, p, 'muscle')
         if u2 < 1:
-            im.alpha_composite(_mul_alpha(mus, am*(1 - ease(u2))))
+            im.alpha_composite(_mul_alpha(place_big(k, p, 'muscle'), am*(1 - ease(u2))))
         if u2 > 0:
             im.alpha_composite(_mul_alpha(place_big(k, p, 'plain'), ease(u2)))
     # 区画の名前（図の塗りになるあいだに出て、図といっしょに動く）
@@ -1188,6 +1193,8 @@ def fin_frame(t, s):
     lay = static_layer(s)
     im.alpha_composite(_mul_alpha(lay.crop((0, 0, W, FIN_SPLIT)), ease((u3 - 0.35) / 0.65)))
     im.alpha_composite(_mul_alpha(lay.crop((0, FIN_SPLIT, W, H)), ease((u3 - 0.70) / 0.30)), (0, FIN_SPLIT))
+    I3.view_icon(sys.modules[__name__], im, t)
+    I3.dir_labels(sys.modules[__name__], im, t)
     return im
 
 
@@ -1214,6 +1221,9 @@ def frame(t, fast=False, wm=True):
             draw_extra_notes(im_, s)
             draw_heart(im_, s, fast=True)
             draw_notes(im_, s)
+        if t < INTRO_END:
+            I3.view_icon(sys.modules[__name__], None, t)
+            I3.dir_labels(sys.modules[__name__], None, t)
         draw_texts(im_, t, s)
         draw_subtitle(im_, t)
         watermark(im_)

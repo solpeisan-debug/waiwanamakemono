@@ -47,12 +47,19 @@ SEQ = [('hold', '04', 1.10, 1.90),
        ('orbit', '12r', 6.40, 7.90),
        ('hold', '08', 7.90, 10.15)]
 T_FIN = 10.15                             # ここから 08 → 輪切り
+# 08 は「前下方から見た心臓」（説明書8章）なので、足もとから見た輪切りは、斜めの切り口として出してから起き上がらせる
 CUT_D = 0.50                             # 1. 心室の高さに、光る切り口の線が横切る
-XF_D = 0.60                              # 2. 中間の絵（3Dに似せた筋肉の赤の輪切り）を重ねて、3D の絵を消す
-RC_D = 1.75                              # 3. 中間の絵の塗り → 図の塗り（区画の名前が出る）
-MV_D = 0.80                              # 4. 縮みながら下の定位置へ
-FIN_D = CUT_D + XF_D + RC_D + MV_D
-INTRO_END = T_FIN + FIN_D                # 13.80
+OBL_D = 0.40                             # 2. 切り口の面を斜めから見た形（縦 0.25倍の横長の楕円・筋肉の赤）が出る
+TILT_D = 0.90                            # 3. 切り口が手前に起き上がってこちらを向く（縦 0.25 → 1.0）。3D の絵は消える
+RC_D = 1.60                              # 4. 筋肉の赤 → 図の塗り（位置・大きさはそのまま。区画の名前が出る）
+MV_D = 0.80                              # 5. 縮みながら下の定位置へ
+OBL_K = 0.25
+T_OBL = T_FIN + CUT_D
+T_TILT = T_OBL + OBL_D
+T_RC = T_TILT + TILT_D
+T_MV = T_RC + RC_D
+FIN_D = CUT_D + OBL_D + TILT_D + RC_D + MV_D
+INTRO_END = T_FIN + FIN_D                # 14.35
 Q_T = (0.0, 2.05)                        # 問いかけ「ST上昇、心臓のどこ？」
 PUSH = 0.055                             # 止まっているあいだも、ゆっくり寄りつづける（Z1〜T_FIN で 5.5%）
 ANCHOR = (540, 800)
@@ -107,6 +114,7 @@ def ffmpeg_bin():
 
 def ensure_frames():
     """回り込み動画のコマを JPEG に書き出しておく（1回だけ）。"""
+    ensure_fig_frames()
     for n, f in VIDEO_FILES.items():
         d = os.path.join(CACHE, n)
         if os.path.exists(os.path.join(d, f'{N_VF:03d}.jpg')):
@@ -338,62 +346,108 @@ def draw_pads(m, base, k, s, c, a):
         m.put(base, n, 30, 900, m.YELLOW if hot else m.WHITE, cx=lx, cy=y + dy, a=a)
 
 
-# --- 見ている向きの目印（左上）：足もとから見た胴体の輪切り（上＝前・右＝患者の左・下＝背中）と、目の矢印 ---------
-ICON_BOX = (135, 380, 405, 684)          # 1.5倍（字は 24px 以上）。透かし（691〜）の上
-ICON_C, ICON_RX, ICON_RY, ICON_R = (270, 510), 75, 51, 108
-VIEW_KEYS = [  # (時刻, 角度（上＝90＝前）, 半径の割合, 字)
-    (0.0, 90, 1.0, '前から'), (1.90, 90, 1.0, '前から'), (3.35, 0, 1.0, '左から'), (4.15, 0, 1.0, '左から'),
-    (5.60, -90, 1.0, '後ろから'), (6.40, -90, 1.0, '後ろから'), (7.10, -90, 0.0, '足もとから見上げる')]
+# --- 見ている向きの目印（左上）：回転動画 05（人体が 正面→左の側面→背面）の小さなコマ＋目の矢印 -------------------
+ICON_BOX = (135, 372, 435, 688)          # 幅 300px。透かし（691〜）の上
+FIG_BOX = (210, 380, 360, 647)           # 05 のコマ（9:16）を置く所
+FRAME_KEYS = [(0.0, 1), (1.90, 1), (3.35, 57), (4.15, 57), (5.60, 137), (6.40, 137), (7.60, 1)]   # 前＝1・左の側面＝57・背面＝137
+VIEW_LABELS = [(0.0, '前から'), (2.60, '左から'), (4.90, '後ろから'), (7.00, '前下から')]          # 向きが変わる途中で入れ替わる
+EYE_SIDE, EYE_FEET = ((402, 472), (330, 472)), ((285, 640), (285, 572))   # （目の位置, 矢印の先）：横から／足もとから上へ
+_FIG = {}
 
 
-def view_at(t):
-    ks = VIEW_KEYS
-    if t >= ks[-1][0]:
-        return ks[-1][1], ks[-1][2], ks[-1][3], ks[-1][3], 1.0
-    for (t0, a0, r0, l0), (t1, a1, r1, l1) in zip(ks, ks[1:]):
-        if t0 <= t < t1:
-            u = ease((t - t0) / (t1 - t0)) if t1 > t0 else 1.0
-            return a0 + (a1 - a0)*u, r0 + (r1 - r0)*u, l0, l1, u
-    return 90, 1.0, '前から', '前から', 1.0
+def fig_frame(i):
+    i = int(min(192, max(1, i)))
+    if i not in _FIG:
+        if len(_FIG) > 40:
+            _FIG.clear()
+        _FIG[i] = Image.open(os.path.join(CACHE, '05', f'{i:03d}.jpg')).convert('RGB').resize(
+            (FIG_BOX[2] - FIG_BOX[0], FIG_BOX[3] - FIG_BOX[1]), Image.LANCZOS)
+    return _FIG[i]
+
+
+def ensure_fig_frames():
+    d = os.path.join(CACHE, '05')
+    if not os.path.exists(os.path.join(d, '192.jpg')):
+        os.makedirs(d, exist_ok=True)
+        subprocess.run([ffmpeg_bin(), '-v', 'error', '-y', '-i', os.path.join(A3, '05_回転_正面から背面_無音.mp4'),
+                        '-vf', 'scale=180:320', '-q:v', '3', os.path.join(d, '%03d.jpg')], check=True)
+
+
+def view_label(t):
+    """(前の字, 次の字, 入れ替わりの割合)。最後は起き上がりに合わせて「足もとから見る」。"""
+    labs = VIEW_LABELS + [(T_TILT + 0.3, '足もとから見る')]
+    for (t0, l0), (t1, l1) in zip(labs, labs[1:]):
+        if t < t1 - 0.25:
+            return l0, l0, 0.0
+        if t < t1 + 0.25:
+            return l0, l1, ease((t - (t1 - 0.25)) / 0.5)
+    return labs[-1][1], labs[-1][1], 0.0
 
 
 def view_icon(m, base, t):
-    a = 1 - ease((t - (T_FIN + CUT_D)) / 0.4)
+    a = 1 - ease((t - (T_RC + 0.3)) / 0.4)
     if a <= 0.004:
         return
-    ang, rad, l0, l1, u = view_at(t)
-    cx, cy = ICON_C
+    l0, l1, u = view_label(t)
+    feet = ease((t - T_TILT) / TILT_D)
     if base is not None:
+        fi = int(round(float(np.interp(t, [k[0] for k in FRAME_KEYS], [k[1] for k in FRAME_KEYS]))))
         d = ImageDraw.Draw(base, 'RGBA')
-        d.rounded_rectangle(list(ICON_BOX), radius=16, fill=(8, 18, 16, int(170*a)), outline=(120, 146, 138, int(200*a)), width=2)
-        # 胴体（足もとから見た輪切り）・背骨・心臓の位置
-        d.ellipse([cx - ICON_RX, cy - ICON_RY, cx + ICON_RX, cy + ICON_RY], outline=(220, 232, 230, int(230*a)), width=3)
-        d.ellipse([cx - 10, cy + ICON_RY - 27, cx + 10, cy + ICON_RY - 6], fill=(200, 212, 210, int(200*a)))
-        d.ellipse([cx + 16, cy - 8, cx + 42, cy + 18], fill=(235, 80, 90, int(240*a)))
-        # 目と矢印（半径 0 ＝ 足もとから＝こちら向き：⊙）
-        r = ICON_R*rad
-        th = math.radians(ang)
-        ex, ey = cx + r*math.cos(th), cy - r*math.sin(th)
+        d.rounded_rectangle(list(ICON_BOX), radius=16, fill=(8, 18, 16, int(190*a)), outline=(120, 146, 138, int(200*a)), width=2)
+        fig = fig_frame(fi).convert('RGBA')
+        if a < 0.999:
+            fig.putalpha(int(255*a))
+        base.alpha_composite(fig, FIG_BOX[:2])
+        (ex0, ey0), (tx0, ty0) = EYE_SIDE
+        (ex1, ey1), (tx1, ty1) = EYE_FEET
+        ex, ey = ex0 + (ex1 - ex0)*feet, ey0 + (ey1 - ey0)*feet
+        tx, ty = tx0 + (tx1 - tx0)*feet, ty0 + (ty1 - ty0)*feet
+        ux, uy = tx - ex, ty - ey
+        L = max(1e-6, math.hypot(ux, uy)); ux, uy = ux/L, uy/L
         col = (255, 214, 64, int(255*a))
-        if rad > 0.15:
-            ux, uy = (cx - ex)/max(r, 1e-6), (cy - ey)/max(r, 1e-6)
-            L = max(0.0, r - 66)
-            tx, ty = ex + ux*(18 + L), ey + uy*(18 + L)
-            d.line([(ex + ux*18, ey + uy*18), (tx, ty)], fill=col, width=6)
-            d.polygon([(tx + ux*18, ty + uy*18), (tx - uy*10, ty + ux*10), (tx + uy*10, ty - ux*10)], fill=col)
-            d.ellipse([ex - 15, ey - 10, ex + 15, ey + 10], outline=col, width=4)
-            d.ellipse([ex - 5, ey - 5, ex + 5, ey + 5], fill=col)
-        k = cl01((0.4 - rad) / 0.4)
-        if k > 0.01:
-            cc = (255, 214, 64, int(255*a*k))
-            d.ellipse([cx - 24, cy - 24, cx + 24, cy + 24], outline=cc, width=4)
-            d.ellipse([cx - 8, cy - 8, cx + 8, cy + 8], fill=cc)
-    m.put(base, '前', 24, 800, (200, 212, 210), cx=cx, cy=cy - ICON_RY + 20, a=a)   # 胴体の中（矢印と重ねない）
-    m.put(base, '背中', 24, 800, (200, 212, 210), cx=cx, cy=cy + ICON_RY + 18, a=a)
-    yl = ICON_BOX[3] - 34
-    if u < 1:
-        m.put(base, l0, 28, 800, m.YELLOW, cx=cx, cy=yl, a=a*(1 - u), max_w=250, kind='fade')
-    m.put(base, l1, 28, 800, m.YELLOW, cx=cx, cy=yl, a=a*(u if u < 1 else 1), max_w=250, kind='fade')
+        d.line([(ex + ux*18, ey + uy*18), (tx - ux*12, ty - uy*12)], fill=col, width=6)
+        d.polygon([(tx, ty), (tx - ux*16 - uy*10, ty - uy*16 + ux*10), (tx - ux*16 + uy*10, ty - uy*16 - ux*10)], fill=col)
+        d.ellipse([ex - 15, ey - 10, ex + 15, ey + 10], fill=(8, 18, 16, int(220*a)), outline=col, width=4)
+        d.ellipse([ex - 5, ey - 5, ex + 5, ey + 5], fill=col)
+    yl = ICON_BOX[3] - 22
+    if u > 0:
+        m.put(base, l0, 26, 800, m.YELLOW, cx=285, cy=yl, a=a*(1 - u), max_w=280, kind='fade')
+        m.put(base, l1, 26, 800, m.YELLOW, cx=285, cy=yl, a=a*u, max_w=280, kind='fade')
+    else:
+        m.put(base, l0, 26, 800, m.YELLOW, cx=285, cy=yl, a=a, max_w=280, kind='fade')
+
+
+# --- 画面の端の方向の字（いまの向き）。半透明の白・27px ---------------------------------------------------
+DIR_SETS = {
+    'front': [('体の右', 'L'), ('体の左', 'R'), ('↑ 頭', 'T')],
+    'left': [('胸（前）', 'L'), ('背中', 'R'), ('↑ 頭', 'T')],
+    'back': [('体の左', 'L'), ('体の右', 'R'), ('↑ 頭', 'T')],
+    'feet': [('← 体の右', 'L2'), ('体の左 →', 'R2'), ('↑ 胸（前）', 'T2'), ('↓ 背中', 'B2')],
+}
+DIR_KEYS = [(0.0, 'front'), (2.60, 'left'), (4.90, 'back'), (7.00, 'front'), (T_TILT + 0.45, 'feet')]
+
+
+def dir_labels(m, base, t):
+    fade_all = 1 - ease((t - T_MV) / 0.3)
+    if fade_all <= 0.004:
+        return
+    sets = []
+    for (t0, k0), nxt in zip(DIR_KEYS, DIR_KEYS[1:] + [(1e9, None)]):
+        t1 = nxt[0]
+        if t < t0 - 0.25 or t >= t1 + 0.25:
+            continue
+        a_in = 1.0 if t0 == 0 else ease((t - (t0 - 0.25)) / 0.5)
+        a_out = 1 - ease((t - (t1 - 0.25)) / 0.5)
+        sets.append((k0, a_in*a_out))
+    for k, aa in sets:
+        aa *= fade_all*0.75
+        if aa <= 0.004:
+            continue
+        for txt, where in DIR_SETS[k]:
+            kw = {'L': dict(x=m.SAFE_L + 5, cy=1062), 'R': dict(right=m.SAFE_R - 5, cy=1062), 'T': dict(right=m.SAFE_R - 5, cy=384),
+                  'L2': dict(x=m.SAFE_L + 5, cy=1250), 'R2': dict(right=900, cy=1250),
+                  'T2': dict(cx=540, cy=356), 'B2': dict(cx=540, cy=1196)}[where]
+            m.put(base, txt, 27, 700, m.WHITE, a=aa, kind='fade', **kw)
 
 
 def cl01(x):
@@ -463,6 +517,7 @@ def intro_frame(m, t, base_only=False):
     for k in ('04', '07', '09', '08'):
         label_pill(m, im, k, hold_amp(k, t))
     view_icon(m, im, t)
+    dir_labels(m, im, t)
     qa = ease((t - Q_T[0] + 0.01) / 0.2) * (1 - ease((t - (Q_T[1] - 0.35)) / 0.35))
     shadow_text(m, im, m.QUESTION, 66, 900, m.YELLOW, 333, a=qa if t > 0.005 else 1.0)
     return im
