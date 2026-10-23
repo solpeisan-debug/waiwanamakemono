@@ -304,6 +304,38 @@ def label_pill(m, base, k, a):
     m.put_parts(base, parts, LABEL_CY, a=a, gap=gap)
 
 
+# --- 電極（実際に貼る場所。U 座標。LITFL ECG Lead positioning）-------------------------------------------
+# 04（前）：正中（胸骨）＝x1500（上に見える椎体の中心）。鎖骨は y450〜600、肋骨（前）は約400U おきに 第1 y750・第2 y1150・
+#   第3 y1550・第4 y1900・第5 y2300 → 第4肋間 y2100・第5肋間 y2500。胸骨の幅 約300U（右縁 x1350・左縁 x1650）。
+#   左鎖骨中線＝胸鎖関節（x1650）と肩峰（x2950）の中間 x2300。前腋窩線 x2750・中腋窩線＝胸郭の左端 x3000
+# 07（左）：胸の前面 x150・背中 x3000（背骨の後ろ）。第5肋間は 04 と同じ高さ y2500。V4（鎖骨中線）は前面の近く x330、
+#   V5（前腋窩線）x950、V6（中腋窩線）＝前後のまん中 x1550
+# 09（後ろ）：背骨の中心 x1500（椎体 x1250〜1750）、患者の左＝画面の左。V6 と同じ高さ y2550。V9（傍脊椎）x1200、
+#   V8（肩甲骨の下の角＝肩甲線。絵に肩甲骨がないので、背骨と胸郭の左端 x120 の 55% の所）x730、V7（後腋窩線）x300
+ELECTRODES = {'04': [('V1', 1350, 2100), ('V2', 1650, 2100), ('V3', 1975, 2300), ('V4', 2300, 2500),
+                     ('V5', 2750, 2500), ('V6', 3000, 2500)],
+              '07': [('V4', 330, 2500), ('V5', 950, 2500), ('V6', 1550, 2500)],
+              '09': [('V7', 300, 2550), ('V8', 730, 2550), ('V9', 1200, 2550)]}
+ELEC_HOT = {'04': ('V1', 'V2', 'V3', 'V4'), '07': ('V5', 'V6'), '09': ('V7', 'V8', 'V9')}
+
+
+def draw_pads(m, base, k, s, c, a):
+    """電極パッド（白い丸＋まん中の金具）と名前（パッドの下）。その壁を見る誘導は黄色。"""
+    if a <= 0.004:
+        return
+    for n, ux, uy in ELECTRODES[k]:
+        x, y = s*ux + c[0], s*uy + c[1]
+        hot = n in ELEC_HOT[k]
+        if base is not None:
+            d = ImageDraw.Draw(base, 'RGBA')
+            r = 17
+            d.ellipse([x - r - 3, y - r - 3, x + r + 3, y + r + 3], fill=(0, 0, 0, int(90*a)))
+            d.ellipse([x - r, y - r, x + r, y + r], fill=(240, 244, 242, int(245*a)), outline=(160, 170, 168, int(255*a)), width=2)
+            d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=(150, 156, 160, int(255*a)))
+        lx = min(m.SAFE_R - 24, max(m.SAFE_L + 24, x))
+        m.put(base, n, 30, 900, m.YELLOW if hot else m.WHITE, cx=lx, cy=y + 36, a=a)
+
+
 # --- 見ている向きの目印（左上）：足もとから見た胴体の輪切り（上＝前・右＝患者の左・下＝背中）と、目の矢印 ---------
 ICON_BOX = (135, 380, 405, 684)          # 1.5倍（字は 24px 以上）。透かし（691〜）の上
 ICON_C, ICON_RX, ICON_RY, ICON_R = (270, 510), 75, 51, 108
@@ -421,6 +453,11 @@ def intro_frame(m, t, base_only=False):
                 g = glow_layer(k, s, c, 0.62*amp*pulse)
                 if g is not None:
                     im.alpha_composite(g)
+    for k in ('04', '07', '09'):
+        amp = hold_amp(k, t)
+        if amp > 0.004:
+            s_, c_ = cam_main(min(t, T_FIN))
+            draw_pads(m, im, k, s_, c_, amp)
     for k in ('04', '07', '09', '08'):
         label_pill(m, im, k, hold_amp(k, t))
     view_icon(m, im, t)

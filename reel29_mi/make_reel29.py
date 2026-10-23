@@ -758,6 +758,7 @@ def draw_heart(im, s, fast=False):
             gl = Image.new('RGBA', (x1 - x0, y1 - y0), RED + (0,))
             gl.putalpha(Image.fromarray(np.clip(g*0.75, 0, 255).astype(np.uint8)))
             im.alpha_composite(gl, (x0, y0))
+        draw_chest(im)
         im.alpha_composite(lay, (x0, y0))
         draw_vessels(im, s)
         if s.mirror > 0.004:
@@ -768,9 +769,10 @@ def draw_heart(im, s, fast=False):
         col = mix((198, 210, 206), WHITE, s.seg(k))
         put(im, SEG_NAME[k], 28, 800, col, cx=px, cy=py + 2)
     put(im, '右室', 28, 800, mix((198, 210, 206), WHITE, s.seg('rv')), cx=RV_LABEL[0], cy=RV_LABEL[1])   # 右室の三日月の中（中隔の字と離す）
-    # 誘導名（どの壁を見ているか）
-    for gk, ang, r, names in TOKENS:
-        draw_tokens(im, s, gk, ang, r, names)
+    # 胸部の電極（実際に貼る場所）と、四肢誘導（見ている向き）
+    draw_electrodes(im, s, fast)
+    for names, pos, tip in LIMB_TAGS:
+        draw_limb_tag(im, s, names, pos, tip, fast)
     # 血管の見本
     for j, v in enumerate(('LAD', 'LCX', 'RCA')):
         a = 0.45 + 0.55*max(s.ves(v), s.tint)
@@ -780,6 +782,81 @@ def draw_heart(im, s, fast=False):
             d = ImageDraw.Draw(im, 'RGBA')
             d.line([(VES_LEGEND_X, y), (VES_LEGEND_X + 26, y)], fill=col + (255,), width=6)
         put(im, VES_NAME[v], 28, 800, col, x=VES_LEGEND_X + 36, cy=y)
+
+
+# --- 胸の断面（足もとから見た向き：上＝前・画面の右＝患者の左）と、電極の実際の位置（LITFL ECG Lead positioning） ---
+NOTE_X = 702                              # 注記：輪切りの右下（胸の輪郭の外・右下のボタン x900 より左）
+CH_C, CH_RX, CH_RY = (430, 1352), 285, 205        # 胸の輪郭（楕円）。上のまん中＝胸骨、下のまん中＝背骨
+# 楕円の上の角度（度。右＝0＝患者の左の真横、上＝90＝胸骨）
+ELEC_ANG = {'V1': 96, 'V2': 84, 'V3': 72, 'V4': 58, 'V5': 36, 'V6': 0,      # V1 胸骨の右縁・V2 左縁（第4肋間）、V3 V2とV4の中間、
+            'V7': -38, 'V8': -62, 'V9': -80, 'V4R': 122}                    # V4 左鎖骨中線・V5 前腋窩線・V6 中腋窩線（第5肋間）、
+#                                                                            V7 後腋窩線・V8 肩甲骨の下の角・V9 背骨の左（V6 と同じ高さ）、V4R 右鎖骨中線
+ELEC_LAB = {'V8': (14, 8), 'V9': (30, -6)}        # 名前の置き場所の調整（dx, dy）。ふつうは外向きに 26px
+LIMB_TAGS = [(['I', 'aVL'], (792, 1222), 20), (['II', 'III', 'aVF'], (232, 1578), -112)]   # 四肢誘導：名前の位置・矢印の先（胸の輪郭の角度）
+
+
+def ch_pt(ang, d=0.0):
+    a = math.radians(ang)
+    x, y = CH_C[0] + CH_RX*math.cos(a), CH_C[1] - CH_RY*math.sin(a)
+    nx, ny = math.cos(a)/CH_RX, -math.sin(a)/CH_RY
+    L = math.hypot(nx, ny)
+    return x + d*nx/L, y + d*ny/L
+
+
+def lead_col(n, s, dim=TOKEN_DIM):
+    st = s.par(n)[0]
+    col = mix(dim, RED, red_w(st))
+    col = mix(col, BLUE, blue_w(st))
+    if s.tint > 0 and n in LEAD_WALL:
+        col = mix(col, VES_COL[SEG_VES[LEAD_WALL[n]]], s.tint)
+    return col
+
+
+def draw_chest(im):
+    d = ImageDraw.Draw(im, 'RGBA')
+    cx, cy = CH_C
+    d.ellipse([cx - CH_RX, cy - CH_RY, cx + CH_RX, cy + CH_RY], outline=(96, 120, 114, 210), width=3)
+    d.rounded_rectangle([cx - 22, cy - CH_RY + 4, cx + 22, cy - CH_RY + 20], radius=6, fill=(96, 120, 114, 200))   # 胸骨
+    d.ellipse([cx - 20, cy + CH_RY - 52, cx + 20, cy + CH_RY - 14], fill=(96, 120, 114, 200))                   # 背骨（椎体）
+    d.polygon([(cx - 7, cy + CH_RY - 16), (cx + 7, cy + CH_RY - 16), (cx, cy + CH_RY - 2)], fill=(96, 120, 114, 200))
+
+
+def draw_electrodes(im, s, fast=False):
+    for n, ang in ELEC_ANG.items():
+        col = lead_col(n, s, (150, 166, 162))
+        hot = max(red_w(s.par(n)[0]), blue_w(s.par(n)[0]))
+        if not fast:
+            d = ImageDraw.Draw(im, 'RGBA')
+            x, y = ch_pt(ang)
+            if hot > 0.05:
+                g = 12 + 6*hot
+                d.ellipse([x - g, y - g, x + g, y + g], fill=col + (int(90*hot),))
+            d.ellipse([x - 8, y - 8, x + 8, y + 8], fill=(236, 241, 240, 255), outline=col + (255,), width=3)
+            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=col + (255,))
+        lx, ly = ch_pt(ang, 26)
+        dx, dy = ELEC_LAB.get(n, (0, 0))
+        put(im, n, TOK_SIZE, 800, col, cx=lx + dx, cy=ly + dy)
+
+
+def draw_limb_tag(im, s, names, pos, tip_ang, fast=False):
+    """四肢誘導（胸の電極ではない）：角丸の札＋「見ている向き」の矢印。"""
+    ws = [text_w(n, 24, 800) for n in names]
+    tot = sum(ws) + 8*(len(names) - 1)
+    x0 = pos[0] - tot/2
+    if not fast:
+        d = ImageDraw.Draw(im, 'RGBA')
+        d.rounded_rectangle([x0 - 10, pos[1] - 18, x0 + tot + 10, pos[1] + 16], radius=10, outline=(120, 140, 136, 200), width=2)
+        tx, ty = ch_pt(tip_ang, 6)
+        sx, sy = (x0 - 10, pos[1]) if tx < x0 else ((pos[0], pos[1] - 18) if ty < pos[1] else (pos[0] + tot/2*0 , pos[1] - 18))
+        ux, uy = tx - sx, ty - sy
+        L = math.hypot(ux, uy); ux, uy = ux/L, uy/L
+        c = (150, 166, 162, 230)
+        d.line([(sx, sy), (tx - ux*10, ty - uy*10)], fill=c, width=3)
+        d.polygon([(tx, ty), (tx - ux*14 - uy*7, ty - uy*14 + ux*7), (tx - ux*14 + uy*7, ty - uy*14 - ux*7)], fill=c)
+    x = x0
+    for n, w_ in zip(names, ws):
+        put(im, n, 24, 800, lead_col(n, s), x=x, cy=pos[1])
+        x += w_ + 8
 
 
 def draw_tokens(im, s, gk, ang, r, names):
@@ -849,9 +926,9 @@ def draw_mirror(im, s):
 
 
 # 鏡像の点線：V1 の字の下から、前壁と中隔の切れ目（125°）を通り、内腔を抜けて後壁へ（壁の名前の字を避ける）
-MIRROR_P0 = _pol(125, 205)
+MIRROR_P0 = (466, 1176)                   # V2 の電極の下から
 MIRROR_P1 = _pol(-40, R_IN + 4)
-MIRROR_LABEL = (410, 1189)                # 右端。輪切りの左上（V1〜V4 の左・右室の上）
+MIRROR_LABEL = (NOTE_X, 1150)                # 右端。輪切りの左上（V1〜V4 の左・右室の上）
 
 
 # --- 文字 -------------------------------------------------------------------------
@@ -941,15 +1018,18 @@ def draw_texts(im, t, s):
         put(im, COMMENT, NURSE_SIZE, 900, YELLOW, cx=540, cy=BOX_L2, a=sw*ka, max_w=BOX_MAXW)
     # 後壁：鏡うつし
     if s.mirror > 0.004:
-        put(im, '鏡像（前から見ると逆さ）', 22, 800, BLUE, right=MIRROR_LABEL[0], cy=MIRROR_LABEL[1], a=s.mirror)
+        put(im, '鏡像（前から', 20, 800, BLUE, x=MIRROR_LABEL[0], cy=MIRROR_LABEL[1], a=s.mirror)
+        put(im, '見ると逆さ）', 20, 800, BLUE, x=MIRROR_LABEL[0], cy=MIRROR_LABEL[1] + 23, a=s.mirror)
 
 
 def draw_notes(im, s=None):
-    for k, n in enumerate(SLICE_NOTE):
-        put(im, n, 22, 700 if k == 0 else 400, LABEL_GREY if k == 0 else GREY, x=SAFE_L + 5, cy=1129 + 26*k, a=0.9)
-    put(im, NOTES[0], 22, 400, GREY, x=SAFE_L + 5, cy=1572, a=0.85)
+    lines = [(SLICE_NOTE[0], 700, LABEL_GREY), (SLICE_NOTE[1], 400, GREY),
+             ('※電極の位置は胸の', 400, GREY), ('高さをまとめて1枚に', 400, GREY), (NOTES[0], 400, GREY)]
+    for k, (n, wt, c) in enumerate(lines):
+        put(im, n, 20, wt, c, x=NOTE_X, cy=1424 + 23*k, a=0.9)
     if s is not None and s.tint > 0.004:
-        put(im, SUM_NOTE, 22, 400, GREY, x=SAFE_L + 5, cy=1546, a=0.85*s.tint)
+        for k, n in enumerate(('※側壁はLADの', '枝のことも')):
+            put(im, n, 20, 400, GREY, x=NOTE_X, cy=1424 + 23*(5 + k), a=0.85*s.tint)
 
 
 def draw_subtitle(im, t):
