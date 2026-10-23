@@ -284,7 +284,7 @@ def read_t(*ss):
 
 
 SUB_LEAD = 0.6                            # 名前が出てから字幕が出るまで
-VIA_T, VIA_HOLD, DIRECT_T = 0.65, 0.15, 1.00
+VIA_T, VIA_HOLD, DIRECT_T = 0.60, 0.15, 1.00
 HOLD_MIN = 6.5                            # 1パターンの形がそのまま見えている長さの最低
 
 
@@ -297,8 +297,7 @@ HOLDS = [max(HOLD_MIN, SUB_LEAD + read_t(*_pat_texts(p))) for p in PATTERNS]
 INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜9.9秒）
 SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 0.30, 4.33),      # 6.5文字/秒＋0.8秒
           ('STが上がる誘導で、梗塞の場所の見当がつく', 4.38, 8.41),
-          ('足もとから見上げる', I3.T_FIN + 0.05, I3.T_OV),              # 13（真下から）
-          ('この向きのまま輪切りにする', I3.T_OV + 0.05, I3.T_MV)]       # 13 の心室に輪切りを重ねる〜図の塗り
+          ('この向きのまま輪切りにする', I3.T_H13 + 0.1, I3.T_MV)]       # 13 で止まる〜輪切りを重ねる〜図の塗り（説明の場面の字は intro3d）
 HOW0 = INTRO_END + 0.05                   # 見かた
 HOW_SUBS = ['となり合う誘導が、まとまって上がる', '反対側の誘導は、鏡のように下がる']
 _hs0 = HOW0 + 0.30
@@ -307,7 +306,7 @@ HOW1 = _hs1 + read_t(HOW_SUBS[1], 'ST上昇を見たら→12誘導・すぐ報�
 SUM_LINE = '上がる誘導で、場所と血管がわかる'
 SAVE_T = read_t(SUM_LINE) + 0.2           # まとめの頭から「保存して見返してね」まで
 COMMENT_T = SAVE_T + 2.3
-SUM_HOLD = COMMENT_T + 2.0
+SUM_HOLD = COMMENT_T + 1.6
 LOOP_FADE = 0.75
 
 
@@ -1153,32 +1152,43 @@ FIT13 = ((I3.S13_FULL*_h13[0][0] + I3.C13_FULL[0], I3.S13_FULL*_h13[0][1] + I3.C
 
 def fin_frame(t, s):
     """T_FIN〜INTRO_END：
-    1. 08（前下から）の寄り終わり → 13（足もとから）へ重ねて切り替え（心臓の中心と幅をそろえる。X13_D）
-    2. 13 を引いて胴体全体を見せる（Z13_D）・止まる（H13_D）
-    3. 13 の心室の外形に筋肉の赤い輪切りをぴったり重ね、13 を消す（OV_D） 4. 同じ位置・大きさで図の塗りへ（RC_D）
-    5. 下の定位置へ（MV_D）"""
+    1. 08（前下から）が暗く小さく引き、横向きの人がスライドで入る（EX1） 2. 胸の前の目が足もとの下へ回って上を向き、視線がのびる（EX2）
+    3. 視線にそって画面が上へ流れ、13（足もとから）が下から入って止まる（EX3）・止まる（H13）
+    4. 13 の心室の外形に筋肉の赤い輪切りを重ね、13 を消す（OV） 5. 同じ位置・大きさで図の塗りへ（RC） 6. 定位置へ（MV）"""
     global _PH
     if _PH is None:
         _PH = I3.photo08()
     photo, pc, pw = _PH
-    (p08, k08) = FIN_FIT                  # 08 の寄り終わりの心室（中心・横の倍率）
-    w08 = HEART_W*k08[0]
-    ux = (t - I3.T_FIN) / I3.X13_D
+    u1 = ease((t - I3.T_FIN) / I3.EX1_D)
+    u2s = (t - I3.T_EX2) / I3.EX2_D
+    u3 = ease((t - I3.T_EX3) / I3.EX3_D)
     uo = (t - I3.T_OV) / I3.OV_D
     u2 = (t - I3.T_RC) / I3.RC_D
-    u3 = (t - I3.T_MV) / I3.MV_D
-    e3 = ease(u3)
-    s13, c13 = I3.cam13(t, p08, w08)
-    pic = I3.render13(s13, c13)
-    if ux < 1:
-        pic = Image.blend(photo, pic, ease(ux))
+    e3 = ease((t - I3.T_MV) / I3.MV_D)
     im = _GRID.copy()
+    pic = Image.new('RGBA', (W, H), I3.FILL13 + (255,))
+    # 08：暗く小さく引いて、目が回りはじめたら消える
+    fa8 = 1 - ease(u2s / 0.6)
+    if fa8 > 0.004:
+        sc = 1 - 0.30*u1
+        ph = photo.resize((int(W*sc), int(H*sc)), Image.BILINEAR)
+        ph = Image.blend(ph, Image.new('RGB', ph.size, I3.FILL13), 0.55*u1).convert('RGBA')
+        ph.putalpha(int(255*fa8))
+        pic.alpha_composite(ph, (int((W - ph.size[0])/2), int((H - ph.size[1])/2)))
+    # 13：下から上へスライドで入る
+    if u3 > 0:
+        dy13 = (1 - u3)*H
+        pic.alpha_composite(I3.render13(I3.S13_FULL, (I3.C13_FULL[0], I3.C13_FULL[1] + dy13)).convert('RGBA'))
+    # 人・目・視線（上へ流れて出ていく）
+    if t < I3.T_H13:
+        pic.alpha_composite(I3.explain_layer(sys.modules[__name__], t, dy=-u3*H))
     fa = 1 - ease(uo)
     if fa > 0.004:
-        im = Image.blend(im, pic.convert('RGBA'), fa)
+        im = Image.blend(im, pic.convert('RGB').convert('RGBA'), fa)
     (p0, k0) = FIT13
     k = (math.exp(math.log(k0[0])*(1 - e3)), math.exp(math.log(k0[1])*(1 - e3)))
     p = (p0[0] + (HEART_C[0] - p0[0])*e3, p0[1] + (HEART_C[1] - p0[1])*e3)
+    u3 = (t - I3.T_MV) / I3.MV_D
     am = ease(uo)
     if am > 0.004:
         if u2 < 1:

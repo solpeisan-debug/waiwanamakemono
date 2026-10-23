@@ -47,22 +47,23 @@ SEQ = [('hold', '04', 1.10, 1.90),
        ('orbit', '12r', 6.40, 7.90),
        ('hold', '08', 7.90, 9.60)]
 T_FIN = 9.60                             # ここから 08 → 輪切り
-# 08 は「前下方から見た心臓」（説明書8章）。足もとから見るときは、真下から見上げた絵 13 に切り替えてから輪切りにする
-X13_D = 0.80                             # 1. 08 の寄り終わり → 13（心臓の中心と幅をそろえて重ねて切り替え）。目の矢印は足もとへ
-Z13_D = 0.80                             # 2. 13 を引いて、胴体全体（胸骨が上・背骨が下）が見えるところへ
-H13_D = 0.50                             #    13 で止まる（「足もとから見上げる」）
-OV_D = 0.60                              # 3. 13 の心室の外形に筋肉の赤い輪切りをぴったり重ね、13 の絵を消す
-RC_D = 1.40                              # 4. 同じ位置・大きさで図の塗りへ（区画の名前）
-MV_D = 0.80                              # 5. 縮みながら（13 では小さいので、ふくらみながら）下の定位置へ
-T_Z13 = T_FIN + X13_D
-T_H13 = T_Z13 + Z13_D
+# 08 は「前下方から見た心臓」（説明書8章）。足もとから見るときは、説明の場面（横向きの人＋目の移動）を入れてから、
+# 真下から見上げた絵 13 を下からスライドで入れ、その心室に輪切りを重ねる
+EX1_D = 0.80                             # 1. 08 が暗く小さく引き、横向きの人の形が右からスライドして入る
+EX2_D = 1.30                             # 2. 胸の前の目が弧を描いて足もとの下へ回り、上を向く。点線の視線が頭のほうへのびる
+EX3_D = 0.90                             # 3. 視線にそって画面が上へ流れ、13 が下からスライドで入って止まる
+H13_D = 0.80                             # 4. 13 で止まる（方向の字・左上の目印「足もとから見上げる」）
+OV_D = 0.60                              # 5. 13 の心室の外形に筋肉の赤い輪切りをぴったり重ね、13 の絵を消す
+RC_D = 1.10                              # 6. 同じ位置・大きさで図の塗りへ（区画の名前）
+MV_D = 0.80                              # 7. 下の定位置へ
+T_EX2 = T_FIN + EX1_D
+T_EX3 = T_EX2 + EX2_D
+T_H13 = T_EX3 + EX3_D
 T_OV = T_H13 + H13_D
 T_RC = T_OV + OV_D
 T_MV = T_RC + RC_D
-T_TILT = T_FIN                           # （向きの目印：矢印が足もとへ回る始まり）
-TILT_D = X13_D
-FIN_D = X13_D + Z13_D + H13_D + OV_D + RC_D + MV_D
-INTRO_END = T_FIN + FIN_D                # 14.50
+FIN_D = EX1_D + EX2_D + EX3_D + H13_D + OV_D + RC_D + MV_D
+INTRO_END = T_FIN + FIN_D                # 15.90
 Q_T = (0.0, 2.05)                        # 問いかけ「ST上昇、心臓のどこ？」
 PUSH = 0.055                             # 止まっているあいだも、ゆっくり寄りつづける（Z1〜T_FIN で 5.5%）
 ANCHOR = (540, 800)
@@ -378,7 +379,7 @@ def ensure_fig_frames():
 
 def view_label(t):
     """(前の字, 次の字, 入れ替わりの割合)。最後は起き上がりに合わせて「足もとから見る」。"""
-    labs = VIEW_LABELS + [(T_FIN + 0.4, '足もとから見上げる')]
+    labs = VIEW_LABELS + [(T_H13, '足もとから見上げる')]
     for (t0, l0), (t1, l1) in zip(labs, labs[1:]):
         if t < t1 - 0.25:
             return l0, l0, 0.0
@@ -387,12 +388,19 @@ def view_label(t):
     return labs[-1][1], labs[-1][1], 0.0
 
 
+def ex_gate(t):
+    """説明の場面（T_FIN〜T_H13）のあいだは、左上の目印・方向の字を隠す。"""
+    if t < T_H13:
+        return 1 - ease((t - T_FIN) / 0.3)
+    return ease((t - T_H13) / 0.4)
+
+
 def view_icon(m, base, t):
-    a = 1 - ease((t - (T_RC + 0.3)) / 0.4)
+    a = (1 - ease((t - (T_RC + 0.3)) / 0.4))*ex_gate(t)
     if a <= 0.004:
         return
     l0, l1, u = view_label(t)
-    feet = ease((t - T_TILT) / TILT_D)
+    feet = 1.0 if t >= T_FIN else 0.0
     if base is not None:
         fi = int(round(float(np.interp(t, [k[0] for k in FRAME_KEYS], [k[1] for k in FRAME_KEYS]))))
         d = ImageDraw.Draw(base, 'RGBA')
@@ -427,11 +435,11 @@ DIR_SETS = {
     'back': [('体の左', 'L'), ('体の右', 'R'), ('↑ 頭', 'T')],
     'feet': [('← 体の右', 'L2'), ('体の左 →', 'R2'), ('↑ 胸（前）', 'T2'), ('↓ 背中', 'B2')],
 }
-DIR_KEYS = [(0.0, 'front'), (2.60, 'left'), (4.90, 'back'), (7.00, 'front'), (T_FIN + 0.4, 'feet')]
+DIR_KEYS = [(0.0, 'front'), (2.60, 'left'), (4.90, 'back'), (7.00, 'front'), (T_H13, 'feet')]
 
 
 def dir_labels(m, base, t):
-    fade_all = 1 - ease((t - T_MV) / 0.3)
+    fade_all = (1 - ease((t - T_MV) / 0.3))*ex_gate(t)
     if fade_all <= 0.004:
         return
     sets = []
@@ -560,24 +568,102 @@ def render13(s, c):
     return out.convert('RGB')
 
 
-def cam13_match(p, w):
-    """13 の心室のまん中が画面の p、幅が w px になるカメラ。"""
-    (hx, hy), (hw, hh) = HEART13
-    s = w / hw
-    return s, (p[0] - s*hx, p[1] - s*hy)
+# --- 説明の場面：横向きに立った人（頭が上・足が下・顔は画面の左＝前）と、目の移動 ---------------------------
+PERSON_CX = 560
+PERSON = {
+    'head': (PERSON_CX - 14, 392, 60),
+    'torso': [(-72, 498), (58, 498), (70, 560), (56, 800), (62, 862), (-62, 862), (-78, 760), (-88, 600)],
+    'leg_f': [(-58, 858), (2, 858), (-6, 1176), (-46, 1176)],
+    'leg_b': [(-2, 858), (58, 858), (46, 1176), (6, 1176)],
+    'foot': [(-86, 1176), (10, 1176), (10, 1206), (-92, 1206)],
+}
+HEART_P = (PERSON_CX - 40, 592)
+EYE_C, EYE_RX, EYE_RY = (PERSON_CX - 30, 640), 200, 660        # 目の弧：胸の前（左）→ 足もとの下
 
 
-def cam13(t, p08, w08):
-    """08 の寄り終わりと心臓をそろえたカメラ → 胴体全体が見えるカメラ（倍率は対数、心臓の位置は直線）。"""
-    s0, c0 = cam13_match(p08, w08)
-    u = ease((t - T_Z13) / Z13_D)
-    s1, c1 = S13_FULL, C13_FULL
-    (hx, hy), _ = HEART13
-    q0 = (s0*hx + c0[0], s0*hy + c0[1])
-    q1 = (s1*hx + c1[0], s1*hy + c1[1])
-    sc = math.exp(math.log(s0) + (math.log(s1) - math.log(s0))*u)
-    q = (q0[0] + (q1[0] - q0[0])*u, q0[1] + (q1[1] - q0[1])*u)
-    return sc, (q[0] - sc*hx, q[1] - sc*hy)
+PS, PS_C = 1.12, (PERSON_CX, 830)          # 人の形の大きさ（太めの線・大きめに）
+
+
+def _ps(x, y):
+    return PS_C[0] + (x - PS_C[0])*PS, PS_C[1] + (y - PS_C[1])*PS
+
+
+def draw_person(d, dx, dy, a):
+    line = (214, 232, 240, int(240*a))
+    fill = (40, 92, 128, int(190*a))
+    T = lambda x, y: (lambda q: (q[0] + dx, q[1] + dy))(_ps(x, y))
+    P = lambda pts: [T(PERSON_CX + x, y) for x, y in pts]
+    for k in ('leg_b', 'leg_f', 'foot', 'torso'):
+        d.polygon(P(PERSON[k]), fill=fill, outline=line, width=8)
+    x0, y0 = T(PERSON_CX - 40, 440); x1, y1 = T(PERSON_CX + 6, 505)
+    d.rounded_rectangle([x0, y0, x1, y1], radius=8, fill=fill)
+    hx, hy, hr = PERSON['head']
+    (cx, cy), r = T(hx, hy), hr*PS
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill, outline=line, width=8)
+    (nx, ny) = T(hx - hr - 3, hy + 2)
+    d.ellipse([nx - 13, ny - 11, nx + 13, ny + 11], fill=fill, outline=line, width=5)            # 鼻（顔は左＝前）
+    s0, s1 = T(PERSON_CX - 6, 530), T(PERSON_CX - 22, 830)
+    d.line([s0, s1], fill=line, width=36)                                                      # 腕
+    d.line([s0, s1], fill=fill, width=22)
+    x, y = T(*HEART_P)
+    d.ellipse([x - 50, y - 46, x + 50, y + 46], fill=(255, 70, 80, int(70*a)))
+    d.ellipse([x - 32, y - 30, x + 32, y + 30], fill=(235, 60, 72, int(255*a)))
+
+
+def eye_pose(u):
+    """u 0〜1：目の位置と向き（向きは画面の角度。0＝右、90＝上）。"""
+    th = math.radians(180 + 90*u)
+    x, y = _ps(EYE_C[0] + EYE_RX*math.cos(th), EYE_C[1] - EYE_RY*math.sin(th))
+    # はじめは心臓へ（右・少し上）、終わりは真上
+    return x, y, 8 + (90 - 8)*u
+
+
+def draw_eye(d, x, y, ang, a):
+    col = (255, 214, 64, int(255*a))
+    th = math.radians(ang)
+    ux, uy = math.cos(th), -math.sin(th)
+    # 目（アーモンド形）を向きにあわせて回す
+    pts = []
+    for j in range(24):
+        q = 2*math.pi*j/24
+        ex, ey = 34*math.cos(q), 18*math.sin(q)
+        pts.append((x + ex*ux - ey*uy, y + ex*uy + ey*ux))
+    d.polygon(pts, fill=(8, 18, 16, int(230*a)), outline=col, width=5)
+    d.ellipse([x - 9 + ux*8, y - 9 + uy*8, x + 9 + ux*8, y + 9 + uy*8], fill=col)
+    tip = (x + ux*64, y + uy*64)
+    d.polygon([tip, (tip[0] - ux*18 - uy*11, tip[1] - uy*18 + ux*11), (tip[0] - ux*18 + uy*11, tip[1] - uy*18 - ux*11)], fill=col)
+
+
+def draw_sight(d, x, y, ang, length, a):
+    th = math.radians(ang)
+    ux, uy = math.cos(th), -math.sin(th)
+    col = (255, 236, 160, int(230*a))
+    s0 = 70
+    k = s0
+    while k < s0 + length:
+        k1 = min(k + 18, s0 + length)
+        d.line([(x + ux*k, y + uy*k), (x + ux*k1, y + uy*k1)], fill=col, width=6)
+        k += 32
+
+
+def explain_layer(m, t, dy=0.0):
+    """説明の場面の人・目・視線・字（RGBA の全画面）。dy：上へ流れるときのずれ。"""
+    lay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lay, 'RGBA')
+    u1 = ease((t - T_FIN) / EX1_D)
+    u2 = ease((t - T_EX2) / EX2_D)
+    dx = (1 - u1)*700
+    a = u1
+    draw_person(d, dx, dy, a)
+    x, y, ang = eye_pose(u2)
+    L = max(0.0, (t - (T_EX2 + 0.55*EX2_D)) / (0.45*EX2_D + 0.35))
+    sight = min(1.0, L)*(y - (_ps(*HEART_P)[1] - 120) - 70)      # 目から心臓をこえて胸の上まで
+    if u2 > 0.55:
+        draw_sight(d, x + dx, y + dy, ang, sight, a)
+    draw_eye(d, x + dx, y + dy, ang, a)
+    ta = ease((t - (T_EX2 + 0.2)) / 0.5)
+    m.put(lay, '足もとから、頭のほうを見上げる', 40, 900, m.WHITE, cx=540, cy=1480 + dy, a=ta*a, max_w=820)
+    return lay
 
 
 def photo08():
