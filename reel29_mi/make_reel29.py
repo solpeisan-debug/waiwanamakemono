@@ -309,8 +309,23 @@ SUM_A = read_t(*HOW_SUBS)
 SUM_B = read_t(SUM_LINE, 'ST上昇を見たら→12誘導・すぐ報告')
 SAVE_T = SUM_A + SUM_B                    # まとめの頭から「保存して見返してね」まで
 COMMENT_T = SAVE_T + 2.0
-SUM_HOLD = COMMENT_T + 1.6
-LOOP_FADE = 0.75
+LOOP_FADE = 0.50
+END_AFTER_VO = 0.65                       # 最後の声（m2）が終わってから映像が終わるまで（でんさん「ナレーションが終わったら動画も終わる」）
+
+
+def _m2_len():
+    """m2 の声の長さ（前の無音を除いた話しはじめ〜声の終わり）。ファイルがなければ 4.0秒。"""
+    p = os.path.join(HERE, 'out', 'vo', 'lines', 'm2.mp3')
+    if not os.path.exists(p):
+        return 4.0
+    raw = subprocess.run([ffmpeg_bin(), '-v', 'error', '-i', p, '-f', 's16le', '-ac', '1', '-ar', '22050', '-'],
+                         capture_output=True, check=True).stdout
+    x = np.abs(np.frombuffer(raw, np.int16).astype(np.float32))
+    nz = np.nonzero(x > 0.03*x.max())[0]              # vo_track と同じ「声がある」の決め方
+    return (nz[-1] - max(0, nz[0] - int(0.03*22050))) / 22050
+
+
+SUM_HOLD = None                           # _build のあとで決める（声が終わったら終わる）
 
 
 def _build():
@@ -337,12 +352,15 @@ def _build():
         t += VIA_HOLD; kf.append((t, 'G'))
     t += DIRECT_T; kf.append((t, 'S'))
     sum0 = t
-    t += SUM_HOLD; kf.append((t, 'S'))
+    m2_end = sum0 + SUM_A + _m2_len()
+    hold = max(SUM_A + 2.0, m2_end + END_AFTER_VO - LOOP_FADE - sum0)
+    t += hold; kf.append((t, 'S'))
     t += LOOP_FADE; kf.append((t, 'N'))
     return kf, win, sum0, t
 
 
 KF, WINDOWS, SUM0, DUR = _build()
+SUM_HOLD = DUR - LOOP_FADE - SUM0
 
 
 def _subs():
@@ -1104,9 +1122,8 @@ def draw_texts(im, t, s):
         sw = ramp(t, SUM0 + COMMENT_T, 0.4)
         put(im, SUM_LABEL, 54, 900, WHITE, cx=540, cy=NAME_CY, a=ramp(t, SUM0 - 0.2, 0.4)*ka)
         put(im, HOW_SUBS[1], NURSE_SIZE, 800, WHITE, cx=540, cy=BOX_L2, a=ramp(t, SUM0 + 0.6, 0.4)*(1 - ramp(t, SUM0 + SUM_A - 0.3, 0.3))*ka, max_w=BOX_MAXW)
-        put_parts(im, REPORT, BOX_L2, a=ramp(t, SUM0 + SUM_A + 0.3, 0.4)*(1 - ramp(t, SUM0 + SAVE_T - 0.3, 0.3))*ka, gap=12, max_w=BOX_MAXW)
-        put(im, SAVE, NURSE_SIZE, 800, GREEN, cx=540, cy=BOX_L2, a=ramp(t, SUM0 + SAVE_T, 0.4)*(1 - ramp(t, SUM0 + COMMENT_T - 0.3, 0.3))*ka)
-        put(im, COMMENT, NURSE_SIZE, 900, YELLOW, cx=540, cy=BOX_L2, a=sw*ka, max_w=BOX_MAXW)
+        put_parts(im, REPORT, BOX_L2, a=ramp(t, SUM0 + SUM_A + 0.3, 0.4)*ka, gap=12, max_w=BOX_MAXW)
+        # 「保存して見返してね」「何個わかった？…」の字はやめた（声で言う・最後を短く）
     # 後壁：鏡うつし
     if s.mirror > 0.004:
         put(im, '鏡像（前から', 20, 800, BLUE, x=MIRROR_LABEL[0], cy=MIRROR_LABEL[1], a=s.mirror)
@@ -1634,6 +1651,8 @@ def sfx(path, sr=44100):
         pk = np.abs(a).max()
         if pk > 0.98:
             a *= 0.98/pk
+    nf = int(0.45*sr)                       # 映像の終わりに合わせて、音も短くフェードアウト（ぶつっと切らない）
+    a[-nf:] *= np.linspace(1, 0, nf)**1.5
     pcm = (np.clip(a, -1, 1)*32767).astype(np.int16)
     with wave.open(path, 'wb') as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
