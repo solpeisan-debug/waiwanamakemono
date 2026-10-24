@@ -861,11 +861,17 @@ def img14():
 # 16（Omni・1280×720・24fps・10秒・240コマ）：0〜2秒 横向き → 2〜4.6秒 体の前へ回る → 4.6〜8.3秒 足のあいだから見上げる
 #   → 8.3〜9秒 足もとからの断面へ → 9〜10秒 13 と同じ絵。足が通りすぎる所はゆっくり、横向きの所は速く
 ROT_SRCS = {'16': ('16_回転_横から足もと_omni.mp4', [(0.0, 1), (0.10, 48), (0.33, 110), (0.78, 205), (1.0, 240)]),
-            '15': ('15_回転_横から足もと_EL.mp4', [(0.0, 1), (0.62, 105), (0.78, 153), (1.0, 185)])}
-ROT_ID = '16' if os.path.exists(os.path.join(A3, ROT_SRCS['16'][0])) else '15'
+            '15': ('15_回転_横から足もと_EL.mp4', [(0.0, 1), (0.62, 105), (0.78, 153), (1.0, 185)]),
+            # 35（Flow・1920×1080・192コマ）：最初の約2秒（48コマ）は動きが小さいので早送り
+            '35': ('追加_1024/35_回る_横から足もと.mp4', [(0.0, 1), (0.12, 48), (1.0, 192)])}
+# 確認版㉒：A＝35（正面へ回って胸へ寄り、断面 34 へ変わる）、B＝16（潜り込んで見上げる）で古い心臓を消す。環境変数 REEL29_ROT で切り替え（既定 A）
+ROT_VARIANT = os.environ.get('REEL29_ROT', 'A').upper()
+ROT_ID = '35' if ROT_VARIANT == 'A' else '16'
 # 動画のコマ px ＝ 絵の px × K ＋ (ox, oy)。体の外形を色で測った：最初のコマ＝14（体の上下 14〜719 ⇔ 13〜759）、
 # 最後のコマ＝13（体 x43〜1236・y22〜689 ⇔ x48〜1327・y18〜745。心臓の位置も数px でそろう）
-ROT_FIT = {'16': ((0.945, -6.0, 1.7), (0.925, -1.4, 5.4)), '15': ((0.930, 0.0, 3.0), (0.930, 0.0, 3.0))}
+ROT_FIT = {'16': ((0.945, -6.0, 1.7), (0.925, -1.4, 5.4)), '15': ((0.930, 0.0, 3.0), (0.930, 0.0, 3.0)),
+           # 35：最初のコマ＝14（体の高さ 1050 ⇔ 746・心臓の中心）、最後のコマ＝34（体の幅 1797 ⇔ 1279・心臓の中心）
+           '35': ((1.4075, -6.3, 0.7), (1.400, -3.5, 3.8))}
 ROT_MAP = ROT_SRCS[ROT_ID][1]             # ROT の進み → コマ番号（None＝最初から最後まで一定の速さ）
 N_ROT = 192
 _V15 = {}
@@ -924,6 +930,8 @@ def v15(i):
         if len(_V15) > 30:
             _V15.clear()
         im = Image.open(os.path.join(CACHE, 'rot' + ROT_ID, f'{i:03d}.jpg')).convert('RGB')
+        if ROT_ID == '16' and ROT_VARIANT == 'B':   # B：16 の中の古い心臓（真ん中・縦長）を体の色で埋めて見せない
+            im = decolor_heart(im)
         if leg_strength(i) > 0.004:
             im = Image.composite(im, Image.new('RGB', im.size, ROT_BG), leg_mask(i))
         _V15[i] = im
@@ -939,13 +947,14 @@ def cam15_from(s_img, c_img, fit):
 
 def render15(img, s, c):
     k = 1/s
-    out = Image.new('RGBA', (W, H), (2, 9, 29, 255))   # 回る動画の地の色（コマの隅を測った）
+    out = Image.new('RGBA', (W, H), (3, 9, 34, 255))   # 回る動画の地の色（コマの隅を測った）
     lay = img.convert('RGBA')
     w, h = lay.size
     a = np.full((h, w), 255.0)
-    f = 110                              # 端を広くなじませる（動画の地の色と紺の差を見せない）
+    f, fv = 110, (int(h*0.28) if w > 1600 else 110)   # 端を広くなじませる（35 は上下が画面の中に入るので、上下は広く）
     ramp = np.arange(f)/f
-    a[:f] *= ramp[:, None]; a[-f:] *= ramp[::-1][:, None]
+    rv = (np.arange(fv)/fv)**1.5
+    a[:fv] *= rv[:, None]; a[-fv:] *= rv[::-1][:, None]
     a[:, :f] *= ramp[None, :]; a[:, -f:] *= ramp[::-1][None, :]
     lay.putalpha(Image.fromarray(a.astype(np.uint8)))
     out.alpha_composite(lay.transform((W, H), Image.AFFINE, (k, 0, -k*c[0], 0, k, -k*c[1]), resample=Image.BICUBIC,
@@ -960,8 +969,11 @@ def rot_frame(t):
     sa, ca = cam15_from(S14, C14, fa)
     sb, cb = cam15_from(S13_FULL, C13_FULL, fb)
     e = ease(u)
-    qa = (sa*640 + ca[0], sa*360 + ca[1])
-    qb = (sb*640 + cb[0], sb*360 + cb[1])
+    fi = float(np.interp(u, [k[0] for k in ROT_MAP], [k[1] for k in ROT_MAP]))
+    img = v15(round(fi))
+    cx0, cy0 = img.size[0]/2, img.size[1]/2
+    qa = (sa*cx0 + ca[0], sa*cy0 + ca[1])
+    qb = (sb*cx0 + cb[0], sb*cy0 + cb[1])
     sc = math.exp(math.log(sa) + (math.log(sb) - math.log(sa))*e)
     q = (qa[0] + (qb[0] - qa[0])*e, qa[1] + (qb[1] - qa[1])*e)
     # 3→4（正面寄り→足のあいだから見上げる）の寄り・中心をあとから足すとき用（ROT の進み u ごとの倍率・画面のずれ px）
@@ -969,9 +981,8 @@ def rot_frame(t):
     z = float(np.interp(u, zk, [k[1] for k in ROT_ZOOM]))
     q = (q[0] + float(np.interp(u, zk, [k[2] for k in ROT_ZOOM])), q[1] + float(np.interp(u, zk, [k[3] for k in ROT_ZOOM])))
     sc *= z
-    c = (q[0] - sc*640, q[1] - sc*360)
-    fi = float(np.interp(u, [k[0] for k in ROT_MAP], [k[1] for k in ROT_MAP]))
-    return render15(v15(round(fi)), sc, c)        # 1コマずつ（前後のコマは混ぜない）
+    c = (q[0] - sc*cx0, q[1] - sc*cy0)
+    return render15(img, sc, c)        # 1コマずつ（前後のコマは混ぜない）
 
 
 def heart14_screen():
