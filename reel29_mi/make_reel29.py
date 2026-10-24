@@ -296,10 +296,11 @@ def _pat_texts(p):
 HOLDS = [max(HOLD_MIN, SUB_LEAD + read_t(*_pat_texts(p))) for p in PATTERNS]
 INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜9.9秒）
 _L_END = [b for k, n, a, b in I3.SEQ if n == '07'][0]   # 左で止まり終わる時刻（ここまで字幕を変えない）
-SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 0.30 + I3.T0, _L_END + 0.10),      # 左で止まるあいだは変えない
+SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 3.00, _L_END + 0.10),      # n00（0.10〜）のあと。左で止まるあいだは変えない
           ('STが上がる誘導で、梗塞の場所の見当がつく', _L_END + 0.15, _L_END + 0.15 + 4.40),  # 腕が下がり始めるころから（n02 も同じ時刻）
-          ('足もとから、頭のほうを見上げる', I3.T_EX2 + 0.2, I3.T_H13 - 0.05),   # 目が足もとへ回る〜人体が回る
-          ('この向きのまま輪切りにする', I3.T_H13 + 0.1, I3.T_MV)]       # 13 で止まる〜寄る〜輪切りを重ねる〜図の塗り（説明の場面の字は intro3d）
+          ('足もとから、頭のほうを見上げる', I3.T_EX2 + 0.2, 18.60),             # 目が足もとへ回る〜人体が回る
+          ('この向きのまま輪切りにする', I3.T_H13 + 0.1, I3.T_MV),
+          ('これが、足もとから見た心臓', 18.70, 21.00)]               # n03b と同じ時刻       # 13 で止まる〜寄る〜輪切りを重ねる〜図の塗り（説明の場面の字は intro3d）
 # 「見かた」の場面はやめた（でんさん「イラストになってから動きがないのが嫌。すぐ①へ」）。輪切りが着いたらすぐ①へ。
 # 見かたの内容は、最後のまとめに 2段で入れる
 HOW0 = HOW1 = INTRO_END + 0.25
@@ -1560,9 +1561,18 @@ VO_DIR = os.path.join(HERE, 'out', 'vo', 'lines')
 VO_DUCK_DB, VO_PEAK = 8.0, 0.75
 
 
+VO_TEXT = {'n00': 'エスティー上昇。心臓の、どこ？', 'n01': '12誘導は、心臓を、いろんな向きから見ている。',
+           'n02': 'STが上がる誘導で、梗塞の場所の見当がつく。', 'n02b': '背中側は、コウヘキ（後壁）。',
+           'n02c': '心臓の、下の面は、かへき（下壁）。', 'n03': '足もとから、頭のほうを見上げる。',
+           'n03b': 'これが、足もとから見た心臓。', 'n04': 'この向きで、輪切りにする。',
+           'p1': '①前壁中隔', 'p2': '②広範囲前壁', 'p3': '③側壁', 'p4': '④下壁', 'p5': '⑤右室', 'p6': '⑥後壁',
+           'm1': 'となり合う誘導が、まとまって上がる…', 'm2': '上がる誘導で、場所と血管がわかる。保存して、見返してね。'}
+
+
 def vo_starts():
     """声の話しはじめ（前の無音は除いて置く）。今の字幕の出る時刻に合わせる。"""
-    st = {'n01': SUB_3D[0][1], 'n02': SUB_3D[1][1], 'n03': SUB_3D[2][1], 'n04': SUB_3D[3][1],
+    st = {'n00': 0.10, 'n01': SUB_3D[0][1], 'n02': SUB_3D[1][1], 'n02b': 10.45, 'n02c': 12.70,
+          'n03': SUB_3D[2][1], 'n03b': SUB_3D[4][1], 'n04': SUB_3D[3][1],
           'm1': SUM0 - 0.2, 'm2': SUM0 + SUM_A}
     for a, b, i in WINDOWS:
         st[f'p{i + 1}'] = a + SUB_LEAD
@@ -1580,6 +1590,7 @@ def vo_track(n, sr):
         return None
     vo = np.zeros(n, np.float32)
     got = False
+    rows = []
     for name, t0 in vo_starts().items():
         p = os.path.join(VO_DIR, name + '.mp3')
         if not os.path.exists(p):
@@ -1595,9 +1606,14 @@ def vo_track(n, sr):
         L = max(0, min(len(x), n - i0))
         vo[i0:i0 + L] += x[:L]
         got = True
+        rows.append((t0, t0 + len(x)/sr, name))
         print(f'  声 {name}: {t0:6.2f}秒〜 {len(x)/sr:.2f}秒')
     if not got:
         return None
+    with open(os.path.join(HERE, 'out', 'vo', 'placement.md'), 'w', encoding='utf-8') as f:
+        f.write('| 声 | 秒 | 文 |\n|---|---|---|\n')
+        for a, b, name in sorted(rows):
+            f.write(f'| {name} | {a:.2f}–{b:.2f} | {VO_TEXT.get(name, "")} |\n')
     return vo*VO_PEAK/(np.abs(vo).max() + 1e-9)
 
 
