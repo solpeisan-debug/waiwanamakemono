@@ -732,7 +732,7 @@ def draw_extra_notes(im, s):
     x = label_x('V4R') + text_w('V4R', 30, 800) + 10
     cy = BASES[3] - ROW_UP + 24
     a_r, a_p = cl((s.x_rv - 0.5)/0.5)*k, cl((s.x_post - 0.5)/0.5)*k
-    put(im, T('extra_leads'), 20, 700, GREY, x=x, cy=cy, a=cl(1 - 2*max(s.x_rv, s.x_post))*cl(1 - 8*s.tint))
+    put(im, T('extra_leads'), 20, 700, GREY, x=x, cy=cy, a=cl(1 - 2*max(s.x_rv, s.x_post))*cl(1 - 25*s.tint))   # まとめの壁の名前（右室）が消えてから出す（最初へもどるときに重ねない）
     # どこに貼るか：凡例の行の左（右室・後壁のときだけ）
     put(im, T('v4r_where'), 22, 800, RED, x=SAFE_L + 5, cy=LEGEND_Y, a=a_r)
     put(im, T('v79_where'), 22, 800, RED, x=SAFE_L + 5, cy=LEGEND_Y, a=a_p)
@@ -864,7 +864,7 @@ def draw_heart(im, s, fast=False):
         px, py = _pol(ang, (R_IN + R_OUT)/2)
         col = mix((198, 210, 206), WHITE, s.seg(k))
         put(im, SEG_NAME[k], 28, 800, col, cx=px, cy=py + 2)
-    put(im, '右室', 28, 800, mix((198, 210, 206), WHITE, s.seg('rv')), cx=RV_LABEL[0], cy=RV_LABEL[1])   # 右室の三日月の中（中隔の字と離す）
+    put(im, SEG_NAME['rv'], 28, 800, mix((198, 210, 206), WHITE, s.seg('rv')), cx=RV_LABEL[0], cy=RV_LABEL[1])   # 右室の三日月の中（中隔の字と離す）
     # 胸部の電極（実際に貼る場所）と、四肢誘導（見ている向き）
     draw_electrodes(im, s, fast)
     for names, pos, tip in LIMB_TAGS:
@@ -1359,7 +1359,7 @@ def fin_frame(t, s):
         for kk, (ang, _) in SEG_LABEL.items():
             fx, fy = _pol(ang, (R_IN + R_OUT)/2)
             put(im, SEG_NAME[kk], 28, 800, (198, 210, 206), cx=p[0] + k[0]*(fx - HEART_C[0]), cy=p[1] + k[1]*(fy + 2 - HEART_C[1]), a=an)
-        put(im, '右室', 28, 800, (198, 210, 206), cx=p[0] + k[0]*(RV_LABEL[0] - HEART_C[0]), cy=p[1] + k[1]*(RV_LABEL[1] - HEART_C[1]), a=an)
+        put(im, SEG_NAME['rv'], 28, 800, (198, 210, 206), cx=p[0] + k[0]*(RV_LABEL[0] - HEART_C[0]), cy=p[1] + k[1]*(RV_LABEL[1] - HEART_C[1]), a=an)
     lay = static_layer(s)
     im.alpha_composite(_mul_alpha(lay.crop((0, 0, W, FIN_SPLIT)), ease((u3 - 0.35) / 0.65)))
     im.alpha_composite(_mul_alpha(lay.crop((0, FIN_SPLIT, W, H)), ease((u3 - 0.70) / 0.30)), (0, FIN_SPLIT))
