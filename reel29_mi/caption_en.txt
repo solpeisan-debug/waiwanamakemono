@@ -1,0 +1,45 @@
+ST elevation — where in the heart? Can you localize an MI on a 12-lead?
+---------------------------------------------------------
+Hi, I'm Den, a nurse from Japan 🇯🇵
+
+The leads with ST elevation give you a good idea of WHERE the infarct is and WHICH artery is involved.
+Here are 6 patterns worth knowing.
+
+🔍 How to read it
+ST rises in contiguous leads → that's the infarct site
+Leads on the opposite side show ST depression (reciprocal change)
+
+1. Anteroseptal → V1–V4 / LAD
+2. Extensive anterior → V1–V6, I, aVL / proximal LAD
+3. Lateral → I, aVL, V5, V6 / often LCx (or an LAD diagonal)
+4. Inferior → II, III, aVF (reciprocal in aVL) / usually RCA (sometimes LCx)
+5. Right ventricular → inferior changes + ST elevation in V1 and V4R / proximal RCA
+6. Posterior → ST depression with tall R waves in V1–V3; ST elevation in V7–V9 on the back / RCA or LCx
+
+🚨 ST elevation → 12-lead ECG and notify the provider immediately (also chest pain, diaphoresis, dyspnea, hypotension, altered mental status)
+💓 Anteroseptal / extensive anterior → watch for VF, heart failure and shock
+🐢 Inferior → bradycardia and AV block are common (up to ~20%). Get right-sided leads (V4R)
+🩸 RV infarction → prone to hypotension. Nitrates can cause a sudden BP drop, so avoid them in RV infarction (follow the provider's orders)
+🔙 Posterior → no standard lead faces the posterior wall directly. It shows up as ST depression (+ tall R, upright T) in V1–V3, so add V7–V9 to confirm
+
+📍 Place chest electrodes by the ribs, not the nipples
+V1 4th ICS, right sternal border / V2 4th ICS, left sternal border / V3 midway between V2 and V4 / V4 5th ICS, left midclavicular line / V5 and V6 same level as V4, left anterior and mid-axillary lines
+V7–V9 on the back at the same level as V6 (left posterior axillary line, left scapular line, left paraspinal); V4R = right 5th ICS, right midclavicular line (mirror of V4)
+Electrode colors in this video: AHA
+
+※ST elevation in V4R fades quickly (gone within ~10 hours in about half of cases). Record it early in inferior MI
+※Posterior MI usually comes with inferior or lateral MI (isolated in only 5–10%)
+※Lateral ST elevation can be subtle. If you see ST depression only in III/aVF, look for elevation in I and aVL
+※Lead–territory–artery correlations are a guide only (coronary anatomy varies)
+
+Save this and come back to it.
+How many did you get? Tell me in the comments.
+
+※Tracings are examples. The heart diagram is a schematic slice; the 3D images are illustrations (heart size and position matched to the ribs)
+※Reference: LITFL ECG Library (Anterior STEMI / Lateral STEMI / High Lateral STEMI / Inferior STEMI / Right Ventricular Infarction / Posterior Myocardial Infarction / ECG Lead positioning)
+
+📌 Saving and sharing are welcome
+🚫 Please do not repost or reuse the images/video without permission
+✉️ Questions? Send me a message
+
+#nursing #nursingstudent #ECG #EKG #12lead #STEMI #myocardialinfarction #cardiology #nurse #NCLEX
