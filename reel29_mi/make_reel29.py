@@ -1292,7 +1292,7 @@ def fin_frame(t, s):
     if _PH is None:
         _PH = I3.photo08()
     photo, pc, pw = _PH
-    (p08, k08) = FIN_FIT
+    p08, k08 = pc, (pw / HEART_W, pw / HEART_W)     # 24（下壁で止まった絵）の心臓の中心・幅（08 はやめた）
     w08 = HEART_W*k08[0]
     hx14, hy14, hw14 = I3.heart14_screen()
     u1 = ease((t - I3.T_FIN) / I3.EX1_D)
