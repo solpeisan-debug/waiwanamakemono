@@ -31,6 +31,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 import intro3d as I3
+from i18n import T, META, LANG, MISSING, suffix as lang_suffix
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 W, H = 1080, 1920
@@ -59,7 +60,7 @@ C_RCA = (64, 214, 200)                  # 右冠動脈
 VES_COL = {'LAD': C_LAD, 'LCX': C_LCX, 'RCA': C_RCA}
 VES_NAME = {'LAD': 'LAD', 'LCX': 'LCx', 'RCA': 'RCA'}
 
-FONT = os.environ.get('REEL_FONT', os.path.join(HERE, 'fonts', 'NotoSansJP.ttf'))
+FONT = os.environ.get('REEL_FONT', os.path.join(HERE, META['font']))      # 言語ごとの字体（i18n/<lang>.json の _meta.font）
 
 # --- 紙の目盛り（第24弾〜と同じ：1mm＝14px、25mm/秒、10mm/mV） ------------------------
 PXMM = 14.0
@@ -163,7 +164,7 @@ def beat(lead, par, tau):
 # leads：{誘導: (ST のずれ mV, T の足し分, R の足し分, S の足し分, R の幅の倍率)}。書かない誘導は正常
 # seg：梗塞の壁（輪切りで赤く塗る）、ves：責任血管（1＝はっきり、0.6＝どちらか）
 SEGS = ['ant', 'sep', 'lat', 'post', 'inf', 'rv']
-SEG_NAME = {'ant': '前壁', 'sep': '中隔', 'lat': '側壁', 'post': '後壁', 'inf': '下壁', 'rv': '右室'}
+SEG_NAME = {k: T('seg_' + k) for k in ('ant', 'sep', 'lat', 'post', 'inf', 'rv')}
 SEG_VES = {'ant': 'LAD', 'sep': 'LAD', 'lat': 'LCX', 'post': 'LCX', 'inf': 'RCA', 'rv': 'RCA'}
 LEAD_WALL = {'V1': 'sep', 'V2': 'sep', 'V3': 'ant', 'V4': 'ant', 'I': 'lat', 'aVL': 'lat', 'V5': 'lat', 'V6': 'lat',
              'II': 'inf', 'III': 'inf', 'aVF': 'inf', 'V7': 'post', 'V8': 'post', 'V9': 'post', 'V4R': 'rv'}
@@ -171,34 +172,34 @@ LEAD_WALL = {'V1': 'sep', 'V2': 'sep', 'V3': 'ant', 'V4': 'ant', 'I': 'lat', 'aV
 _INF = {'II': (0.20, 0.08, 0, 0, 1), 'III': (0.30, 0.10, 0, 0, 1), 'aVF': (0.25, 0.09, 0, 0, 1),
         'aVL': (-0.20, -0.14, 0, 0, 1), 'I': (-0.07, -0.03, 0, 0, 1)}
 PATTERNS = [
-    dict(no='①', key='asep', name='前壁中隔', ves='LAD', vtxt='LAD（左前下行枝）',
-         nurse='→ VFに注意。除細動器を近くに', sub=['V1〜V4 が上がる'],
+    dict(no=T('p1_no'), key='asep', name=T('p1_name'), ves='LAD', vtxt=T('p1_vessel'),
+         nurse=T('p1_nurse'), sub=[T('p1_sub1')],
          leads={'V1': (0.18, 0.05, 0, 0, 1), 'V2': (0.28, 0.06, 0, 0, 1),
                 'V3': (0.28, 0.06, 0, 0, 1), 'V4': (0.22, 0.08, 0, 0, 1)},
          seg={'ant': 1, 'sep': 1}, vesw={'LAD': 1}),
-    dict(no='②', key='ext', name='広範囲前壁', ves='LAD', vtxt='LADの根もと',
-         nurse='→ 心不全・ショックに注意', sub=['V1〜V6・I・aVL まで上がる'],
+    dict(no=T('p2_no'), key='ext', name=T('p2_name'), ves='LAD', vtxt=T('p2_vessel'),
+         nurse=T('p2_nurse'), sub=[T('p2_sub1')],
          leads={'V1': (0.20, 0.05, 0, 0, 1), 'V2': (0.30, 0.06, 0, 0, 1), 'V3': (0.30, 0.06, 0, 0, 1),
                 'V4': (0.28, 0.08, 0, 0, 1), 'V5': (0.24, 0.10, 0, 0, 1), 'V6': (0.18, 0.06, 0, 0, 1),
                 'I': (0.15, 0.05, 0, 0, 1), 'aVL': (0.15, 0.06, 0, 0, 1),
                 'III': (-0.10, -0.04, 0, 0, 1), 'aVF': (-0.07, -0.03, 0, 0, 1)},
          seg={'ant': 1, 'sep': 1, 'lat': 1}, vesw={'LAD': 1}),
-    dict(no='③', key='lat', name='側壁', ves='LCX', vtxt='LCx（回旋枝）など',
-         nurse='→ III・aVFの低下を見たら、I・aVLも確かめる', sub=['I・aVL・V5・V6 が上がる'],
+    dict(no=T('p3_no'), key='lat', name=T('p3_name'), ves='LCX', vtxt=T('p3_vessel'),
+         nurse=T('p3_nurse'), sub=[T('p3_sub1')],
          leads={'I': (0.16, 0.05, 0, 0, 1), 'aVL': (0.18, 0.06, 0, 0, 1),
                 'V5': (0.20, 0.08, 0, 0, 1), 'V6': (0.18, 0.06, 0, 0, 1),
                 'III': (-0.14, -0.06, 0, 0, 1), 'aVF': (-0.09, -0.04, 0, 0, 1)},
          seg={'lat': 1}, vesw={'LCX': 1}),
-    dict(no='④', key='inf', name='下壁', ves='RCA', vtxt='RCA（右冠動脈）が多い',
-         nurse='→ 徐脈・房室ブロックに注意。V4Rもとる', sub=['II・III・aVF が上がる／aVL が下がる'],
+    dict(no=T('p4_no'), key='inf', name=T('p4_name'), ves='RCA', vtxt=T('p4_vessel'),
+         nurse=T('p4_nurse'), sub=[T('p4_sub1')],
          leads=dict(_INF),
          seg={'inf': 1}, vesw={'RCA': 1}),
-    dict(no='⑤', key='rv', name='右室', ves='RCA', vtxt='RCAの根もと',
-         nurse='→ 血圧低下に注意', sub=['下壁に加えて、右胸の V4R も上がる'],
+    dict(no=T('p5_no'), key='rv', name=T('p5_name'), ves='RCA', vtxt=T('p5_vessel'),
+         nurse=T('p5_nurse'), sub=[T('p5_sub1')],
          leads=dict(_INF, **{'V1': (0.12, 0.04, 0, 0, 1), 'V4R': (0.15, 0.05, 0, 0, 1)}),
          seg={'inf': 1, 'rv': 1}, vesw={'RCA': 1}, x_rv=1),
-    dict(no='⑥', key='post', name='後壁', ves='RCA', vtxt=[('RCA', C_RCA), ('か', (200, 210, 208)), ('LCx', C_LCX)],
-         nurse='→ V7〜V9 を追加でとる', sub=['V1〜V3 が下がって R が高い', '→ 背中の V7〜V9 で上がる'],
+    dict(no=T('p6_no'), key='post', name=T('p6_name'), ves='RCA', vtxt=[('RCA', C_RCA), (T('p6_vessel_or'), (200, 210, 208)), ('LCx', C_LCX)],
+         nurse=T('p6_nurse'), sub=[T('p6_sub1'), T('p6_sub2')],
          leads={'V1': (-0.14, 0.12, 0.25, 0.35, 1.5, 1), 'V2': (-0.22, 0.06, 0.32, 0.40, 1.5, 1),
                 'V3': (-0.16, 0.00, 0.15, 0.15, 1.3, 1),
                 'V7': (0.12, 0.04, 0, 0, 1), 'V8': (0.12, 0.04, 0, 0, 1), 'V9': (0.10, 0.03, 0, 0, 1)},
@@ -276,10 +277,13 @@ def ffmpeg_bin():
 
 # --- タイムライン（2026-10-23 夜から：ナレーションなし。字幕を読める長さで決める） ----------------
 # 読む速さ：日本語 1秒に約6.5文字＋0.8秒（でんさんの指示）。空白は数えない
-READ_CPS, READ_ADD = 6.5, 0.8
+READ_CPS, READ_ADD = META['read_cps'], META['read_add']   # 字幕を読める長さ（言語ごと。ja：1秒に6.5文字＋0.8秒）
+READ_UNIT = META.get('read_unit', 'char')                 # 'char'＝文字数、'word'＝単語数（英語）
 
 
 def read_t(*ss):
+    if READ_UNIT == 'word':
+        return sum(len(x.split()) for x in ss) / READ_CPS + READ_ADD
     return sum(len(x.replace(' ', '').replace('　', '')) for x in ss) / READ_CPS + READ_ADD
 
 
@@ -296,19 +300,19 @@ def _pat_texts(p):
 HOLDS = [max(HOLD_MIN, SUB_LEAD + read_t(*_pat_texts(p))) for p in PATTERNS]
 INTRO_END = I3.INTRO_END                  # 冒頭の3D（0〜9.9秒）
 _L_END = [b for k, n, a, b in I3.SEQ if n == '07'][0]   # 左で止まり終わる時刻（ここまで字幕を変えない）
-SUB_3D = [('12誘導は、心臓をいろんな向きから見ている', 3.00, _L_END + 0.10),      # n00（0.10〜）のあと。左で止まるあいだは変えない
-          ('STが上がる誘導で、梗塞の場所の見当がつく', _L_END + 0.15, _L_END + 0.15 + 4.40),  # 腕が下がり始めるころから（n02 も同じ時刻）
-          ('足もとから、頭のほうを見上げる', I3.T_EX2 + 0.2, 18.60),             # 目が足もとへ回る〜人体が回る
-          ('この向きのまま輪切りにする', I3.T_H13 + 0.1, I3.T_MV),
-          ('これが、足もとから見た心臓', 18.70, 21.00)]               # n03b と同じ時刻       # 13 で止まる〜寄る〜輪切りを重ねる〜図の塗り（説明の場面の字は intro3d）
+SUB_3D = [(T('sub3d_1'), 3.00, _L_END + 0.10),      # n00（0.10〜）のあと。左で止まるあいだは変えない
+          (T('sub3d_2'), _L_END + 0.15, _L_END + 0.15 + 4.40),  # 腕が下がり始めるころから（n02 も同じ時刻）
+          (T('sub3d_3'), I3.T_EX2 + 0.2, 18.60),             # 目が足もとへ回る〜人体が回る
+          (T('sub3d_4'), I3.T_H13 + 0.1, I3.T_MV),
+          (T('sub3d_5'), 18.70, 21.00)]               # n03b と同じ時刻       # 13 で止まる〜寄る〜輪切りを重ねる〜図の塗り（説明の場面の字は intro3d）
 # 「見かた」の場面はやめた（でんさん「イラストになってから動きがないのが嫌。すぐ①へ」）。輪切りが着いたらすぐ①へ。
 # 見かたの内容は、最後のまとめに 2段で入れる
 HOW0 = HOW1 = INTRO_END + 0.25
-HOW_SUBS = ['となり合う誘導が、まとまって上がる', '反対側の誘導は、鏡のように下がる']
-SUM_LINE = '上がる誘導で、場所と血管がわかる'
+HOW_SUBS = [T('sum_how1'), T('sum_how2')]
+SUM_LINE = T('sum_line')
 # まとめ：A（1行め・2行め＝見かた）→ B（1行め＝上がる誘導で…、2行め＝赤「ST上昇を見たら → 12誘導・すぐ報告」）→ 保存 → コメント
 SUM_A = read_t(*HOW_SUBS)
-SUM_B = read_t(SUM_LINE, 'ST上昇を見たら→12誘導・すぐ報告')
+SUM_B = read_t(SUM_LINE, T('report_1') + T('report_2').replace(' ', ''))
 SAVE_T = SUM_A + SUM_B                    # まとめの頭から「保存して見返してね」まで
 COMMENT_T = SAVE_T + 2.0
 LOOP_FADE = 0.50
@@ -317,7 +321,7 @@ END_AFTER_VO = 0.65                       # 最後の声（m2）が終わって�
 
 def _m2_len():
     """m2 の声の長さ（前の無音を除いた話しはじめ〜声の終わり）。ファイルがなければ 4.0秒。"""
-    p = os.path.join(HERE, 'out', 'vo', 'lines', 'm2.mp3')
+    p = os.path.join(HERE, META['vo_dir'], 'm2.mp3')
     if not os.path.exists(p):
         return 4.0
     raw = subprocess.run([ffmpeg_bin(), '-v', 'error', '-i', p, '-f', 's16le', '-ac', '1', '-ar', '22050', '-'],
@@ -494,8 +498,10 @@ def font(size, weight):
     k = (size, weight)
     if k not in _FONTS:
         f = ImageFont.truetype(FONT, size)
-        try:
-            f.set_variation_by_axes([weight])
+        try:                                  # 太さの軸（wght）だけを変える（Noto Sans など、幅の軸もある字体に対応）
+            axes = f.get_variation_axes()
+            f.set_variation_by_axes([weight if b'eight' in bytes(a.get('name', b'Weight')) else a.get('default', 100)
+                                     for a in axes])
         except Exception:
             pass
         _FONTS[k] = f
@@ -726,13 +732,13 @@ def draw_extra_notes(im, s):
     x = label_x('V4R') + text_w('V4R', 30, 800) + 10
     cy = BASES[3] - ROW_UP + 24
     a_r, a_p = cl((s.x_rv - 0.5)/0.5)*k, cl((s.x_post - 0.5)/0.5)*k
-    put(im, '追加の誘導', 20, 700, GREY, x=x, cy=cy, a=cl(1 - 2*max(s.x_rv, s.x_post))*cl(1 - 8*s.tint))
+    put(im, T('extra_leads'), 20, 700, GREY, x=x, cy=cy, a=cl(1 - 2*max(s.x_rv, s.x_post))*cl(1 - 8*s.tint))
     # どこに貼るか：凡例の行の左（右室・後壁のときだけ）
-    put(im, 'V4R＝右胸に貼る', 22, 800, RED, x=SAFE_L + 5, cy=LEGEND_Y, a=a_r)
-    put(im, 'V7〜V9＝背中に貼る', 22, 800, RED, x=SAFE_L + 5, cy=LEGEND_Y, a=a_p)
+    put(im, T('v4r_where'), 22, 800, RED, x=SAFE_L + 5, cy=LEGEND_Y, a=a_r)
+    put(im, T('v79_where'), 22, 800, RED, x=SAFE_L + 5, cy=LEGEND_Y, a=a_p)
     a_leg = cl(1 - 3*s.tint)
     if a_leg > 0.004:
-        put_parts(im, [('赤＝ST上昇', 26, 800, RED), ('青＝鏡像', 26, 800, BLUE)], LEGEND_Y, a=a_leg, gap=30, right=890)   # 右寄せ（右下のボタン x900 より左）
+        put_parts(im, [(T('legend_red'), 26, 800, RED), (T('legend_blue'), 26, 800, BLUE)], LEGEND_Y, a=a_leg, gap=30, right=890)   # 右寄せ（右下のボタン x900 より左）
 
 
 # --- 心臓の輪切り（左室の短軸＋右室の三日月。足もとから見た向き：左が右室、右が側壁） -----------
@@ -1028,24 +1034,24 @@ MIRROR_LABEL = (NOTE_X, 1150)                # 右端。輪切りの左上（V1�
 
 
 # --- 文字 -------------------------------------------------------------------------
-TITLE = '心筋梗塞の場所'
-HEADER = [(TITLE, 1.0, WHITE), (str(N_PAT), 1.5, YELLOW), ('パターン', 1.0, WHITE)]
+TITLE = T('title')
+HEADER = [(TITLE, 1.0, WHITE), (str(N_PAT), 1.5, YELLOW), (T('title_pattern'), 1.0, WHITE)]
 HEADER_BASE = 312
-QUESTION = 'ST上昇は、心臓のどこ？'                  # ナレーション n00「エスティー上昇は、心臓のどこ？」に合わせる
+QUESTION = T('question')                  # ナレーション n00「エスティー上昇は、心臓のどこ？」に合わせる
 NAME_CY = 290                            # いちばん上：見出し／パターンの番号と名前＋血管
 TXT_Y1 = NAME_CY                         # （サムネイル用）
 BOX = (80, 350, 1000, 478)               # 説明の枠（毎回同じ）：12誘導の左右の端と同じ x80〜1000
 BOX_L1, BOX_L2 = 388, 440                # 枠の中：1行め＝字幕（上がる／下がる誘導）、2行め＝看護の1行など
 BOX3D = (80, 1400, 1000, 1462)           # 3D のときの枠（心臓の下。同じ見た目・1行）
 SUB_SIZE, NURSE_SIZE, BOX_MAXW = 34, 32, 820
-SUM_LABEL = 'まとめ'
-REPORT = [('ST上昇を見たら', NURSE_SIZE, 800, WHITE), ('→ 12誘導・すぐ報告', NURSE_SIZE, 900, RED)]
-SAVE = '保存して見返してね'
-COMMENT = '何個わかった？コメントで教えてね'
-NEXT_LABEL = '▶ 次の例'
-NOTES = ('※波形は一例',)
-SLICE_NOTE = ('足もとから見た図', '（輪切りの模式図）')   # 輪切りの左上。本編のあいだずっと
-SUM_NOTE = '※側壁はLADの枝のことも'          # まとめのときだけ（左下の注記の上）
+SUM_LABEL = T('sum_label')
+REPORT = [(T('report_1'), NURSE_SIZE, 800, WHITE), (T('report_2'), NURSE_SIZE, 900, RED)]
+SAVE = T('save')
+COMMENT = T('comment')
+NEXT_LABEL = T('next')
+NOTES = (T('note_wave'),)
+SLICE_NOTE = (T('note_slice_1'), T('note_slice_2'))   # 輪切りの左上。本編のあいだずっと
+SUM_NOTE = T('note_lat_lad')          # まとめのときだけ（左下の注記の上）
 WATERMARK = '@nurse_polarbearden'
 WM_SIZE, WM_WEIGHT, WM_A = 64, 800, 0.16
 WM_CY = 714                              # 凡例（y1182）と輪切り（上端 y1311）のあいだ（字の上下は cy-23〜cy+41）。全コマ同じ
@@ -1128,25 +1134,25 @@ def draw_texts(im, t, s):
         # 「保存して見返してね」「何個わかった？…」の字はやめた（声で言う・最後を短く）
     # 後壁：鏡うつし
     if s.mirror > 0.004:
-        put(im, '鏡像（前から', 20, 800, BLUE, x=MIRROR_LABEL[0], cy=MIRROR_LABEL[1], a=s.mirror)
-        put(im, '見ると逆さ）', 20, 800, BLUE, x=MIRROR_LABEL[0], cy=MIRROR_LABEL[1] + 23, a=s.mirror)
+        put(im, T('mirror_1'), 20, 800, BLUE, x=MIRROR_LABEL[0], cy=MIRROR_LABEL[1], a=s.mirror)
+        put(im, T('mirror_2'), 20, 800, BLUE, x=MIRROR_LABEL[0], cy=MIRROR_LABEL[1] + 23, a=s.mirror)
 
 
 def draw_notes(im, s=None):
     # 注記：輪切りの右下。胸の輪郭・V7 の字から離し（x726〜）、見出し2行＋すき間＋注記で、まわりに余白をとる
     nx = 726
     lines = [(SLICE_NOTE[0], 700, LABEL_GREY, 1466), (SLICE_NOTE[1], 400, GREY, 1487),
-             ('※電極は胸の高さを', 400, GREY, 1513), ('　まとめて1枚に', 400, GREY, 1533), (NOTES[0], 400, GREY, 1554)]
+             (T('note_elec_1'), 400, GREY, 1513), (T('note_elec_2'), 400, GREY, 1533), (NOTES[0], 400, GREY, 1554)]
     for n, wt, c, y in lines:
         put(im, n, 18, wt, c, x=nx, cy=y, a=0.9)
     if s is not None and s.tint > 0.004:      # まとめのときだけ。胸の輪郭より下（y1571〜）なので、1行で左から
-        put(im, '※側壁はLADの枝のことも', 18, 400, GREY, x=648, cy=1581, a=0.85*s.tint)
+        put(im, SUM_NOTE, 18, 400, GREY, x=648, cy=1581, a=0.85*s.tint)
     # 方向の字（足もとから見た向き）
     dc = (200, 210, 208)
-    put(im, '↑ 前', 20, 700, dc, cx=330, cy=1118, a=0.8)
-    put(im, '↓ 背中', 20, 700, dc, cx=420, cy=1580, a=0.8)
-    put(im, '← 体の右', 20, 700, dc, x=SAFE_L + 5, cy=1200, a=0.8)
-    put(im, '体の左 →', 20, 700, dc, right=900, cy=1414, a=0.8)
+    put(im, T('dir_slice_front'), 20, 700, dc, cx=330, cy=1118, a=0.8)
+    put(im, T('dir_slice_back'), 20, 700, dc, cx=420, cy=1580, a=0.8)
+    put(im, T('dir_slice_right'), 20, 700, dc, x=SAFE_L + 5, cy=1200, a=0.8)
+    put(im, T('dir_slice_left'), 20, 700, dc, right=900, cy=1414, a=0.8)
 
 
 BAND3D = (0, 1280, W, 1470)               # 3D の場面：壁の名前＋誘導の行と字幕の行をまとめた1本の帯（左右の端まで・角丸なし）
@@ -1419,8 +1425,34 @@ def _ov(a, b, m=2):
     return not (a[2] + m <= b[0] or b[2] + m <= a[0] or a[3] + m <= b[1] or b[3] + m <= a[1])
 
 
+def check_lang():
+    """言語の表：抜けているキーと、字体にない字（豆腐になる字）を調べる。"""
+    import json
+    d = json.load(open(os.path.join(HERE, 'i18n', f'{LANG}.json'), encoding='utf-8'))
+    ja = json.load(open(os.path.join(HERE, 'i18n', 'ja.json'), encoding='utf-8'))
+    miss = [k for k in ja if k not in d]
+    print(f'[言語] {LANG}  字体 {META["font"]}  電極の色 {META.get("electrode_colors")}  声 {META["vo_dir"]}  読む速さ {READ_CPS}/{READ_UNIT}＋{READ_ADD}秒')
+    print('  表に抜けているキー：' + (', '.join(miss) if miss else 'なし'))
+    try:
+        from fontTools.ttLib import TTFont
+        cmap = TTFont(FONT, lazy=True).getBestCmap()
+        bad = {}
+        for k, v in d.items():
+            if k.startswith('_') or k.startswith('vo_') or not isinstance(v, str):
+                continue
+            for ch in v:
+                if ch.strip() and ord(ch) not in cmap:
+                    bad.setdefault(ch, set()).add(k)
+        items = list(bad.items())
+        msg = '  '.join(f'「{c}」({",".join(sorted(ks)[:3])}{"…" if len(ks) > 3 else ""})' for c, ks in items[:25])
+        print('  字体にない字：' + ('なし' if not bad else f'{len(items)}字  ' + msg + (' …' if len(items) > 25 else '')))
+    except ImportError:
+        print('  字体にない字：fontTools がないので調べられない（pip install fonttools）')
+
+
 def check():
     global REC
+    check_lang()
     print(f'長さ {DUR:.2f} 秒（60fps で {int(round(DUR*60))} コマ）')
     print('\n[タイムライン] 名前が出ている区間（声は仮。1.2倍で読んで収まる長さ）')
     for a, b, i in WINDOWS:
@@ -1563,16 +1595,12 @@ def _whoosh(n_len, sr, f_lo, f_hi, seed):
 
 
 # --- ナレーション（2026-10-23 夜：でんさん「簡単につける」）。out/vo/lines/*.mp3（1.2倍済み）を字幕の出る時刻に置く ---
-VO_DIR = os.path.join(HERE, 'out', 'vo', 'lines')
+VO_DIR = os.path.join(HERE, META['vo_dir'])        # 言語ごとの声（ja：out/vo/lines、ほか：out/vo/lines_<lang>）
 VO_DUCK_DB, VO_PEAK = 8.0, 0.75
 
 
-VO_TEXT = {'n00': 'エスティー上昇は、心臓のどこ？', 'n01': '12誘導は、心臓を、いろんな向きから見ている。',
-           'n02': 'STが上がる誘導で、梗塞の場所の見当がつく。', 'n02b': '背中側は、コウヘキ（後壁）。',
-           'n02c': '心臓の、下の面は、かへき（下壁）。', 'n03': '足もとから、頭のほうを見上げる。',
-           'n03b': 'これが、足もとから見た心臓。', 'n04': 'この向きで、輪切りにする。',
-           'p1': '①前壁中隔', 'p2': '②広範囲前壁', 'p3': '③側壁', 'p4': '④下壁', 'p5': '⑤右室', 'p6': '⑥後壁',
-           'm1': 'となり合う誘導が、まとまって上がる…', 'm2': '上がる誘導で、場所と血管がわかる。保存して、見返してね。'}
+VO_TEXT = {k: T('vo_' + k) for k in ('n00', 'n01', 'n02', 'n02b', 'n02c', 'n03', 'n03b', 'n04',
+                                     'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'm1', 'm2')}
 
 
 def vo_starts():
@@ -1717,11 +1745,11 @@ def thumbnail():
     # 上の帯に大きな題
     d = ImageDraw.Draw(im, 'RGBA')
     d.rectangle([0, 0, W, 360], fill=BG + (255,))
-    put(im, '心筋梗塞の場所', 104, 900, WHITE, cx=540, cy=180, max_w=820)
-    put_parts(im, [('ST上昇の誘導で', 48, 800, YELLOW), ('6', 80, 900, YELLOW), ('パターン', 48, 800, YELLOW)], 300,
+    put(im, T('thumb_title'), 104, 900, WHITE, cx=540, cy=180, max_w=820)
+    put_parts(im, [(T('thumb_sub_1'), 48, 800, YELLOW), ('6', 80, 900, YELLOW), (T('thumb_sub_2'), 48, 800, YELLOW)], 300,
               max_w=820, gap=10)
     # 名前の行のかわりに大きく
-    put_parts(im, [('② 広範囲前壁', 54, 900, WHITE), ('LADの根もと', 38, 800, C_LAD)], 430, gap=14)   # 説明の枠の位置（上の題と重ねない）
+    put_parts(im, [(T('thumb_name'), 54, 900, WHITE), (T('thumb_vessel'), 38, 800, C_LAD)], 430, gap=14)   # 説明の枠の位置（上の題と重ねない）
     return im.convert('RGB')
 
 
@@ -1744,7 +1772,7 @@ def main():
     if o.sheet:
         make_sheet(out); return
     if o.thumb:
-        p = os.path.join(out, 'reel29_mi_thumb.png')
+        p = os.path.join(out, f'reel29_mi_thumb{lang_suffix()}.png')
         thumbnail().save(p); print(p); return
     if o.still:
         I3.ensure_frames()
@@ -1753,14 +1781,14 @@ def main():
             frame(t).save(p); print(p)
         return
     if o.preview:
-        export(30, os.path.join(out, 'reel29_mi_preview.mp4'), 23, 'veryfast', o.jobs, scale=(540, 960)); return
+        export(30, os.path.join(out, f'reel29_mi_preview{lang_suffix()}.mp4'), 23, 'veryfast', o.jobs, scale=(540, 960)); return
     if o.hq30:
         os.makedirs(os.path.join(HERE, 'release'), exist_ok=True)
-        export(30, os.path.join(HERE, 'release', 'reel29_mi_hq.mp4'), 16, 'veryfast', o.jobs); return
+        export(30, os.path.join(HERE, 'release', f'reel29_mi_hq{lang_suffix()}.mp4'), 16, 'veryfast', o.jobs); return
     if o.hq:
-        export(60, os.path.join(out, 'reel29_mi_hq.mp4'), 11, 'slow', o.jobs); return
+        export(60, os.path.join(out, f'reel29_mi_hq{lang_suffix()}.mp4'), 11, 'slow', o.jobs); return
     if o.render:
-        export(60, os.path.join(out, 'reel29_mi.mp4'), 18, 'medium', o.jobs); return
+        export(60, os.path.join(out, f'reel29_mi{lang_suffix()}.mp4'), 18, 'medium', o.jobs); return
     ap.print_help()
 
 

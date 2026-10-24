@@ -16,6 +16,8 @@ import subprocess
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
+from i18n import T, META
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 A3 = os.path.join(HERE, 'assets3d')
 CACHE = os.path.join(HERE, 'out', 'cache3d')
@@ -118,8 +120,7 @@ GLOW = {'04': (2160, 2220, 160, 300, -18),    # 前壁：前室間溝（LAD の�
         '08': (1830, 2540, 470, 70, 7),       # 下壁：24 の心臓の下の縁（横隔膜に乗っている面）に沿った帯。正面から下の面そのものは見えない
         '09': (990, 2260, 230, 160, -10)}     # 後壁：左室の後ろの基部寄り（25：心臓 x732〜1737。後ろから見ると左室は画面の左）
 GLOW_COL = (255, 226, 120)
-LABELS = {'04': ('前壁中隔', 'V1〜V4', '（前から）'), '07': ('側壁', 'I・aVL・V5・V6', '（左から）'),
-          '08': ('下壁', 'II・III・aVF', '（下から見ている）'), '09': ('後壁', 'V7〜V9', '（後ろから・背中に追加）')}
+LABELS = {k: (T(f'label3d_{k}_name'), T(f'label3d_{k}_leads'), T(f'label3d_{k}_view')) for k in ('04', '07', '08', '09')}
 LABEL_CY = 1340                          # 3D の札（心臓の下・透かしの下）。字幕の枠はその下（make_reel29.BOX3D）
 
 
@@ -519,8 +520,12 @@ ELEC_HOT = {'03': (), '04': ('V1', 'V2', 'V3', 'V4'), '07': ('V5', 'V6'), '09': 
 
 # 電極の色（IEC。日本の「あきみちゃくし」：C1 赤・C2 黄・C3 緑・C4 茶・C5 黒・C6 紫。Wikipedia「Electrocardiography」の
 # AHA／IEC の表で確認。LITFL ECG Lead positioning の本文には色の表がない）。V4R・V7〜V9 は決まった色がないので白のまま
-ELEC_COLORS = {'V1': (226, 38, 44), 'V2': (246, 206, 36), 'V3': (34, 160, 72), 'V4': (128, 78, 40),
-               'V5': (18, 18, 20), 'V6': (146, 70, 196)}
+ELEC_COLOR_SETS = {
+    'IEC': {'V1': (226, 38, 44), 'V2': (246, 206, 36), 'V3': (34, 160, 72), 'V4': (128, 78, 40),     # 日本・台湾（あきみちゃくし）
+            'V5': (18, 18, 20), 'V6': (146, 70, 196)},
+    'AHA': {'V1': (226, 38, 44), 'V2': (246, 206, 36), 'V3': (34, 160, 72), 'V4': (40, 110, 230),    # 米国：V4 青・V5 オレンジ
+            'V5': (245, 140, 30), 'V6': (146, 70, 196)}}
+ELEC_COLORS = ELEC_COLOR_SETS[META.get('electrode_colors', 'IEC')]
 
 
 def draw_pads(m, base, k, s, c, a):
@@ -554,7 +559,7 @@ def draw_pads(m, base, k, s, c, a):
 ICON_BOX = (135, 372, 435, 688)          # 幅 300px。透かし（691〜）の上
 FIG_BOX = (210, 380, 360, 647)           # 05 のコマ（9:16）を置く所
 FRAME_KEYS = [(0.0, 1)] + [(t + T0, f) for t, f in [(1.90, 1), (3.35, 60), (5.75, 60), (8.90, 140), (9.70, 140), (11.60, 1)]]   # 前＝1・左の側面＝57・背面＝137
-VIEW_LABELS = [(0.0, '前から'), (2.60 + T0, '左から'), (7.90 + T0, '後ろから'), (10.60 + T0, '前から')]          # 向きが変わる途中で入れ替わる
+VIEW_LABELS = [(0.0, T('view_front')), (2.60 + T0, T('view_left')), (7.90 + T0, T('view_back')), (10.60 + T0, T('view_front'))]          # 向きが変わる途中で入れ替わる
 EYE_SIDE, EYE_FEET = ((402, 472), (330, 472)), ((285, 640), (285, 572))   # （目の位置, 矢印の先）：横から／足もとから上へ
 _FIG = {}
 
@@ -579,7 +584,7 @@ def ensure_fig_frames():
 
 def view_label(t):
     """(前の字, 次の字, 入れ替わりの割合)。最後は起き上がりに合わせて「足もとから見る」。"""
-    labs = VIEW_LABELS + [(T_H13, '足もとから見上げる')]
+    labs = VIEW_LABELS + [(T_H13, T('view_feet'))]
     for (t0, l0), (t1, l1) in zip(labs, labs[1:]):
         if t < t1 - 0.25:
             return l0, l0, 0.0
@@ -667,10 +672,10 @@ def icon_heart_k(t):
 
 # --- 画面の端の方向の字（いまの向き）。半透明の白・27px ---------------------------------------------------
 DIR_SETS = {
-    'front': [('体の右', 'L'), ('体の左', 'R'), ('↑ 頭', 'T')],
-    'left': [('胸（前）', 'L'), ('背中', 'R'), ('↑ 頭', 'T')],
-    'back': [('体の左', 'L'), ('体の右', 'R'), ('↑ 頭', 'T')],
-    'feet': [('← 体の右', 'L2'), ('体の左 →', 'R2'), ('↑ 胸（前）', 'T2'), ('↓ 背中', 'B2')],
+    'front': [(T('dir_body_right'), 'L'), (T('dir_body_left'), 'R'), (T('dir_head'), 'T')],
+    'left': [(T('dir_chest'), 'L'), (T('dir_back'), 'R'), (T('dir_head'), 'T')],
+    'back': [(T('dir_body_left'), 'L'), (T('dir_body_right'), 'R'), (T('dir_head'), 'T')],
+    'feet': [(T('dir_feet_right'), 'L2'), (T('dir_feet_left'), 'R2'), (T('dir_feet_chest'), 'T2'), (T('dir_feet_back'), 'B2')],
 }
 DIR_KEYS = [(0.0, 'front'), (2.60 + T0, 'left'), (7.90 + T0, 'back'), (10.60 + T0, 'front'), (T_H13, 'feet')]
 
