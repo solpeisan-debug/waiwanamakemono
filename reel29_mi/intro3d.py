@@ -930,12 +930,84 @@ def v15(i):
         if len(_V15) > 30:
             _V15.clear()
         im = Image.open(os.path.join(CACHE, 'rot' + ROT_ID, f'{i:03d}.jpg')).convert('RGB')
-        if ROT_ID == '16' and ROT_VARIANT == 'B':   # B：16 の中の古い心臓（真ん中・縦長）を体の色で埋めて見せない
-            im = decolor_heart(im)
+        if ROT_ID == '16' and ROT_VARIANT == 'B':   # B：16 の中の古い心臓（真ん中・縦長）を、まわりの体で埋めて消す
+            im = erase_heart(im, i)
+            im = add_new_heart(im, i)                # 足もとから見上げる向きになった所から、34 の心臓をふわっと出す
         if leg_strength(i) > 0.004:
             im = Image.composite(im, Image.new('RGB', im.size, ROT_BG), leg_mask(i))
         _V15[i] = im
     return _V15[i]
+
+
+# --- 確認版㉓：16 の古い心臓の跡を消し、34 の心臓（28 を compose_feet.py と同じ所に置いた層）を早めに出す -------------
+NEWHEART_ON = (209, 221)                  # 16 のコマ番号：この間に 34 の心臓がふわっと出る（足もとから見上げる向きになった所。約0.3秒）
+
+
+def _red_mask(img):
+    a = np.asarray(img).astype(np.float32)
+    return np.clip((a[..., 0] - 0.78*a[..., 1]) / 22, 0, 1)
+
+
+def erase_heart(img, i):
+    """赤い所（古い心臓）を広めに抜いて、まわりの体の色をなめらかにのばして埋める（形・模様が残らない）。前後のコマの抜く所も足す。"""
+    m = _red_mask(img)
+    for j in (i - 3, i + 3):
+        p = os.path.join(CACHE, 'rot16', f'{min(N_ROT, max(1, j)):03d}.jpg')
+        if os.path.exists(p):
+            m = np.maximum(m, _red_mask(Image.open(p).convert('RGB')))
+    if m.max() <= 0:
+        return img
+    mk = Image.fromarray((m*255).astype(np.uint8)).filter(ImageFilter.MaxFilter(25)).filter(ImageFilter.GaussianBlur(10))
+    m = np.asarray(mk, np.float32)/255
+    a = np.asarray(img).astype(np.float32)
+    keep = 1 - m
+    w_, h_ = img.size
+    q = 4                                   # 小さくして大きくぼかす（体の色をなめらかにのばす）
+    sm = (w_//q, h_//q)
+    kp = Image.fromarray((keep*255).astype(np.uint8)).resize(sm, Image.BILINEAR)
+    ak = Image.fromarray(np.clip(a*keep[..., None], 0, 255).astype(np.uint8)).resize(sm, Image.BILINEAR)
+    fill = None
+    for rad in (6, 14, 30):                 # 小さい穴は近くの色、大きい穴は遠くの色で
+        den = np.asarray(kp.filter(ImageFilter.GaussianBlur(rad)), np.float32)/255
+        num = np.asarray(ak.filter(ImageFilter.GaussianBlur(rad)), np.float32)
+        f_ = num/np.maximum(den, 1e-3)[..., None]
+        ok = (den > 0.08)[..., None]
+        fill = np.where(ok, f_, 0) if fill is None else np.where((fill.sum(-1, keepdims=True) > 0), fill, np.where(ok, f_, 0))
+    fill = np.asarray(Image.fromarray(np.clip(fill, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(3)).resize((w_, h_), Image.BICUBIC), np.float32)
+    out = a*keep[..., None] + np.clip(fill, 0, 255)*m[..., None]
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
+
+
+_NH = None
+
+
+def new_heart_layer():
+    """28（下から見た心臓）を compose_feet.py と同じ所・大きさに置いた RGBA（34 の 4K の座標）。"""
+    global _NH
+    if _NH is None:
+        X0, X1, Y0, Y1 = 2403, 4122, 380, 1410
+        a = np.asarray(Image.open(os.path.join(A3, '追加_1024/28_心臓だけ_下から_4K.png')).convert('RGB')).astype(np.float32)
+        alpha = np.clip((a.max(2) - 20) / 50, 0, 1)
+        ys, xs = np.nonzero(alpha > 0.5)
+        box = (xs.min(), ys.min(), xs.max() + 1, ys.max() + 1)
+        rgba = Image.fromarray(np.dstack([a, alpha*255*0.92]).astype(np.uint8), 'RGBA').crop(box).resize((X1 - X0, Y1 - Y0), Image.LANCZOS)
+        _NH = (rgba, (X0, Y0))
+    return _NH
+
+
+def add_new_heart(img, i):
+    a0, a1 = NEWHEART_ON
+    w = ease((i - a0) / (a1 - a0))
+    if w <= 0.004:
+        return img
+    rgba, (x0, y0) = new_heart_layer()
+    k, ox, oy = ROT_FIT['16'][1]          # 16 の最後のコマ ＝ 13（34）の px × K ＋ (ox, oy)。34 の px ＝ 13 の px × 4
+    sc = k/4
+    lay = rgba.resize((max(1, int(rgba.size[0]*sc)), max(1, int(rgba.size[1]*sc))), Image.LANCZOS)
+    lay.putalpha(lay.getchannel('A').point(lambda v: int(v*w)))
+    out = img.convert('RGBA')
+    out.alpha_composite(lay, (int(round(x0*sc + ox)), int(round(y0*sc + oy))))
+    return out.convert('RGB')
 
 
 def cam15_from(s_img, c_img, fit):
