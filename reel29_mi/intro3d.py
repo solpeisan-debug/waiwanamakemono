@@ -751,6 +751,18 @@ def hold_amp(k, t):
     return 0.0
 
 
+LABEL_PRE, LABEL_POST, LABEL_FADE = 0.30, 0.90, 0.30   # 札：止まる 0.3秒前から、次の回転に入っても 0.9秒残して 0.3秒で消す（最低2秒読める）
+
+
+def label_amp(k, t):
+    """帯の中の壁の札の濃さ（光る壁・電極の hold_amp より長く出す）。"""
+    for kind, kk, a, b in SEQ:
+        if kind == 'hold' and kk == k:
+            end = b if k != '08' else T_FIN
+            return ease((t - (a - LABEL_PRE)) / 0.25) * (1 - ease((t - (end + LABEL_POST)) / LABEL_FADE))
+    return 0.0
+
+
 def intro_frame(m, t, base_only=False):
     """0〜T_FIN の1コマ（RGBA）。m＝make_reel29（文字の道具）。"""
     if base_only and m.REC is not None:
@@ -789,9 +801,9 @@ def intro_frame(m, t, base_only=False):
             y0 = y1 + 150
             d.line([(x, y0), (x, y1 + 22)], fill=col, width=7)
             d.polygon([(x, y1), (x - 16, y1 + 28), (x + 16, y1 + 28)], fill=col)
-    m.band3d(im, t, max(hold_amp(k, t) for k in ('04', '07', '09', '08')))   # 札と字幕を1本の帯に（画面の左右の端まで）
+    m.band3d(im, t, max(label_amp(k, t) for k in ('04', '07', '09', '08')))   # 札と字幕を1本の帯に（画面の左右の端まで）
     for k in ('04', '07', '09', '08'):
-        label_pill(m, im, k, hold_amp(k, t))
+        label_pill(m, im, k, label_amp(k, t))
     view_icon(m, im, t)
     dir_labels(m, im, t)
     qa = ease((t - Q_T[0] + 0.01) / 0.2) * (1 - ease((t - (Q_T[1] - 0.35)) / 0.35))

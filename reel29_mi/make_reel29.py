@@ -1359,6 +1359,10 @@ def fin_frame(t, s):
     im.alpha_composite(_mul_alpha(lay.crop((0, FIN_SPLIT, W, H)), ease((u3 - 0.70) / 0.30)), (0, FIN_SPLIT))
     I3.view_icon(sys.modules[__name__], im, t)
     I3.dir_labels(sys.modules[__name__], im, t)
+    a8 = I3.label_amp('08', t)                 # 下壁の札は、説明の場面に入っても少し残す（最低2秒読める）
+    if a8 > 0.004:
+        band3d(im, t, a8)
+        I3.label_pill(sys.modules[__name__], im, '08', a8)
     return im
 
 
@@ -1388,6 +1392,8 @@ def frame(t, fast=False, wm=True):
         if t < INTRO_END:
             I3.view_icon(sys.modules[__name__], None, t)
             I3.dir_labels(sys.modules[__name__], None, t)
+            if I3.label_amp('08', t) > 0.004:
+                I3.label_pill(sys.modules[__name__], None, '08', I3.label_amp('08', t))
         draw_texts(im_, t, s)
         draw_subtitle(im_, t)
         watermark(im_)
